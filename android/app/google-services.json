@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "119765972991",
+    "project_id": "mafortune-ddf28",
+    "storage_bucket": "mafortune-ddf28.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:119765972991:android:a6080758f3c3a0c93b19ca",
+        "android_client_info": {
+          "package_name": "com.example.mafortune"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBFEjeb82CjSzqKlFs-MBp3CswwvfXnuLM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

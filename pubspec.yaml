@@ -1,0 +1,46 @@
+name: mafortune
+description: "Application de gestion financière pour les commerçants du secteur informel au Togo"
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  url_launcher: ^6.2.0
+  shared_preferences: ^2.2.0
+
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.5.2
+  firebase_storage: ^12.3.8
+  
+  # State Management
+  provider: ^6.1.2
+  
+  # UI
+  cupertino_icons: ^1.0.8
+  
+  # Utils
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/logoapp.jpg"
+  adaptive_icon_background: "#2E7D32"
+  adaptive_icon_foreground: "assets/icon/logoapp.jpg"
+
+flutter:
+  uses-material-design: true
