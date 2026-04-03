@@ -8,6 +8,9 @@ import 'confidentialite_screen.dart';
 import 'aide_screen.dart';
 import 'a_propos_screen.dart';
 import 'theme_screen.dart';
+import 'modifier_profil_screen.dart';
+import 'changer_mot_de_passe_screen.dart';
+import 'gestion_categories_screen.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -44,203 +47,35 @@ class _ProfilScreenState extends State<ProfilScreen> {
   }
 
   Future<void> _modifierProfil() async {
-    final nomController = TextEditingController(text: _currentUser!.nom);
-    final prenomController = TextEditingController(text: _currentUser!.prenom);
-    final telephoneController = TextEditingController(text: _currentUser!.telephone);
-    final adresseController = TextEditingController(text: _currentUser!.adresse ?? '');
-    final typeActiviteController = TextEditingController(text: _currentUser!.typeActivite ?? '');
+    if (_currentUser == null) return;
     
-    await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Modifier le profil'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: nomController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: prenomController,
-                decoration: const InputDecoration(
-                  labelText: 'Prénom',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: telephoneController,
-                decoration: const InputDecoration(
-                  labelText: 'Téléphone',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: adresseController,
-                decoration: const InputDecoration(
-                  labelText: 'Adresse',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: typeActiviteController,
-                decoration: const InputDecoration(
-                  labelText: 'Type d\'activité',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final updatedUser = _currentUser!.copyWith(
-                nom: nomController.text,
-                prenom: prenomController.text,
-                telephone: telephoneController.text,
-                adresse: adresseController.text.isNotEmpty ? adresseController.text : null,
-                typeActivite: typeActiviteController.text.isNotEmpty ? typeActiviteController.text : null,
-              );
-              
-              try {
-                await _authService.updateUserProfile(updatedUser);
-                setState(() => _currentUser = updatedUser);
-                if (mounted) {
-                  Navigator.pop(context, true);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Profil mis à jour avec succès'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  Navigator.pop(context, false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Erreur: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-            ),
-            child: const Text('Enregistrer'),
-          ),
-        ],
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ModifierProfilScreen(currentUser: _currentUser!),
       ),
     );
+    
+    if (result == true) {
+      await _loadProfile();
+    }
   }
 
   Future<void> _changerMotDePasse() async {
-    final currentPasswordController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const ChangerMotDePasseScreen()),
+    );
     
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Changer le mot de passe'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: currentPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Mot de passe actuel',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: newPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Nouveau mot de passe',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: confirmPasswordController,
-                decoration: const InputDecoration(
-                  labelText: 'Confirmer le nouveau mot de passe',
-                  border: OutlineInputBorder(),
-                ),
-                obscureText: true,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (newPasswordController.text != confirmPasswordController.text) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Les mots de passe ne correspondent pas'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-              
-              try {
-                await _authService.changePassword(
-                  currentPassword: currentPasswordController.text,
-                  newPassword: newPasswordController.text,
-                );
-                if (mounted) {
-                  Navigator.pop(context);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('✅ Mot de passe changé avec succès'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('❌ Erreur: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryGreen,
-            ),
-            child: const Text('Changer'),
-          ),
-        ],
-      ),
+    if (result == true) {
+      // Mot de passe changé avec succès
+    }
+  }
+
+  Future<void> _gestionCategories() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const GestionCategoriesScreen()),
     );
   }
 
@@ -424,16 +259,25 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       ),
                     ),
                     const SizedBox(height: 15),
+                    // Modifier le profil
                     _buildMenuOption(
                       icon: Icons.edit,
                       title: 'Modifier le profil',
                       onTap: _modifierProfil,
                     ),
+                    // Changer le mot de passe
                     _buildMenuOption(
                       icon: Icons.lock,
                       title: 'Changer le mot de passe',
                       onTap: _changerMotDePasse,
                     ),
+                    // Gérer les catégories
+                    _buildMenuOption(
+                      icon: Icons.category,
+                      title: 'Gérer les catégories',
+                      onTap: _gestionCategories,
+                    ),
+                    // Notifications
                     _buildMenuOption(
                       icon: Icons.notifications,
                       title: 'Notifications',
@@ -444,6 +288,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         );
                       },
                     ),
+                    // Confidentialité
                     _buildMenuOption(
                       icon: Icons.security,
                       title: 'Confidentialité',
@@ -454,6 +299,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         );
                       },
                     ),
+                    // Thème
                     _buildMenuOption(
                       icon: Icons.palette,
                       title: 'Thème',
@@ -464,6 +310,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         );
                       },
                     ),
+                    // Aide & Support
                     _buildMenuOption(
                       icon: Icons.help,
                       title: 'Aide & Support',
@@ -474,6 +321,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         );
                       },
                     ),
+                    // À propos
                     _buildMenuOption(
                       icon: Icons.info,
                       title: 'À propos',
@@ -485,6 +333,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       },
                     ),
                     const SizedBox(height: 20),
+                    // Déconnexion
                     _buildMenuOption(
                       icon: Icons.logout,
                       title: 'Déconnexion',
@@ -500,8 +349,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
           ),
         ),
       ),
-      // ✅ SUPPRIMÉ : La barre de navigation n'est plus ajoutée ici
-      // car elle est déjà gérée par le DashboardScreen
     );
   }
 
