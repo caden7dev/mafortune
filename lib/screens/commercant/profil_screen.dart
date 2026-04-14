@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
+import '../../services/permission_service.dart';
 import '../../models/utilisateur_model.dart';
 import 'notifications_screen.dart';
 import 'confidentialite_screen.dart';
@@ -11,6 +12,7 @@ import 'theme_screen.dart';
 import 'modifier_profil_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'gestion_categories_screen.dart';
+import 'budget_screen.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -21,13 +23,21 @@ class ProfilScreen extends StatefulWidget {
 
 class _ProfilScreenState extends State<ProfilScreen> {
   final AuthService _authService = AuthService();
+  final PermissionService _permissionService = PermissionService();
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _checkAdminStatus();
+  }
+
+  Future<void> _checkAdminStatus() async {
+    final isAdmin = await _permissionService.isAdmin();
+    if (mounted) setState(() => _isAdmin = isAdmin);
   }
 
   Future<void> _loadProfile() async {
@@ -72,10 +82,26 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
+  Future<void> _changerPin() async {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fonctionnalité en cours de développement'),
+        backgroundColor: Colors.orange,
+      ),
+    );
+  }
+
   Future<void> _gestionCategories() async {
     await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const GestionCategoriesScreen()),
+    );
+  }
+
+  Future<void> _budgetMensuel() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BudgetScreen()),
     );
   }
 
@@ -109,6 +135,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   String _formatAmount(double amount) {
     return NumberFormat('#,###', 'fr_FR').format(amount).replaceAll(',', ' ');
+  }
+
+  String _getInitial() {
+    if (_currentUser == null) return '?';
+    final name = _currentUser!.nomComplet;
+    if (name.isEmpty) return '?';
+    return name[0].toUpperCase();
   }
 
   @override
@@ -155,6 +188,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 ),
                 child: Column(
                   children: [
+                    // ✅ AVATAR AVEC PHOTO DE PROFIL
                     Container(
                       width: 100,
                       height: 100,
@@ -163,8 +197,36 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 3),
                       ),
-                      child: const Center(
-                        child: Text('👤', style: TextStyle(fontSize: 50)),
+                      child: ClipOval(
+                        child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
+                            ? Image.network(
+                                _currentUser!.photo!,
+                                width: 100,
+                                height: 100,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Center(
+                                    child: Text(
+                                      _getInitial(),
+                                      style: const TextStyle(
+                                        fontSize: 40,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  );
+                                },
+                              )
+                            : Center(
+                                child: Text(
+                                  _getInitial(),
+                                  style: const TextStyle(
+                                    fontSize: 40,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 15),
@@ -259,81 +321,98 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       ),
                     ),
                     const SizedBox(height: 15),
-                    // Modifier le profil
                     _buildMenuOption(
                       icon: Icons.edit,
                       title: 'Modifier le profil',
                       onTap: _modifierProfil,
                     ),
-                    // Changer le mot de passe
                     _buildMenuOption(
                       icon: Icons.lock,
                       title: 'Changer le mot de passe',
                       onTap: _changerMotDePasse,
                     ),
-                    // Gérer les catégories
+                    _buildMenuOption(
+                      icon: Icons.pin,
+                      title: 'Changer le code PIN',
+                      onTap: _changerPin,
+                    ),
                     _buildMenuOption(
                       icon: Icons.category,
                       title: 'Gérer les catégories',
                       onTap: _gestionCategories,
                     ),
-                    // Notifications
+                    _buildMenuOption(
+                      icon: Icons.flag,
+                      title: 'Budget mensuel',
+                      onTap: _budgetMensuel,
+                    ),
                     _buildMenuOption(
                       icon: Icons.notifications,
                       title: 'Notifications',
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const NotificationsScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
                         );
                       },
                     ),
-                    // Confidentialité
                     _buildMenuOption(
                       icon: Icons.security,
                       title: 'Confidentialité',
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ConfidentialiteScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const ConfidentialiteScreen(),
+                          ),
                         );
                       },
                     ),
-                    // Thème
                     _buildMenuOption(
                       icon: Icons.palette,
                       title: 'Thème',
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const ThemeScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const ThemeScreen(),
+                          ),
                         );
                       },
                     ),
-                    // Aide & Support
                     _buildMenuOption(
                       icon: Icons.help,
                       title: 'Aide & Support',
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const AideScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const AideScreen(),
+                          ),
                         );
                       },
                     ),
-                    // À propos
                     _buildMenuOption(
                       icon: Icons.info,
                       title: 'À propos',
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (context) => const AProposScreen()),
+                          MaterialPageRoute(
+                            builder: (context) => const AProposScreen(),
+                          ),
                         );
                       },
                     ),
+                    if (_isAdmin)
+                      _buildMenuOption(
+                        icon: Icons.admin_panel_settings,
+                        title: 'Tableau de bord Admin',
+                        onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
+                      ),
                     const SizedBox(height: 20),
-                    // Déconnexion
                     _buildMenuOption(
                       icon: Icons.logout,
                       title: 'Déconnexion',

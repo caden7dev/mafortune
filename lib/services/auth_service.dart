@@ -1,13 +1,23 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/utilisateur_model.dart';
+import 'local_auth_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final LocalAuthService _localAuth = LocalAuthService();
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => _auth.currentUser;
+
+  Future<bool> isLocalPinSet() async {
+    return await _localAuth.hasPin();
+  }
+
+  Future<void> clearLocalPin() async {
+    await _localAuth.clearPin();
+  }
 
   Future<UtilisateurModel?> signUpCommercant({
     required String email,
@@ -42,12 +52,6 @@ class AuthService {
           .collection('utilisateurs')
           .doc(userCredential.user!.uid)
           .set(utilisateur.toFirestore());
-
-      try {
-        await userCredential.user!.sendEmailVerification();
-      } catch (e) {
-        // Ignorer l'erreur d'envoi d'email
-      }
 
       return utilisateur;
     } on FirebaseAuthException catch (e) {
@@ -84,16 +88,12 @@ class AuthService {
         throw 'Votre compte a été désactivé. Contactez l\'administrateur.';
       }
 
-      try {
-        await _firestore
-            .collection('utilisateurs')
-            .doc(utilisateur.id)
-            .update({
-          'derniereSynchronisation': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        // Ignorer l'erreur de mise à jour
-      }
+      await _firestore
+          .collection('utilisateurs')
+          .doc(utilisateur.id)
+          .update({
+        'derniereSynchronisation': FieldValue.serverTimestamp(),
+      });
 
       return utilisateur;
     } on FirebaseAuthException catch (e) {
@@ -112,8 +112,6 @@ class AuthService {
       await _auth.sendPasswordResetEmail(email: email);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
-    } catch (e) {
-      throw 'Erreur lors de l\'envoi de l\'email de réinitialisation';
     }
   }
 
@@ -139,8 +137,6 @@ class AuthService {
       await user.updatePassword(newPassword);
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
-    } catch (e) {
-      throw 'Erreur lors du changement de mot de passe';
     }
   }
 
@@ -150,12 +146,6 @@ class AuthService {
           .collection('utilisateurs')
           .doc(user.id)
           .update(user.toFirestore());
-
-      final authUser = _auth.currentUser;
-      if (authUser != null && authUser.displayName != user.nomComplet) {
-        await authUser.updateDisplayName(user.nomComplet);
-      }
-
       return user;
     } catch (e) {
       throw 'Erreur lors de la mise à jour du profil: $e';
@@ -180,29 +170,6 @@ class AuthService {
     }
   }
 
-  Future<void> updateCommercantSolde(String userId, double nouveauSolde) async {
-    try {
-      await _firestore
-          .collection('utilisateurs')
-          .doc(userId)
-          .update({
-        'soldeActuel': nouveauSolde,
-        'dateModification': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      throw 'Erreur lors de la mise à jour du solde';
-    }
-  }
-
-  Future<bool> isEmailUsed(String email) async {
-    try {
-      final methods = await _auth.fetchSignInMethodsForEmail(email);
-      return methods.isNotEmpty;
-    } catch (e) {
-      return false;
-    }
-  }
-
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
@@ -219,10 +186,6 @@ class AuthService {
         return 'Ce compte a été désactivé';
       case 'too-many-requests':
         return 'Trop de tentatives. Réessayez plus tard';
-      case 'operation-not-allowed':
-        return 'Opération non autorisée';
-      case 'requires-recent-login':
-        return 'Veuillez vous reconnecter pour effectuer cette action';
       case 'invalid-credential':
         return 'Email ou mot de passe incorrect';
       case 'network-request-failed':

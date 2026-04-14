@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core/constants/app_colors.dart';
+import '../screens/commercant/notifications_screen.dart';
 
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -18,46 +20,76 @@ class CustomBottomNav extends StatelessWidget {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
       ),
-      child: BottomNavigationBar(
-        currentIndex: currentIndex,
-        onTap: onTap,
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: AppColors.primaryGreen,
-        unselectedItemColor: Colors.grey.shade600,
-        selectedFontSize: 12,
-        unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home), 
-            label: 'Accueil'
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.bar_chart), 
-            label: 'Bilans'
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.description), 
-            label: 'Rapports'
-          ),
-          BottomNavigationBarItem(
-            icon: Badge(
-              label: Text('3', style: TextStyle(fontSize: 10)),
-              backgroundColor: Colors.red,
-              child: Icon(Icons.notifications),
-            ),
-            label: 'Alertes',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person), 
-            label: 'Profil'
-          ),
-        ],
+      child: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('notifications')
+            .where('audience', whereIn: ['Tous', 'Commerçants'])
+            .where('lu', isEqualTo: false)
+            .snapshots(),
+        builder: (context, snapshot) {
+          int unreadCount = 0;
+          if (snapshot.hasData && snapshot.data != null) {
+            unreadCount = snapshot.data!.docs.length;
+          }
+          
+          return BottomNavigationBar(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              if (index == 3) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const NotificationsScreen(),
+                  ),
+                );
+              } else {
+                onTap(index);
+              }
+            },
+            type: BottomNavigationBarType.fixed,
+            selectedItemColor: AppColors.primaryGreen,
+            unselectedItemColor: Colors.grey.shade600,
+            selectedFontSize: 12,
+            unselectedFontSize: 12,
+            items: [
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.home),
+                label: 'Accueil',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.bar_chart),
+                label: 'Bilans',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.description),
+                label: 'Rapports',
+              ),
+              BottomNavigationBarItem(
+                icon: unreadCount > 0
+                    ? Badge(
+                        label: Text(
+                          '$unreadCount',
+                          style: const TextStyle(fontSize: 10, color: Colors.white),
+                        ),
+                        backgroundColor: Colors.red,
+                        child: const Icon(Icons.notifications),
+                      )
+                    : const Icon(Icons.notifications),
+                label: 'Alertes',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.person),
+                label: 'Profil',
+              ),
+            ],
+          );
+        },
       ),
     );
   }

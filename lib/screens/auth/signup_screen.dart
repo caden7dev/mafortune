@@ -63,9 +63,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
 
     try {
-      print('📝 Inscription: ${_emailController.text.trim()}');
-      
-      UtilisateurModel? user = await _authService.signUpCommercant(
+      final user = await _authService.signUpCommercant(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         nom: _nomController.text.trim(),
@@ -74,30 +72,21 @@ class _SignupScreenState extends State<SignupScreen> {
         typeActivite: _selectedActivity!,
       );
 
-      print('✅ Inscription réussie ! User: ${user?.nomComplet}');
-
       if (user != null && mounted) {
-        // Déconnecter pour forcer l'utilisateur à se reconnecter
-        await _authService.signOut();
-        print('🚪 Utilisateur déconnecté');
-
+        // Inscription réussie : redirection vers la création du PIN
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Compte créé ! Connectez-vous maintenant 🎉'),
+            content: Text('✅ Compte créé ! Définissez votre code PIN'),
             backgroundColor: AppColors.success,
             duration: Duration(seconds: 3),
           ),
         );
-
-        await Future.delayed(const Duration(milliseconds: 800));
-
+        await Future.delayed(const Duration(milliseconds: 500));
         if (mounted) {
-          print('📍 Redirection vers login...');
-          Navigator.of(context).pushReplacementNamed('/login');
+          Navigator.pushReplacementNamed(context, '/pin_setup');
         }
       }
     } catch (e) {
-      print('❌ Erreur inscription: $e');
       if (mounted) {
         setState(() {
           String errorMsg = e.toString();

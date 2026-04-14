@@ -13,6 +13,16 @@ dependencies:
     sdk: flutter
   url_launcher: ^6.2.0
   shared_preferences: ^2.2.0
+  fl_chart: ^0.68.0          # Pour les graphiques
+  syncfusion_flutter_charts: ^24.2.7  # Alternative plus riche (optionnel)
+  intl: ^0.19.0
+  local_auth: ^2.1.6          # Pour la biométrie
+  flutter_secure_storage: ^9.0.0  # Stockage sécurisé du PIN
+  image_picker: ^1.0.0
+  pdf: ^3.10.7
+  printing: ^5.11.1
+  
+  
 
   # Firebase
   firebase_core: ^3.8.1
@@ -26,15 +36,14 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
   
-  # Utils
-  intl: ^0.19.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
   flutter_launcher_icons: ^0.13.1
-
+ 
+  
 flutter_icons:
   android: true
   ios: true

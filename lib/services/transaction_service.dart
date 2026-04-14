@@ -71,7 +71,7 @@ class TransactionService {
     }
   }
 
-  // ✅ Récupérer les transactions par période
+  // ✅ Récupérer les transactions par période (utilise `commercantId`)
   Future<List<TransactionModel>> getTransactionsByPeriode(
     String commercantId,
     DateTime dateDebut,
@@ -129,7 +129,7 @@ class TransactionService {
     }
   }
 
-  // ✅ Statistiques rapides (aujourd'hui) - CORRIGÉ avec date de transaction
+  // ✅ Statistiques rapides (aujourd'hui) - utilise la date de la transaction
   Future<Map<String, dynamic>> getQuickStats(String commercantId) async {
     print('\n📊 === STATS RAPIDES ===');
     print('CommerçantID: $commercantId');
@@ -148,7 +148,6 @@ class TransactionService {
       int todayCount = 0;
 
       for (var transaction in allTransactions) {
-        // ✅ CORRECTION : Utiliser la date de la transaction (date saisie par l'utilisateur)
         final transDate = transaction.date;
         
         final isSameDay = transDate.year == today.year &&

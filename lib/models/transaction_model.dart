@@ -99,6 +99,8 @@ class TransactionModel {
     };
   }
 
+  
+
   // Helper pour convertir string en enum ModePaiement
   static ModePaiement _modePaiementFromString(String mode) {
     // Convertir en minuscules pour gérer l'ancien format

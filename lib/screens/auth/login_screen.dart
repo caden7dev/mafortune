@@ -38,16 +38,15 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      print('🔑 Tentative de connexion avec: ${_emailController.text.trim()}');
-      
-      UtilisateurModel? user = await _authService.signIn(
+      final user = await _authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      print('✅ Connexion réussie ! User: ${user?.nomComplet}');
-
       if (user != null && mounted) {
+        // ✅ Vérifier si l'utilisateur a déjà un PIN
+        final hasPin = await _authService.isLocalPinSet();
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Bienvenue ${user.prenom} ! 👋'),
@@ -59,12 +58,16 @@ class _LoginScreenState extends State<LoginScreen> {
         await Future.delayed(const Duration(milliseconds: 500));
 
         if (mounted) {
-          print('📍 Redirection vers dashboard...');
-          Navigator.of(context).pushReplacementNamed('/dashboard');
+          if (hasPin) {
+            // 🔐 PIN déjà défini → vérification
+            Navigator.pushReplacementNamed(context, '/pin_verify');
+          } else {
+            // 🆕 Premier accès → création du PIN
+            Navigator.pushReplacementNamed(context, '/pin_setup');
+          }
         }
       }
     } catch (e) {
-      print('❌ Erreur connexion: $e');
       if (mounted) {
         setState(() {
           String errorMsg = e.toString();

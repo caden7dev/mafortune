@@ -9,45 +9,28 @@ class ThemeService {
   ThemeService._internal();
 
   bool _isDarkMode = false;
-  final List<ValueNotifier<bool>> _listeners = [];
+  final ValueNotifier<bool> themeNotifier = ValueNotifier(false);
 
   bool get isDarkMode => _isDarkMode;
-
-  void addListener(ValueNotifier<bool> listener) {
-    _listeners.add(listener);
-  }
-
-  void removeListener(ValueNotifier<bool> listener) {
-    _listeners.remove(listener);
-  }
-
-  void _notifyListeners() {
-    for (var listener in _listeners) {
-      listener.value = _isDarkMode;
-    }
-  }
 
   Future<void> loadTheme() async {
     final prefs = await SharedPreferences.getInstance();
     _isDarkMode = prefs.getBool(_themeKey) ?? false;
-    _notifyListeners();
-  }
-
-  Future<void> toggleTheme() async {
-    _isDarkMode = !_isDarkMode;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_themeKey, _isDarkMode);
-    _notifyListeners();
+    themeNotifier.value = _isDarkMode;
   }
 
   Future<void> setTheme(bool isDark) async {
     _isDarkMode = isDark;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_themeKey, _isDarkMode);
-    _notifyListeners();
+    themeNotifier.value = _isDarkMode;
   }
 
-  // Thèmes
+  Future<void> toggleTheme() async {
+    await setTheme(!_isDarkMode);
+  }
+
+  // Thème clair
   ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -67,7 +50,6 @@ class ThemeService {
         elevation: 0,
         centerTitle: true,
       ),
-      // ✅ CORRECTION : CardThemeData au lieu de CardTheme
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 2,
@@ -109,6 +91,7 @@ class ThemeService {
     );
   }
 
+  // Thème sombre
   ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
@@ -128,7 +111,6 @@ class ThemeService {
         elevation: 0,
         centerTitle: true,
       ),
-      // ✅ CORRECTION : CardThemeData au lieu de CardTheme
       cardTheme: CardThemeData(
         color: const Color(0xFF1E1E1E),
         elevation: 2,
