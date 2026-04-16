@@ -158,24 +158,21 @@ class LocalAuthService {
     }
   }
 
-  Future<bool> authenticateWithBiometrics() async {
-    try {
-      final isAuthenticated = await _localAuth.authenticate(
-        localizedReason: 'Vérifiez votre identité pour accéder à MaFortune',
-        options: const AuthenticationOptions(
-          stickyAuth: true,
-          biometricOnly: true,
-        ),
-      );
-      
-      if (isAuthenticated) {
-        await updateLastActivity();
-      }
-      
-      return isAuthenticated;
-    } catch (e) {
-      print('❌ Erreur biométrie: $e');
-      return false;
+ Future<bool> authenticateWithBiometrics() async {
+  try {
+    final isAuthenticated = await _localAuth.authenticate(
+      localizedReason: 'Vérifiez votre identité pour accéder à MaFortune',
+      // ✅ Plus d'AuthenticationOptions en v3
+    );
+    
+    if (isAuthenticated) {
+      await updateLastActivity();
     }
+    
+    return isAuthenticated;
+  } catch (e) {
+    print('❌ Erreur biométrie: $e');
+    return false;
   }
+}
 }

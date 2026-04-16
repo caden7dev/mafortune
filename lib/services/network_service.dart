@@ -8,35 +8,37 @@ class NetworkService extends ChangeNotifier {
   NetworkService._internal();
 
   final Connectivity _connectivity = Connectivity();
-  late StreamSubscription<ConnectivityResult> _subscription;
-  
+  late StreamSubscription<List<ConnectivityResult>> _subscription; // ✅ List<>
+
   bool _isConnected = true;
   bool get isConnected => _isConnected;
-  
+
   ConnectivityResult _connectionType = ConnectivityResult.none;
   ConnectivityResult get connectionType => _connectionType;
 
   Future<void> initialize() async {
-    final result = await _connectivity.checkConnectivity();
-    _updateConnectionStatus(result);
-    
-    _subscription = _connectivity.onConnectivityChanged.listen((result) {
-      _updateConnectionStatus(result);
+    final results = await _connectivity.checkConnectivity(); // ✅ retourne List
+    _updateConnectionStatus(results);
+
+    _subscription = _connectivity.onConnectivityChanged.listen((results) {
+      _updateConnectionStatus(results); // ✅ List
     });
   }
 
-  void _updateConnectionStatus(ConnectivityResult result) {
-    final isConnected = result != ConnectivityResult.none;
-    if (_isConnected != isConnected) {
+  void _updateConnectionStatus(List<ConnectivityResult> results) { // ✅ List
+    final primary = results.isNotEmpty ? results.first : ConnectivityResult.none;
+    final isConnected = primary != ConnectivityResult.none;
+
+    if (_isConnected != isConnected || _connectionType != primary) {
       _isConnected = isConnected;
-      _connectionType = result;
+      _connectionType = primary;
       notifyListeners();
     }
   }
 
   Future<bool> hasInternet() async {
-    final result = await _connectivity.checkConnectivity();
-    return result != ConnectivityResult.none;
+    final results = await _connectivity.checkConnectivity();
+    return results.any((r) => r != ConnectivityResult.none); // ✅
   }
 
   String getConnectionTypeLabel() {
