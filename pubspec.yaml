@@ -21,8 +21,11 @@ dependencies:
   image_picker: ^1.0.0
   pdf: ^3.10.7
   printing: ^5.11.1
-  
-  
+  connectivity_plus: ^5.0.0
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+  workmanager: ^0.5.0
+  path: ^1.9.0
 
   # Firebase
   firebase_core: ^3.8.1

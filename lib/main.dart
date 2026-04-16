@@ -15,13 +15,14 @@ import 'screens/commercant/theme_screen.dart';
 import 'services/theme_service.dart';
 import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
-import 'core/constants/app_colors.dart';    // AdminLoginScreen
-import 'screens/admin/dashboard_screen.dart';  // AdminDashboardScreen
-import 'screens/admin/users_screen.dart';      // AdminUsersScreen 
+import 'core/constants/app_colors.dart';
+import 'screens/admin/dashboard_screen.dart';
+import 'screens/admin/users_screen.dart';
 import 'screens/admin/stats_screen.dart';
 import 'screens/admin/settings_screen.dart';
-import 'screens/admin/notifications_screen.dart';   
-import 'screens/commercant/budget_screen.dart';// Service (pas utilisé directement dans main)
+import 'screens/admin/notifications_screen.dart';
+import 'screens/commercant/budget_screen.dart';
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -53,22 +54,29 @@ class MyApp extends StatelessWidget {
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const AuthGate(),
           routes: {
+            // Auth routes
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginScreen(),
             '/signup': (context) => const SignupScreen(),
             '/pin_setup': (context) => const PinSetupScreen(),
             '/pin_verify': (context) => const PinVerifyScreen(),
+            
+            // Commercant routes
             '/dashboard': (context) => const DashboardScreen(),
             '/bilans': (context) => const BilansScreen(),
             '/rapports': (context) => const RapportsScreen(),
             '/profil': (context) => const ProfilScreen(),
             '/theme': (context) => const ThemeScreen(),
+        
+            '/budget': (context) => const BudgetScreen(),
+            
+            // Admin routes
+           
             '/admin/dashboard': (context) => const AdminDashboardScreen(),
             '/admin/users': (context) => const AdminUsersScreen(),
-            '/admin/stats': (context) => const AdminStatsScreen(),        // La classe garde AdminStatsScreen
-'/admin/settings': (context) => const AdminSettingsScreen(),  // La classe garde AdminSettingsScreen
-'/admin/notifications': (context) => const AdminNotificationsScreen(),
-'/budget': (context) => const BudgetScreen(),
+            '/admin/stats': (context) => const AdminStatsScreen(),
+            '/admin/settings': (context) => const AdminSettingsScreen(),
+            '/admin/notifications': (context) => const AdminNotificationsScreen(),
           },
         );
       },

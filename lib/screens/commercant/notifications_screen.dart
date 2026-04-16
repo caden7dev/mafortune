@@ -24,6 +24,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await _firestore.collection('notifications').doc(notificationId).update({
         'lu': true,
       });
+      setState(() {});
     } catch (e) {
       print('❌ Erreur marquage lu: $e');
     }
@@ -44,6 +45,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       await batch.commit();
       
       if (mounted) {
+        setState(() {});
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Toutes les notifications marquées comme lues'),

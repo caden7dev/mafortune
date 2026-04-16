@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/transaction_model.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import '../models/transaction_model.dart';
 
 class TransactionService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -66,7 +68,7 @@ class TransactionService {
 
       return transactions;
     } catch (e) {
-      print('❌ Erreur récupération transactions: $e\n');
+    print('❌ Erreur récupération transactions: $e\n');
       rethrow;
     }
   }

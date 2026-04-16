@@ -306,7 +306,10 @@ class _SignupScreenState extends State<SignupScreen> {
                     children: [
                       Text(AppStrings.signupHaveAccount, style: AppTextStyles.bodyMedium),
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () {
+                          // ✅ CORRECTION : Redirection directe vers LoginScreen
+                          Navigator.pushReplacementNamed(context, '/login');
+                        },
                         child: Text(AppStrings.signupLogin, style: AppTextStyles.link),
                       ),
                     ],

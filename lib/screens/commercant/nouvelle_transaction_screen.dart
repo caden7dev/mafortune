@@ -5,6 +5,7 @@ import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
+import '../../widgets/custom_bottom_nav.dart';
 
 class NouvelleTransactionScreen extends StatefulWidget {
   final bool isRecette;
@@ -35,7 +36,7 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
   DateTime _selectedDate = DateTime.now();
   String _selectedCategorieId = '';
   String _selectedCategorie = '';
-  ModePaiement _selectedMode = ModePaiement.especes; // ✅ Correction
+  ModePaiement _selectedMode = ModePaiement.especes;
   bool _isLoading = false;
   bool _isEditMode = false;
 
@@ -68,7 +69,7 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
       _selectedDate = t.date;
       _selectedCategorieId = t.categorieId;
       _selectedCategorie = t.categorie;
-      _selectedMode = t.modePaiement ?? ModePaiement.especes; // ✅ Correction
+      _selectedMode = t.modePaiement ?? ModePaiement.especes;
     } else {
       final categories = _isRecette ? _categoriesRecette : _categoriesDepense;
       if (categories.isNotEmpty) {
@@ -155,7 +156,7 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
           commercantId: user.id,
           categorieId: _selectedCategorieId,
           montant: montant,
-          type: _isRecette ? TypeTransaction.recette : TypeTransaction.depense, // ✅ Correction
+          type: _isRecette ? TypeTransaction.recette : TypeTransaction.depense,
           description: _descriptionController.text.trim(),
           date: _selectedDate,
           dateCreation: DateTime.now(),
@@ -568,42 +569,12 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
         ),
       ),
       
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -2),
-            ),
-          ],
-        ),
-        child: BottomNavigationBar(
-          currentIndex: 0,
-          onTap: (index) {
-            Navigator.pop(context);
-          },
-          type: BottomNavigationBarType.fixed,
-          selectedItemColor: AppColors.primaryGreen,
-          unselectedItemColor: Colors.grey.shade600,
-          selectedFontSize: 12,
-          unselectedFontSize: 12,
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-            BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'Bilans'),
-            BottomNavigationBarItem(icon: Icon(Icons.description), label: 'Rapports'),
-            BottomNavigationBarItem(
-              icon: Badge(
-                label: Text('3', style: TextStyle(fontSize: 10)),
-                backgroundColor: Colors.red,
-                child: Icon(Icons.notifications),
-              ),
-              label: 'Alertes',
-            ),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-          ],
-        ),
+      // ✅ Utilisation du CustomBottomNav avec badge dynamique
+      bottomNavigationBar: CustomBottomNav(
+        currentIndex: 0,
+        onTap: (index) {
+          Navigator.pop(context);
+        },
       ),
     );
   }

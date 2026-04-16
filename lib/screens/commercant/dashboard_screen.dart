@@ -284,7 +284,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         width: 60,
                         height: 60,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                           shape: BoxShape.circle,
                         ),
                         child: ClipOval(
@@ -319,7 +319,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(_currentUser!.nomComplet, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
                             Text(
                               '${_currentUser!.typeActivite ?? 'Commerçant'} • ${_currentUser!.adresse ?? ""}',
-                              style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 14),
+                              style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
                             ),
                           ],
                         ),
@@ -330,14 +330,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   Container(
                     padding: const EdgeInsets.all(25),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Solde actuel', style: TextStyle(color: Colors.white.withOpacity(0.95), fontSize: 14, fontWeight: FontWeight.w500)),
+                        Text('Solde actuel', style: TextStyle(color: Colors.white.withValues(alpha: 0.95), fontSize: 14, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 8),
                         Text('${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
                         const SizedBox(height: 20),
@@ -351,7 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     children: [
                                       const Text('📈', style: TextStyle(fontSize: 16)),
                                       const SizedBox(width: 6),
-                                      Text('Recettes aujourd\'hui', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12)),
+                                      Text('Recettes aujourd\'hui', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12)),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
@@ -367,7 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                     children: [
                                       const Text('📉', style: TextStyle(fontSize: 16)),
                                       const SizedBox(width: 6),
-                                      Text('Dépenses aujourd\'hui', style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 12)),
+                                      Text('Dépenses aujourd\'hui', style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 12)),
                                     ],
                                   ),
                                   const SizedBox(height: 6),
@@ -481,7 +481,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             children: [
               Text('📊', style: TextStyle(fontSize: 48)),
               const SizedBox(height: 10),
-              Text('Aucune donnée', style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.6))),
+              Text('Aucune donnée', style: TextStyle(color: theme.colorScheme.onSurface.withValues(alpha: 0.6))),
             ],
           ),
         ),
@@ -581,7 +581,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       decoration: BoxDecoration(
         color: theme.cardColor,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: theme.colorScheme.shadow.withOpacity(0.05), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: theme.colorScheme.shadow.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Column(
         children: [
