@@ -1,80 +1,68 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/local_auth_service.dart';
-import '../../services/permission_service.dart'; // ✅ Vérifie que ce fichier existe
 
-class PinSetupScreen extends StatefulWidget {
-  const PinSetupScreen({super.key});
+class ResetPinScreen extends StatefulWidget {
+  const ResetPinScreen({super.key});
 
   @override
-  State<PinSetupScreen> createState() => _PinSetupScreenState();
+  State<ResetPinScreen> createState() => _ResetPinScreenState();
 }
 
-class _PinSetupScreenState extends State<PinSetupScreen> {
-  final TextEditingController _pinController = TextEditingController();
-  final TextEditingController _confirmController = TextEditingController();
+class _ResetPinScreenState extends State<ResetPinScreen> {
   final LocalAuthService _localAuth = LocalAuthService();
-  late final PermissionService _permissionService; // ✅ Modifié en late final
-
   bool _isLoading = false;
+  bool _emailSent = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _permissionService = PermissionService(); // ✅ Initialisation ici
-  }
+  // Récupère l'email du user connecté automatiquement
+  String get _userEmail =>
+      FirebaseAuth.instance.currentUser?.email ?? '';
 
-  @override
-  void dispose() {
-    _pinController.dispose();
-    _confirmController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _savePin() async {
-    if (_pinController.text.length != 4) {
-      _showError('Le code PIN doit comporter exactement 4 chiffres');
-      return;
-    }
-    if (_pinController.text != _confirmController.text) {
-      _showError('Les codes PIN ne correspondent pas');
+  Future<void> _sendResetEmail() async {
+    if (_userEmail.isEmpty) {
+      _showError('Aucun compte connecté. Veuillez vous reconnecter.');
       return;
     }
 
     setState(() => _isLoading = true);
-    
+
     try {
-      await _localAuth.savePin(_pinController.text);
-      final hasPinNow = await _localAuth.hasPin();
-      
-      if (hasPinNow && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Code PIN créé avec succès !'),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        
-        await Future.delayed(const Duration(milliseconds: 500));
-        
-        if (mounted) {
-          // ✅ Vérification que _permissionService n'est pas null
-          final isAdmin = await _permissionService.isAdmin();
-          if (isAdmin) {
-            Navigator.pushReplacementNamed(context, '/admin/dashboard');
-          } else {
-            Navigator.pushReplacementNamed(context, '/dashboard');
-          }
-        }
-      } else {
-        _showError('Erreur lors de la sauvegarde du code PIN. Veuillez réessayer.');
+      // 1. Envoie le lien de réinitialisation Firebase
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: _userEmail);
+
+      // 2. Efface le PIN local (il devra en recréer un après reconnexion)
+      await _localAuth.clearPin();
+
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _emailSent = true;
+        });
+      }
+    } on FirebaseAuthException catch (e) {
+      setState(() => _isLoading = false);
+      switch (e.code) {
+        case 'user-not-found':
+          _showError('Aucun compte trouvé pour cet email.');
+          break;
+        case 'too-many-requests':
+          _showError('Trop de tentatives. Réessayez dans quelques minutes.');
+          break;
+        default:
+          _showError('Erreur : ${e.message}');
       }
     } catch (e) {
-      print('❌ Erreur dans _savePin: $e'); // ✅ Ajout pour déboguer
-      _showError('Erreur: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() => _isLoading = false);
+      _showError('Une erreur est survenue. Vérifiez votre connexion.');
+    }
+  }
+
+  Future<void> _goToLogin() async {
+    // Déconnecte Firebase pour forcer une reconnexion propre
+    await FirebaseAuth.instance.signOut();
+    if (mounted) {
+      Navigator.pushReplacementNamed(context, '/login');
     }
   }
 
@@ -83,7 +71,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       SnackBar(
         content: Text(message),
         backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
+        duration: const Duration(seconds: 4),
       ),
     );
   }
@@ -95,209 +83,306 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.primaryGreen),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'PIN oublié',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.lock_outline,
-                  size: 50,
-                  color: AppColors.primaryGreen,
-                ),
-              ),
-              const SizedBox(height: 30),
-              const Text(
-                'Protégez votre compte',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 15),
-              Text(
-                'Créez un code PIN à 4 chiffres pour sécuriser l\'accès à vos données financières',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              
-              TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 10,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Code PIN (4 chiffres)',
-                  hintText: '••••',
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primaryGreen,
-                      width: 2,
-                    ),
-                  ),
-                  prefixIcon: const Icon(Icons.pin, color: AppColors.primaryGreen),
-                ),
-              ),
-              const SizedBox(height: 20),
-              
-              TextField(
-                controller: _confirmController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 10,
-                ),
-                decoration: InputDecoration(
-                  labelText: 'Confirmez le code PIN',
-                  hintText: '••••',
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[300]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(
-                      color: AppColors.primaryGreen,
-                      width: 2,
-                    ),
-                  ),
-                  prefixIcon: const Icon(Icons.check_circle_outline, color: AppColors.primaryGreen),
-                ),
-              ),
-              const SizedBox(height: 40),
-              
-              Container(
-                padding: const EdgeInsets.all(15),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.withValues(alpha: 0.2)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.blue[700], size: 20),
-                        const SizedBox(width: 10),
-                        Text(
-                          'Conseils de sécurité',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue[700],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    _buildTip('Évitez les codes évidents (0000, 1234)'),
-                    _buildTip('Ne partagez jamais votre code PIN'),
-                    _buildTip('Mémorisez-le bien, vous en aurez besoin à chaque connexion'),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _savePin,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 4,
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        )
-                      : const Text(
-                          'Créer le code PIN',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-              
-              const SizedBox(height: 20),
-            ],
-          ),
+          child: _emailSent ? _buildSuccessView() : _buildRequestView(),
         ),
       ),
     );
   }
 
-  Widget _buildTip(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '• ',
-            style: TextStyle(color: Colors.blue[700], fontWeight: FontWeight.bold),
+  // ── Vue 1 : avant envoi ──────────────────────────────────────────
+  Widget _buildRequestView() {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+
+        // Icône
+        Container(
+          width: 100,
+          height: 100,
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.1),
+            shape: BoxShape.circle,
           ),
+          child: const Icon(
+            Icons.lock_reset,
+            size: 50,
+            color: Colors.orange,
+          ),
+        ),
+        const SizedBox(height: 30),
+
+        const Text(
+          'Réinitialiser votre PIN',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 15),
+
+        Text(
+          'Nous allons envoyer un lien de réinitialisation à votre adresse email.',
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey[600],
+            height: 1.5,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 30),
+
+        // Affiche l'email du compte (masqué partiellement)
+        if (_userEmail.isNotEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primaryGreen.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: AppColors.primaryGreen.withOpacity(0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.email_outlined,
+                  color: AppColors.primaryGreen,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Email du compte',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _maskEmail(_userEmail),
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black87,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+        const SizedBox(height: 40),
+
+        // Bouton envoyer
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _sendResetEmail,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 4,
+            ),
+            child: _isLoading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Text(
+                    'Envoyer le lien de réinitialisation',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Retour
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(
+            'Retour',
+            style: TextStyle(
+              color: Colors.grey[600],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ── Vue 2 : après envoi réussi ───────────────────────────────────
+  Widget _buildSuccessView() {
+    return Column(
+      children: [
+        const SizedBox(height: 30),
+
+        // Icône succès
+        Container(
+          width: 110,
+          height: 110,
+          decoration: BoxDecoration(
+            color: AppColors.primaryGreen.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.mark_email_read_outlined,
+            size: 55,
+            color: AppColors.primaryGreen,
+          ),
+        ),
+        const SizedBox(height: 30),
+
+        const Text(
+          'Email envoyé !',
+          style: TextStyle(
+            fontSize: 26,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 15),
+
+        Text(
+          'Un lien de réinitialisation a été envoyé à\n${_maskEmail(_userEmail)}',
+          style: TextStyle(
+            fontSize: 15,
+            color: Colors.grey[600],
+            height: 1.6,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 30),
+
+        // Étapes à suivre
+        _buildStep('1', 'Ouvrez votre boîte email'),
+        _buildStep('2', 'Cliquez sur le lien reçu de Firebase'),
+        _buildStep('3', 'Créez un nouveau mot de passe'),
+        _buildStep('4', 'Revenez ici et connectez-vous'),
+        _buildStep('5', 'Créez un nouveau code PIN'),
+
+        const SizedBox(height: 40),
+
+        // Bouton aller au login
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _goToLogin,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              elevation: 4,
+            ),
+            child: const Text(
+              'Aller à la connexion',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        Text(
+          'Vérifiez aussi vos spams si vous ne trouvez pas l\'email.',
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[500],
+            fontStyle: FontStyle.italic,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  // ── Helpers ──────────────────────────────────────────────────────
+
+  // Masque partiellement l'email : ak***wa@gmail.com
+  String _maskEmail(String email) {
+    if (email.isEmpty) return '';
+    final parts = email.split('@');
+    if (parts.length != 2) return email;
+    final name = parts[0];
+    final domain = parts[1];
+    if (name.length <= 3) return '***@$domain';
+    return '${name.substring(0, 2)}***${name.substring(name.length - 1)}@$domain';
+  }
+
+  Widget _buildStep(String number, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGreen,
+              shape: BoxShape.circle,
+            ),
+            child: Center(
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               text,
-              style: TextStyle(fontSize: 13, color: Colors.blue[700]),
+              style: const TextStyle(
+                fontSize: 15,
+                color: Colors.black87,
+              ),
             ),
           ),
         ],

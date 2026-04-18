@@ -22,6 +22,7 @@ import 'screens/admin/stats_screen.dart';
 import 'screens/admin/settings_screen.dart';
 import 'screens/admin/notifications_screen.dart';
 import 'screens/commercant/budget_screen.dart';
+import 'screens/auth/reset_pin_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -77,6 +78,7 @@ class MyApp extends StatelessWidget {
             '/admin/stats': (context) => const AdminStatsScreen(),
             '/admin/settings': (context) => const AdminSettingsScreen(),
             '/admin/notifications': (context) => const AdminNotificationsScreen(),
+            '/reset_pin':  (context) => const ResetPinScreen(),
           },
         );
       },
