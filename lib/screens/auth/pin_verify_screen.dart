@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/auth_service.dart';
-import '../../services/permission_service.dart'; // ← Ajout
+import '../../services/permission_service.dart';
 import '../auth/reset_pin_screen.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class PinVerifyScreen extends StatefulWidget {
   const PinVerifyScreen({super.key});
@@ -16,7 +17,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   final TextEditingController _pinController = TextEditingController();
   final LocalAuthService _localAuth = LocalAuthService();
   final AuthService _authService = AuthService();
-  final PermissionService _permissionService = PermissionService(); // ← Ajout
+  final PermissionService _permissionService = PermissionService();
 
   bool _isLoading = false;
   int _attempts = 0;
@@ -43,9 +44,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     }
   }
 
-  void _showBiometricOption() {
-    // Optionnel : ajouter un bouton pour la biométrie
-  }
+  void _showBiometricOption() {}
 
   Future<void> _verify() async {
     if (_pinController.text.length != 4) {
@@ -60,7 +59,6 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
       
       if (isValid) {
         await _localAuth.updateLastActivity();
-        
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -70,9 +68,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
             ),
           );
           await Future.delayed(const Duration(milliseconds: 300));
-          
           if (mounted) {
-            // ✅ Redirection selon le type d'utilisateur
             final isAdmin = await _permissionService.isAdmin();
             if (isAdmin) {
               Navigator.pushReplacementNamed(context, '/admin/dashboard');
@@ -102,11 +98,15 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
         }
       }
     } catch (e) {
+      // ✅ AJOUTÉ
+      FirebaseCrashlytics.instance.recordError(
+        e, StackTrace.current,
+        reason: 'Erreur vérification PIN',
+        fatal: false,
+      );
       _showError('Erreur: ${e.toString()}');
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -142,9 +142,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
 
     if (confirm == true) {
       await _authService.signOut();
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/welcome');
-      }
+      if (mounted) Navigator.pushReplacementNamed(context, '/welcome');
     }
   }
 
@@ -196,11 +194,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
               const SizedBox(height: 15),
               Text(
                 'Entrez votre code PIN à 4 chiffres pour accéder à votre compte',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                  height: 1.5,
-                ),
+                style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.5),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -231,17 +225,12 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(
-                      color: AppColors.primaryGreen,
-                      width: 2,
-                    ),
+                    borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
                   ),
                   contentPadding: const EdgeInsets.symmetric(vertical: 20),
                 ),
                 onChanged: (value) {
-                  if (value.length == 4) {
-                    _verify();
-                  }
+                  if (value.length == 4) _verify();
                 },
               ),
               const SizedBox(height: 20),
@@ -260,10 +249,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                       const SizedBox(width: 10),
                       Text(
                         'Tentative ${_attempts}/$_maxAttempts',
-                        style: const TextStyle(
-                          color: Colors.orange,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
                       ),
                     ],
                   ),
@@ -277,15 +263,12 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryGreen,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 4,
                   ),
                   child: _isLoading
                       ? const SizedBox(
-                          width: 24,
-                          height: 24,
+                          width: 24, height: 24,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
@@ -293,21 +276,14 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                         )
                       : const Text(
                           'Déverrouiller',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                 ),
               ),
               const SizedBox(height: 20),
               TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/reset_pin');
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: AppColors.primaryGreen,
-                ),
+                onPressed: () => Navigator.pushNamed(context, '/reset_pin'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primaryGreen),
                 child: const Text(
                   'PIN oublié ?',
                   style: TextStyle(

@@ -23,6 +23,9 @@ import 'screens/admin/settings_screen.dart';
 import 'screens/admin/notifications_screen.dart';
 import 'screens/commercant/budget_screen.dart';
 import 'screens/auth/reset_pin_screen.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'dart:ui';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -31,12 +34,20 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
+  // ✅ NOUVEAU : Crashlytics attrape tous les crashes Flutter
+  FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
+
+  // ✅ NOUVEAU : Crashlytics attrape les erreurs async et isolates
+  PlatformDispatcher.instance.onError = (error, stack) {
+    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    return true;
+  };
+
   final themeService = ThemeService();
   await themeService.loadTheme();
 
   runApp(MyApp(themeService: themeService));
 }
-
 class MyApp extends StatelessWidget {
   final ThemeService themeService;
   const MyApp({super.key, required this.themeService});
@@ -54,6 +65,9 @@ class MyApp extends StatelessWidget {
           darkTheme: themeService.darkTheme,
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const AuthGate(),
+          navigatorObservers: [
+    FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+  ],
           routes: {
             // Auth routes
             '/welcome': (context) => const WelcomeScreen(),
