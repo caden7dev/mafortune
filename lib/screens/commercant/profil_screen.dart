@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
+import '../../services/delete_account_service.dart'; // ← NOUVEAU
 import '../../models/utilisateur_model.dart';
 import 'notifications_screen.dart';
 import 'confidentialite_screen.dart';
@@ -24,6 +25,7 @@ class ProfilScreen extends StatefulWidget {
 class _ProfilScreenState extends State<ProfilScreen> {
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
+  final DeleteAccountService _deleteService = DeleteAccountService(); // ← NOUVEAU
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -58,28 +60,20 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   Future<void> _modifierProfil() async {
     if (_currentUser == null) return;
-    
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ModifierProfilScreen(currentUser: _currentUser!),
       ),
     );
-    
-    if (result == true) {
-      await _loadProfile();
-    }
+    if (result == true) await _loadProfile();
   }
 
   Future<void> _changerMotDePasse() async {
-    final result = await Navigator.push(
+    await Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const ChangerMotDePasseScreen()),
     );
-    
-    if (result == true) {
-      // Mot de passe changé avec succès
-    }
   }
 
   Future<void> _changerPin() async {
@@ -127,8 +121,150 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     if (confirm == true) {
       await _authService.signOut();
+      if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+    }
+  }
+
+  // ✅ NOUVEAU — Suppression de compte
+  Future<void> _supprimerCompte() async {
+    // Dialog étape 1 — Avertissement
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red),
+            SizedBox(width: 10),
+            Text('Supprimer le compte', style: TextStyle(fontSize: 18)),
+          ],
+        ),
+        content: const Text(
+          'Cette action est irréversible.\n\n'
+          'Toutes vos données seront supprimées définitivement :\n'
+          '• Vos transactions\n'
+          '• Vos catégories\n'
+          '• Votre profil\n'
+          '• Votre photo\n\n'
+          'Voulez-vous continuer ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Supprimer définitivement'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    // Dialog étape 2 — Confirmation finale avec le mot "SUPPRIMER"
+    final TextEditingController confirmController = TextEditingController();
+    final doubleConfirm = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmation finale'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Tapez SUPPRIMER pour confirmer :'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: confirmController,
+              decoration: InputDecoration(
+                hintText: 'SUPPRIMER',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () {
+              if (confirmController.text.trim() == 'SUPPRIMER') {
+                Navigator.pop(context, true);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Tapez exactement : SUPPRIMER'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Confirmer'),
+          ),
+        ],
+      ),
+    );
+
+    confirmController.dispose();
+    if (doubleConfirm != true) return;
+
+    // Suppression en cours
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: AppColors.primaryGreen),
+            SizedBox(width: 20),
+            Text('Suppression en cours...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      await _deleteService.deleteAccount();
       if (mounted) {
-        Navigator.of(context).pushReplacementNamed('/login');
+        Navigator.of(context).pop(); // ferme le dialog loading
+        Navigator.of(context).pushReplacementNamed('/welcome');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Compte supprimé avec succès'),
+            backgroundColor: AppColors.primaryGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // ferme le dialog loading
+        // Si Firebase demande une ré-authentification récente
+        if (e.toString().contains('requires-recent-login')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Pour supprimer votre compte, veuillez vous reconnecter d\'abord.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+          await _authService.signOut();
+          if (mounted) Navigator.of(context).pushReplacementNamed('/login');
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Erreur : ${e.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     }
   }
@@ -149,9 +285,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (_isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.backgroundLight,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.primaryGreen),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.primaryGreen)),
       );
     }
 
@@ -163,10 +297,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
             children: [
               const Text('❌ Erreur de chargement'),
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _loadProfile,
-                child: const Text('Réessayer'),
-              ),
+              ElevatedButton(onPressed: _loadProfile, child: const Text('Réessayer')),
             ],
           ),
         ),
@@ -179,16 +310,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Header avec profil
+              // Header
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(30),
-                decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                ),
+                decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
                 child: Column(
                   children: [
-                    // ✅ AVATAR AVEC PHOTO DE PROFIL
                     Container(
                       width: 100,
                       height: 100,
@@ -204,27 +332,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
                                 width: 100,
                                 height: 100,
                                 fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
-                                    child: Text(
-                                      _getInitial(),
-                                      style: const TextStyle(
-                                        fontSize: 40,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  );
-                                },
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: Text(_getInitial(),
+                                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                                  ),
+                                ),
                               )
                             : Center(
-                                child: Text(
-                                  _getInitial(),
-                                  style: const TextStyle(
-                                    fontSize: 40,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
+                                child: Text(_getInitial(),
+                                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
                                 ),
                               ),
                       ),
@@ -232,37 +348,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     const SizedBox(height: 15),
                     Text(
                       _currentUser!.nomComplet,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 5),
                     Text(
                       _currentUser!.email,
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.9),
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
                     ),
                     const SizedBox(height: 15),
                     Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 15,
-                        vertical: 8,
-                      ),
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
                         _currentUser!.typeActivite ?? 'Commerçant',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -271,140 +373,61 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
               const SizedBox(height: 20),
 
-              // Informations du profil
+              // Informations
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Informations',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const Text('Informations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 15),
-                    _buildInfoCard(
-                      '📱 Téléphone',
-                      _currentUser!.telephone,
-                    ),
-                    _buildInfoCard(
-                      '📍 Adresse',
-                      _currentUser!.adresse ?? 'Non renseignée',
-                    ),
-                    _buildInfoCard(
-                      '🏪 Activité',
-                      _currentUser!.typeActivite ?? 'Non renseignée',
-                    ),
-                    _buildInfoCard(
-                      '💰 Solde actuel',
-                      '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
-                    ),
+                    _buildInfoCard('📱 Téléphone', _currentUser!.telephone),
+                    _buildInfoCard('📍 Adresse', _currentUser!.adresse ?? 'Non renseignée'),
+                    _buildInfoCard('🏪 Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
+                    _buildInfoCard('💰 Solde actuel', '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'),
                   ],
                 ),
               ),
 
               const SizedBox(height: 30),
 
-              // Options du menu
+              // Paramètres
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Paramètres',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    const Text('Paramètres', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 15),
-                    _buildMenuOption(
-                      icon: Icons.edit,
-                      title: 'Modifier le profil',
-                      onTap: _modifierProfil,
-                    ),
-                    _buildMenuOption(
-                      icon: Icons.lock,
-                      title: 'Changer le mot de passe',
-                      onTap: _changerMotDePasse,
-                    ),
-                    _buildMenuOption(
-                      icon: Icons.pin,
-                      title: 'Changer le code PIN',
-                      onTap: _changerPin,
-                    ),
-                    _buildMenuOption(
-                      icon: Icons.category,
-                      title: 'Gérer les catégories',
-                      onTap: _gestionCategories,
-                    ),
-                    _buildMenuOption(
-                      icon: Icons.flag,
-                      title: 'Budget mensuel',
-                      onTap: _budgetMensuel,
-                    ),
+                    _buildMenuOption(icon: Icons.edit, title: 'Modifier le profil', onTap: _modifierProfil),
+                    _buildMenuOption(icon: Icons.lock, title: 'Changer le mot de passe', onTap: _changerMotDePasse),
+                    _buildMenuOption(icon: Icons.pin, title: 'Changer le code PIN', onTap: _changerPin),
+                    _buildMenuOption(icon: Icons.category, title: 'Gérer les catégories', onTap: _gestionCategories),
+                    _buildMenuOption(icon: Icons.flag, title: 'Budget mensuel', onTap: _budgetMensuel),
                     _buildMenuOption(
                       icon: Icons.notifications,
                       title: 'Notifications',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const NotificationsScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
                     ),
                     _buildMenuOption(
                       icon: Icons.security,
                       title: 'Confidentialité',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ConfidentialiteScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen())),
                     ),
                     _buildMenuOption(
                       icon: Icons.palette,
                       title: 'Thème',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const ThemeScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemeScreen())),
                     ),
                     _buildMenuOption(
                       icon: Icons.help,
                       title: 'Aide & Support',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const AideScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen())),
                     ),
                     _buildMenuOption(
                       icon: Icons.info,
                       title: 'À propos',
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => const AProposScreen(),
-                          ),
-                        );
-                      },
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AProposScreen())),
                     ),
                     if (_isAdmin)
                       _buildMenuOption(
@@ -412,11 +435,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         title: 'Tableau de bord Admin',
                         onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
                       ),
+
                     const SizedBox(height: 20),
+
                     _buildMenuOption(
                       icon: Icons.logout,
                       title: 'Déconnexion',
                       onTap: _deconnexion,
+                      isDestructive: true,
+                    ),
+
+                    const SizedBox(height: 10),
+
+                    // ✅ NOUVEAU — Bouton suppression compte
+                    _buildMenuOption(
+                      icon: Icons.delete_forever,
+                      title: 'Supprimer mon compte',
+                      onTap: _supprimerCompte,
                       isDestructive: true,
                     ),
                   ],
@@ -438,13 +473,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(
         children: [
@@ -452,21 +481,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                  ),
-                ),
+                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                 const SizedBox(height: 5),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -486,13 +503,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Material(
         color: Colors.transparent,
@@ -512,11 +523,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         : AppColors.primaryGreen.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(
-                    icon,
-                    color: isDestructive ? Colors.red : AppColors.primaryGreen,
-                    size: 20,
-                  ),
+                  child: Icon(icon, color: isDestructive ? Colors.red : AppColors.primaryGreen, size: 20),
                 ),
                 const SizedBox(width: 15),
                 Expanded(
@@ -529,11 +536,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey[400],
-                ),
+                Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
               ],
             ),
           ),
