@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
@@ -17,21 +17,28 @@ class BilansScreen extends StatefulWidget {
 class _BilansScreenState extends State<BilansScreen> {
   final AuthService _authService = AuthService();
   final TransactionService _transactionService = TransactionService();
-  
+
   UtilisateurModel? _currentUser;
   List<TransactionModel> _transactions = [];
   bool _isLoading = true;
-  
-  // Période sélectionnée
+  int _touchedPieIndex = -1;
+
   String _selectedPeriod = 'mois';
   DateTime _selectedDate = DateTime.now();
-  
-  // Statistiques
+
   double _totalRecettes = 0;
   double _totalDepenses = 0;
   Map<String, double> _monthlyRecettes = {};
   Map<String, double> _monthlyDepenses = {};
   Map<String, double> _categoryExpenses = {};
+
+  final List<Color> _categoryColors = [
+    const Color(0xFFEF5350),
+    const Color(0xFFAB47BC),
+    const Color(0xFF42A5F5),
+    const Color(0xFF26A69A),
+    const Color(0xFFFFA726),
+  ];
 
   @override
   void initState() {
@@ -41,32 +48,30 @@ class _BilansScreenState extends State<BilansScreen> {
 
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
-    
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
-      
       _transactions = await _transactionService.getTransactionsByCommercant(_currentUser!.id);
       _calculateStats();
     } catch (e) {
-      print('Erreur: $e');
+      debugPrint('Erreur bilans: $e');
     } finally {
-      setState(() => _isLoading = false);
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
   void _calculateStats() {
     DateTime startDate;
     DateTime endDate = DateTime.now();
-    
+
     switch (_selectedPeriod) {
       case 'mois':
         startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
         endDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
         break;
       case 'trimestre':
-        final quarter = ((_selectedDate.month - 1) ~/ 3) + 1;
-        final startMonth = (quarter - 1) * 3 + 1;
+        final q = ((_selectedDate.month - 1) ~/ 3) + 1;
+        final startMonth = (q - 1) * 3 + 1;
         startDate = DateTime(_selectedDate.year, startMonth, 1);
         endDate = DateTime(_selectedDate.year, startMonth + 3, 0);
         break;
@@ -77,53 +82,41 @@ class _BilansScreenState extends State<BilansScreen> {
       default:
         startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
     }
-    
-    final periodTransactions = _transactions.where((t) {
-      return t.date.isAfter(startDate) && t.date.isBefore(endDate.add(const Duration(days: 1)));
-    }).toList();
-    
-    _totalRecettes = periodTransactions.where((t) => t.estRecette).fold(0.0, (sum, t) => sum + t.montant);
-    _totalDepenses = periodTransactions.where((t) => !t.estRecette).fold(0.0, (sum, t) => sum + t.montant);
-    
-    // Calcul par mois pour l'évolution (uniquement pour l'année en cours)
+
+    final periodTx = _transactions.where((t) =>
+        t.date.isAfter(startDate) &&
+        t.date.isBefore(endDate.add(const Duration(days: 1)))).toList();
+
+    _totalRecettes = periodTx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
+    _totalDepenses = periodTx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
+
     _monthlyRecettes.clear();
     _monthlyDepenses.clear();
-    
-    final currentYear = _selectedDate.year;
     for (int i = 1; i <= 12; i++) {
-      final monthStart = DateTime(currentYear, i, 1);
-      final monthEnd = DateTime(currentYear, i + 1, 0);
-      
-      final monthTransactions = _transactions.where((t) {
-        return t.date.isAfter(monthStart) && t.date.isBefore(monthEnd.add(const Duration(days: 1)));
-      }).toList();
-      
-      final monthRecettes = monthTransactions.where((t) => t.estRecette).fold(0.0, (sum, t) => sum + t.montant);
-      final monthDepenses = monthTransactions.where((t) => !t.estRecette).fold(0.0, (sum, t) => sum + t.montant);
-      
-      final monthName = DateFormat('MMM', 'fr_FR').format(monthStart);
-      _monthlyRecettes[monthName] = monthRecettes;
-      _monthlyDepenses[monthName] = monthDepenses;
+      final ms = DateTime(_selectedDate.year, i, 1);
+      final me = DateTime(_selectedDate.year, i + 1, 0);
+      final mtx = _transactions.where((t) =>
+          t.date.isAfter(ms) && t.date.isBefore(me.add(const Duration(days: 1)))).toList();
+      final key = DateFormat('MMM', 'fr_FR').format(ms);
+      _monthlyRecettes[key] = mtx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
+      _monthlyDepenses[key] = mtx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
     }
-    
-    // Top 5 catégories de dépenses
-    final expensesByCategory = <String, double>{};
-    for (var t in periodTransactions.where((t) => !t.estRecette)) {
-      expensesByCategory[t.categorie] = (expensesByCategory[t.categorie] ?? 0) + t.montant;
+
+    final expCat = <String, double>{};
+    for (var t in periodTx.where((t) => !t.estRecette)) {
+      expCat[t.categorie] = (expCat[t.categorie] ?? 0) + t.montant;
     }
-    
-    final sortedEntries = expensesByCategory.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    _categoryExpenses = {};
-    for (int i = 0; i < (sortedEntries.length > 5 ? 5 : sortedEntries.length); i++) {
-      _categoryExpenses[sortedEntries[i].key] = sortedEntries[i].value;
-    }
+    final sorted = expCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    _categoryExpenses = {
+      for (var e in sorted.take(5)) e.key: e.value,
+    };
+
+    if (mounted) setState(() {});
   }
 
-  void _changePeriod(String period) {
+  void _changePeriod(String p) {
     setState(() {
-      _selectedPeriod = period;
+      _selectedPeriod = p;
       _calculateStats();
     });
   }
@@ -131,27 +124,17 @@ class _BilansScreenState extends State<BilansScreen> {
   void _changeDate(int offset) {
     setState(() {
       if (_selectedPeriod == 'mois') {
-        var newMonth = _selectedDate.month + offset;
-        var newYear = _selectedDate.year;
-        if (newMonth < 1) {
-          newMonth = 12;
-          newYear--;
-        } else if (newMonth > 12) {
-          newMonth = 1;
-          newYear++;
-        }
-        _selectedDate = DateTime(newYear, newMonth, 1);
+        var m = _selectedDate.month + offset;
+        var y = _selectedDate.year;
+        if (m < 1) { m = 12; y--; }
+        else if (m > 12) { m = 1; y++; }
+        _selectedDate = DateTime(y, m, 1);
       } else if (_selectedPeriod == 'trimestre') {
-        var newMonth = _selectedDate.month + (offset * 3);
-        var newYear = _selectedDate.year;
-        if (newMonth < 1) {
-          newMonth = 12;
-          newYear--;
-        } else if (newMonth > 12) {
-          newMonth = 1;
-          newYear++;
-        }
-        _selectedDate = DateTime(newYear, newMonth, 1);
+        var m = _selectedDate.month + (offset * 3);
+        var y = _selectedDate.year;
+        if (m < 1) { m = 12; y--; }
+        else if (m > 12) { m = 1; y++; }
+        _selectedDate = DateTime(y, m, 1);
       } else {
         _selectedDate = DateTime(_selectedDate.year + offset, 1, 1);
       }
@@ -164,8 +147,8 @@ class _BilansScreenState extends State<BilansScreen> {
       case 'mois':
         return DateFormat('MMMM yyyy', 'fr_FR').format(_selectedDate);
       case 'trimestre':
-        final quarter = ((_selectedDate.month - 1) ~/ 3) + 1;
-        return 'Trimestre $quarter ${_selectedDate.year}';
+        final q = ((_selectedDate.month - 1) ~/ 3) + 1;
+        return 'T$q ${_selectedDate.year}';
       case 'annee':
         return _selectedDate.year.toString();
       default:
@@ -173,423 +156,227 @@ class _BilansScreenState extends State<BilansScreen> {
     }
   }
 
-  String _formatAmount(double amount) {
-    return NumberFormat('#,###', 'fr_FR').format(amount).replaceAll(',', ' ');
-  }
+  String _fmt(double v) =>
+      NumberFormat('#,###', 'fr_FR').format(v).replaceAll(',', ' ');
 
   @override
-Widget build(BuildContext context) {
-  final solde = _totalRecettes - _totalDepenses;
-  final hasData = _totalRecettes > 0 || _totalDepenses > 0;
+  Widget build(BuildContext context) {
+    final solde = _totalRecettes - _totalDepenses;
+    final hasData = _totalRecettes > 0 || _totalDepenses > 0;
 
-  return Scaffold(
-    backgroundColor: Colors.grey[100],
-    body: _isLoading
-        ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
-        : SingleChildScrollView(
-            child: Column(
-              children: [
-                // Sélecteur de période
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 8,
-                      ),
+    return Scaffold(
+      backgroundColor: Colors.grey[100],
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
+          : RefreshIndicator(
+              onRefresh: _loadData,
+              color: AppColors.primaryGreen,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  children: [
+                    _buildPeriodSelector(),
+                    _buildSummaryCards(solde),
+                    if (hasData) ...[
+                      const SizedBox(height: 16),
+                      _buildPieChartCard(),
                     ],
-                  ),
-                  child: Column(
-                    children: [
-                      // Navigation date
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.chevron_left),
-                            onPressed: () => _changeDate(-1),
-                          ),
-                          Text(
-                            _getPeriodTitle(),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.chevron_right),
-                            onPressed: () => _changeDate(1),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      // Boutons période
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _buildPeriodChip('Mois', 'mois'),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildPeriodChip('Trimestre', 'trimestre'),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _buildPeriodChip('Année', 'annee'),
-                          ),
-                        ],
-                      ),
+                    const SizedBox(height: 16),
+                    _buildBarChartCard(),
+                    if (_categoryExpenses.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      _buildCategoryCard(),
                     ],
-                  ),
+                    const SizedBox(height: 100),
+                  ],
                 ),
-                
-                // Cartes récapitulatives
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Recettes',
-                          _totalRecettes,
-                          Colors.green,
-                          Icons.trending_up,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Dépenses',
-                          _totalDepenses,
-                          Colors.red,
-                          Icons.trending_down,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _buildSummaryCard(
-                          'Solde',
-                          solde,
-                          solde >= 0 ? Colors.green : Colors.red,
-                          Icons.account_balance,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Graphique camembert simplifié
-                if (hasData)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Répartition Recettes / Dépenses',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSimplePieChart(),
-                      ],
-                    ),
-                  ),
-                
-                const SizedBox(height: 16),
-                
-                // Graphique évolution mensuelle simplifié
-                if (_monthlyRecettes.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Évolution mensuelle',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        _buildSimpleBarChart(),
-                      ],
-                    ),
-                  ),
-                
-                const SizedBox(height: 16),
-                
-                // Top catégories de dépenses
-                if (_categoryExpenses.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.all(16),
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Top catégories de dépenses',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        ..._categoryExpenses.entries.map((entry) {
-                          final total = _categoryExpenses.values.fold(0.0, (sum, v) => sum + v);
-                          final percent = total > 0 ? (entry.value / total) * 100 : 0;
-                          
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 12),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Text(
-                                      entry.key,
-                                      style: const TextStyle(fontSize: 13),
-                                    ),
-                                    Text(
-                                      '${_formatAmount(entry.value)} FCFA (${percent.toStringAsFixed(1)}%)',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                LinearProgressIndicator(
-                                  value: percent / 100,
-                                  backgroundColor: Colors.red[100],
-                                  color: Colors.red,
-                                  minHeight: 6,
-                                  borderRadius: BorderRadius.circular(3),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    ),
-                  ),
-                
-                const SizedBox(height: 80),
-              ],
-            ),
-          ),
-    
-  );
-}
-
-Widget _buildSimplePieChart() {
-  final total = _totalRecettes + _totalDepenses;
-  if (total == 0) {
-    return const Center(
-      child: Padding(
-        padding: EdgeInsets.all(32),
-        child: Text('Aucune donnée à afficher'),
-      ),
-    );
-  }
-
-  final recettesPercent = (_totalRecettes / total) * 100;
-  final depensesPercent = (_totalDepenses / total) * 100;
-
-  return Column(
-    children: [
-      SizedBox(
-        height: 200,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            // Graphique circulaire simple avec CustomPaint
-            CustomPaint(
-              size: const Size(180, 180),
-              painter: _SimplePiePainter(
-                recettesPercent: recettesPercent,
-                depensesPercent: depensesPercent,
               ),
             ),
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  '${_formatAmount(total)}',
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Text('Total', style: TextStyle(fontSize: 12)),
-              ],
-            ),
-          ],
-        ),
-      ),
-      const SizedBox(height: 16),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildLegend('Recettes', Colors.green),
-          const SizedBox(width: 24),
-          _buildLegend('Dépenses', Colors.red),
-        ],
-      ),
-    ],
-  );
-}
-
-Widget _buildSimpleBarChart() {
-  final months = _monthlyRecettes.keys.toList();
-  final maxValue = [
-    ..._monthlyRecettes.values,
-    ..._monthlyDepenses.values,
-  ].fold(0.0, (max, v) => v > max ? v : max);
-  
-  final maxHeight = maxValue > 0 ? maxValue : 1;
-
-  return Column(
-    children: [
-      SizedBox(
-        height: 200,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: months.map((month) {
-            final recettes = _monthlyRecettes[month] ?? 0;
-            final depenses = _monthlyDepenses[month] ?? 0;
-            final recettesHeight = (recettes / maxHeight) * 150;
-            final depensesHeight = (depenses / maxHeight) * 150;
-            
-            return Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                // Barre Recettes
-                Container(
-                  width: 18,
-                  height: recettesHeight > 2 ? recettesHeight : 2,
-                  decoration: BoxDecoration(
-                    color: Colors.green,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                // Barre Dépenses
-                Container(
-                  width: 18,
-                  height: depensesHeight > 2 ? depensesHeight : 2,
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  month,
-                  style: const TextStyle(fontSize: 10),
-                ),
-              ],
-            );
-          }).toList(),
-        ),
-      ),
-      const SizedBox(height: 8),
-      Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _buildLegend('Recettes', Colors.green),
-          const SizedBox(width: 24),
-          _buildLegend('Dépenses', Colors.red),
-        ],
-      ),
-    ],
-  );
-}
-
-  Widget _buildPeriodChip(String label, String value) {
-    final isSelected = _selectedPeriod == value;
-    return FilterChip(
-      label: Text(label),
-      selected: isSelected,
-      onSelected: (_) => _changePeriod(value),
-      selectedColor: AppColors.primaryGreen.withOpacity(0.2),
-      checkmarkColor: AppColors.primaryGreen,
     );
   }
 
-  Widget _buildSummaryCard(String title, double amount, Color color, IconData icon) {
+  Widget _buildPeriodSelector() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      color: Colors.white,
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () => _changeDate(-1),
+              ),
+              Text(
+                _getPeriodTitle(),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: () => _changeDate(1),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _buildPeriodChip('Mois', 'mois')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildPeriodChip('Trimestre', 'trimestre')),
+              const SizedBox(width: 8),
+              Expanded(child: _buildPeriodChip('Année', 'annee')),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPeriodChip(String label, String value) {
+    final selected = _selectedPeriod == value;
+    return GestureDetector(
+      onTap: () => _changePeriod(value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryGreen : Colors.grey[100],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? Colors.white : Colors.grey[700],
+              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+              fontSize: 13,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCards(double solde) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Expanded(child: _buildStatCard('Recettes', _totalRecettes, Colors.green, Icons.trending_up)),
+          const SizedBox(width: 10),
+          Expanded(child: _buildStatCard('Dépenses', _totalDepenses, Colors.red, Icons.trending_down)),
+          const SizedBox(width: 10),
+          Expanded(child: _buildStatCard('Solde', solde, solde >= 0 ? Colors.green : Colors.red, Icons.account_balance_wallet)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String title, double amount, Color color, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 8,
-          ),
-        ],
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
       ),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
           const SizedBox(height: 8),
           Text(
-            '${amount >= 0 ? '+' : '-'}${_formatAmount(amount.abs())} FCFA',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+            '${amount < 0 ? '-' : ''}${_fmt(amount.abs())}',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 4),
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
+          Text(title, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPieChartCard() {
+    final total = _totalRecettes + _totalDepenses;
+    if (total == 0) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Répartition Recettes / Dépenses',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 220,
+            child: Row(
+              children: [
+                Expanded(
+                  child: PieChart(
+                    PieChartData(
+                      pieTouchData: PieTouchData(
+                        touchCallback: (event, response) {
+                          setState(() {
+                            _touchedPieIndex =
+                                response?.touchedSection?.touchedSectionIndex ?? -1;
+                          });
+                        },
+                      ),
+                      sections: [
+                        PieChartSectionData(
+                          value: _totalRecettes,
+                          color: Colors.green,
+                          title: _touchedPieIndex == 0
+                              ? '${(_totalRecettes / total * 100).toStringAsFixed(1)}%'
+                              : '${(_totalRecettes / total * 100).toStringAsFixed(0)}%',
+                          radius: _touchedPieIndex == 0 ? 70 : 60,
+                          titleStyle: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        PieChartSectionData(
+                          value: _totalDepenses,
+                          color: Colors.red,
+                          title: _touchedPieIndex == 1
+                              ? '${(_totalDepenses / total * 100).toStringAsFixed(1)}%'
+                              : '${(_totalDepenses / total * 100).toStringAsFixed(0)}%',
+                          radius: _touchedPieIndex == 1 ? 70 : 60,
+                          titleStyle: const TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ],
+                      centerSpaceRadius: 45,
+                      sectionsSpace: 3,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildLegendItem('Recettes', Colors.green, _fmt(_totalRecettes)),
+                    const SizedBox(height: 16),
+                    _buildLegendItem('Dépenses', Colors.red, _fmt(_totalDepenses)),
+                    const SizedBox(height: 16),
+                    _buildLegendItem('Total', Colors.grey[700]!, _fmt(total)),
+                  ],
+                ),
+              ],
             ),
           ),
         ],
@@ -597,73 +384,200 @@ Widget _buildSimpleBarChart() {
     );
   }
 
-  Widget _buildLegend(String label, Color color) {
+  Widget _buildLegendItem(String label, Color color, String amount) {
     return Row(
       children: [
         Container(
           width: 12,
           height: 12,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
-        const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 11)),
+        const SizedBox(width: 8),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+            Text(amount, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
       ],
     );
   }
-}
 
-// ✅ Painter personnalisé pour le camembert
-class _SimplePiePainter extends CustomPainter {
-  final double recettesPercent;
-  final double depensesPercent;
+  Widget _buildBarChartCard() {
+    final months = _monthlyRecettes.keys.toList();
+    final maxVal = [
+      ..._monthlyRecettes.values,
+      ..._monthlyDepenses.values,
+    ].fold(0.0, (m, v) => v > m ? v : m);
 
-  _SimplePiePainter({
-    required this.recettesPercent,
-    required this.depensesPercent,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
-    final paint = Paint()
-      ..style = PaintingStyle.fill
-      ..strokeWidth = 1;
-
-    // Calcul des angles
-    final recettesAngle = 360 * (recettesPercent / 100);
-    final depensesAngle = 360 * (depensesPercent / 100);
-
-    // Dessiner la part Recettes (verte)
-    paint.color = Colors.green;
-    var startAngle = -90 * (3.14159 / 180); // Départ à 12h
-    var sweepAngle = recettesAngle * (3.14159 / 180);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepAngle,
-      true,
-      paint,
-    );
-
-    // Dessiner la part Dépenses (rouge)
-    paint.color = Colors.red;
-    startAngle += sweepAngle;
-    sweepAngle = depensesAngle * (3.14159 / 180);
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      startAngle,
-      sweepAngle,
-      true,
-      paint,
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Évolution mensuelle',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              _buildLegendDot(Colors.green, 'Recettes'),
+              const SizedBox(width: 16),
+              _buildLegendDot(Colors.red, 'Dépenses'),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: BarChart(
+              BarChartData(
+                alignment: BarChartAlignment.spaceAround,
+                maxY: maxVal > 0 ? maxVal * 1.2 : 100,
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      final month = months[groupIndex];
+                      final label = rodIndex == 0 ? 'Recettes' : 'Dépenses';
+                      return BarTooltipItem(
+                        '$month\n$label\n${_fmt(rod.toY)} F',
+                        const TextStyle(color: Colors.white, fontSize: 11),
+                      );
+                    },
+                  ),
+                ),
+                titlesData: FlTitlesData(
+                  leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (value, meta) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= months.length) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(months[idx],
+                              style: const TextStyle(fontSize: 9, color: Colors.grey)),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) =>
+                      const FlLine(color: Color(0xFFF0F0F0), strokeWidth: 1),
+                ),
+                borderData: FlBorderData(show: false),
+                barGroups: List.generate(months.length, (i) {
+                  final month = months[i];
+                  return BarChartGroupData(
+                    x: i,
+                    barsSpace: 4,
+                    barRods: [
+                      BarChartRodData(
+                        toY: _monthlyRecettes[month] ?? 0,
+                        color: Colors.green,
+                        width: 8,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                      ),
+                      BarChartRodData(
+                        toY: _monthlyDepenses[month] ?? 0,
+                        color: Colors.red,
+                        width: 8,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true;
+  Widget _buildLegendDot(Color color, String label) {
+    return Row(
+      children: [
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+      ],
+    );
+  }
+
+  Widget _buildCategoryCard() {
+    final total = _categoryExpenses.values.fold(0.0, (s, v) => s + v);
+    final entries = _categoryExpenses.entries.toList();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Top catégories de dépenses',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 16),
+          ...List.generate(entries.length, (i) {
+            final entry = entries[i];
+            final pct = total > 0 ? entry.value / total : 0.0;
+            final color = _categoryColors[i % _categoryColors.length];
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 10, height: 10,
+                            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(entry.key, style: const TextStyle(fontSize: 13)),
+                        ],
+                      ),
+                      Text(
+                        '${_fmt(entry.value)} F  (${(pct * 100).toStringAsFixed(1)}%)',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: pct,
+                      minHeight: 7,
+                      backgroundColor: color.withOpacity(0.15),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
+      ),
+    );
   }
 }

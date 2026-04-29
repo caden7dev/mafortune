@@ -12,6 +12,7 @@ import 'rapports_screen.dart';
 import 'notifications_screen.dart';
 import 'profil_screen.dart';
 import 'theme_screen.dart';
+import '../../widgets/offline_banner.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -227,7 +228,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
-      body: _getScreen(_currentIndex),
+     body: Column(
+  children: [
+    const OfflineBanner(), // ← bandeau orange si pas de réseau
+    Expanded(child: _getScreen(_currentIndex)),
+  ],
+),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {

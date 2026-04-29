@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ← NOUVEAU
+import 'package:provider/provider.dart';               // ← NOUVEAU
 import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
 import 'screens/auth/welcome_screen.dart';
@@ -15,6 +17,7 @@ import 'screens/commercant/theme_screen.dart';
 import 'services/theme_service.dart';
 import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
+import 'services/network_service.dart';               // ← NOUVEAU
 import 'core/constants/app_colors.dart';
 import 'screens/admin/dashboard_screen.dart';
 import 'screens/admin/users_screen.dart';
@@ -34,20 +37,35 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
-  // ✅ NOUVEAU : Crashlytics attrape tous les crashes Flutter
+  // ✅ Crashlytics
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
-
-  // ✅ NOUVEAU : Crashlytics attrape les erreurs async et isolates
   PlatformDispatcher.instance.onError = (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
 
+  // ✅ NOUVEAU — Cache offline Firestore (1 seule ligne, tout le reste est automatique)
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
+    cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+  );
+
+  // ✅ NOUVEAU — Initialiser le service réseau
+  final networkService = NetworkService();
+  await networkService.initialize();
+
   final themeService = ThemeService();
   await themeService.loadTheme();
 
-  runApp(MyApp(themeService: themeService));
+  runApp(
+    // ✅ NOUVEAU — Provider pour que OfflineBanner fonctionne partout
+    ChangeNotifierProvider<NetworkService>.value(
+      value: networkService,
+      child: MyApp(themeService: themeService),
+    ),
+  );
 }
+
 class MyApp extends StatelessWidget {
   final ThemeService themeService;
   const MyApp({super.key, required this.themeService});
@@ -66,33 +84,26 @@ class MyApp extends StatelessWidget {
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
           home: const AuthGate(),
           navigatorObservers: [
-    FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
-  ],
+            FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+          ],
           routes: {
-            // Auth routes
-            '/welcome': (context) => const WelcomeScreen(),
-            '/login': (context) => const LoginScreen(),
-            '/signup': (context) => const SignupScreen(),
-            '/pin_setup': (context) => const PinSetupScreen(),
-            '/pin_verify': (context) => const PinVerifyScreen(),
-            
-            // Commercant routes
-            '/dashboard': (context) => const DashboardScreen(),
-            '/bilans': (context) => const BilansScreen(),
-            '/rapports': (context) => const RapportsScreen(),
-            '/profil': (context) => const ProfilScreen(),
-            '/theme': (context) => const ThemeScreen(),
-        
-            '/budget': (context) => const BudgetScreen(),
-            
-            // Admin routes
-           
-            '/admin/dashboard': (context) => const AdminDashboardScreen(),
-            '/admin/users': (context) => const AdminUsersScreen(),
-            '/admin/stats': (context) => const AdminStatsScreen(),
-            '/admin/settings': (context) => const AdminSettingsScreen(),
+            '/welcome':          (context) => const WelcomeScreen(),
+            '/login':            (context) => const LoginScreen(),
+            '/signup':           (context) => const SignupScreen(),
+            '/pin_setup':        (context) => const PinSetupScreen(),
+            '/pin_verify':       (context) => const PinVerifyScreen(),
+            '/dashboard':        (context) => const DashboardScreen(),
+            '/bilans':           (context) => const BilansScreen(),
+            '/rapports':         (context) => const RapportsScreen(),
+            '/profil':           (context) => const ProfilScreen(),
+            '/theme':            (context) => const ThemeScreen(),
+            '/budget':           (context) => const BudgetScreen(),
+            '/admin/dashboard':  (context) => const AdminDashboardScreen(),
+            '/admin/users':      (context) => const AdminUsersScreen(),
+            '/admin/stats':      (context) => const AdminStatsScreen(),
+            '/admin/settings':   (context) => const AdminSettingsScreen(),
             '/admin/notifications': (context) => const AdminNotificationsScreen(),
-            '/reset_pin':  (context) => const ResetPinScreen(),
+            '/reset_pin':        (context) => const ResetPinScreen(),
           },
         );
       },
@@ -110,29 +121,26 @@ class AuthGate extends StatefulWidget {
 class _AuthGateState extends State<AuthGate> {
   final AuthService _authService = AuthService();
   final LocalAuthService _localAuth = LocalAuthService();
-  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _redirect();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _redirect());
   }
 
   Future<void> _redirect() async {
     final user = _authService.currentUser;
     if (user != null) {
       final hasPin = await _localAuth.hasPin();
-      if (hasPin) {
-        if (mounted) Navigator.pushReplacementNamed(context, '/pin_verify');
-      } else {
-        if (mounted) Navigator.pushReplacementNamed(context, '/pin_setup');
+      if (mounted) {
+        Navigator.pushReplacementNamed(
+          context,
+          hasPin ? '/pin_verify' : '/pin_setup',
+        );
       }
     } else {
       if (mounted) Navigator.pushReplacementNamed(context, '/welcome');
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
   @override
