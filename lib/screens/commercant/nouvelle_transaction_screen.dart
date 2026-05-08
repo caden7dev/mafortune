@@ -111,87 +111,89 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
   }
 
   Future<void> _enregistrer() async {
-    if (!_formKey.currentState!.validate()) return;
+  if (!_formKey.currentState!.validate()) return;
 
-    if (_selectedCategorieId.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Veuillez sélectionner une catégorie')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final user = await _authService.getCurrentUserData();
-      if (user == null) throw Exception('Utilisateur non connecté');
-
-      final montant = double.parse(_montantController.text.replaceAll(' ', ''));
-
-      if (_isEditMode) {
-        final updatedTransaction = widget.transactionToEdit!.copyWith(
-          montant: montant,
-          categorieId: _selectedCategorieId,
-          categorie: _selectedCategorie,
-          description: _descriptionController.text.trim(),
-          date: _selectedDate,
-          modePaiement: _selectedMode,
-          dateModification: DateTime.now(),
-        );
-
-        await _transactionService.updateTransaction(updatedTransaction);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Transaction modifiée avec succès !'),
-              backgroundColor: AppColors.success,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      } else {
-        final transaction = TransactionModel(
-          id: '',
-          commercantId: user.id,
-          categorieId: _selectedCategorieId,
-          montant: montant,
-          type: _isRecette ? TypeTransaction.recette : TypeTransaction.depense,
-          description: _descriptionController.text.trim(),
-          date: _selectedDate,
-          dateCreation: DateTime.now(),
-          modePaiement: _selectedMode,
-          categorie: _selectedCategorie,
-        );
-
-        await _transactionService.addTransaction(transaction);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                '✅ Transaction ${_isRecette ? "recette" : "dépense"} enregistrée !',
-              ),
-              backgroundColor: _isRecette ? AppColors.primaryGreen : AppColors.expenseRed,
-            ),
-          );
-          Navigator.pop(context, true);
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erreur: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
-    }
+  if (_selectedCategorieId.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Veuillez sélectionner une catégorie')),
+    );
+    return;
   }
 
+  setState(() => _isLoading = true);
+
+  try {
+    final user = await _authService.getCurrentUserData();
+    if (user == null) throw Exception('Utilisateur non connecté');
+
+    final montant =
+        double.parse(_montantController.text.replaceAll(' ', ''));
+
+    if (_isEditMode) {
+      final updated = widget.transactionToEdit!.copyWith(
+        montant: montant,
+        categorieId: _selectedCategorieId,
+        categorie: _selectedCategorie,
+        description: _descriptionController.text.trim(),
+        date: _selectedDate,
+        modePaiement: _selectedMode,
+        dateModification: DateTime.now(),
+      );
+
+      // ✅ On lance l'opération sans attendre la réponse serveur
+      _transactionService.updateTransaction(updated).catchError((e) {
+        debugPrint('Sync en attente: $e');
+      });
+    } else {
+      final transaction = TransactionModel(
+        id: '',
+        commercantId: user.id,
+        categorieId: _selectedCategorieId,
+        montant: montant,
+        type:
+            _isRecette ? TypeTransaction.recette : TypeTransaction.depense,
+        description: _descriptionController.text.trim(),
+        date: _selectedDate,
+        dateCreation: DateTime.now(),
+        modePaiement: _selectedMode,
+        categorie: _selectedCategorie,
+      );
+
+      // ✅ On lance l'opération sans attendre la réponse serveur
+      _transactionService.addTransaction(transaction).catchError((e) {
+        debugPrint('Sync en attente: $e');
+      });
+    }
+
+    // ✅ On ferme l'écran immédiatement — pas besoin d'attendre Firebase
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            _isEditMode
+                ? '✅ Modification enregistrée'
+                : '✅ Transaction enregistrée',
+          ),
+          backgroundColor: _isRecette
+              ? AppColors.primaryGreen
+              : AppColors.expenseRed,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+      Navigator.pop(context, true);
+    }
+  } catch (e) {
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      setState(() => _isLoading = false);
+    }
+  }
+}
   @override
   Widget build(BuildContext context) {
     final categories = _isRecette ? _categoriesRecette : _categoriesDepense;

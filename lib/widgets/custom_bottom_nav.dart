@@ -15,6 +15,9 @@ class CustomBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Récupère la hauteur de la barre système (barre de gestes Android)
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -26,6 +29,8 @@ class CustomBottomNav extends StatelessWidget {
           ),
         ],
       ),
+      // ✅ Ajoute le padding bas pour ne pas être caché par la barre système
+      padding: EdgeInsets.only(bottom: bottomPadding),
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
             .collection('notifications')
@@ -37,7 +42,7 @@ class CustomBottomNav extends StatelessWidget {
           if (snapshot.hasData && snapshot.data != null) {
             unreadCount = snapshot.data!.docs.length;
           }
-          
+
           return BottomNavigationBar(
             currentIndex: currentIndex,
             onTap: (index) {
@@ -57,6 +62,10 @@ class CustomBottomNav extends StatelessWidget {
             unselectedItemColor: Colors.grey.shade600,
             selectedFontSize: 12,
             unselectedFontSize: 12,
+            // ✅ Supprime le padding interne par défaut du BottomNavigationBar
+            // pour éviter le double espacement
+            elevation: 0,
+            backgroundColor: Colors.transparent,
             items: [
               const BottomNavigationBarItem(
                 icon: Icon(Icons.home),
@@ -75,7 +84,8 @@ class CustomBottomNav extends StatelessWidget {
                     ? Badge(
                         label: Text(
                           '$unreadCount',
-                          style: const TextStyle(fontSize: 10, color: Colors.white),
+                          style: const TextStyle(
+                              fontSize: 10, color: Colors.white),
                         ),
                         backgroundColor: Colors.red,
                         child: const Icon(Icons.notifications),

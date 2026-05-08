@@ -82,6 +82,17 @@ class MyApp extends StatelessWidget {
           theme: themeService.lightTheme,
           darkTheme: themeService.darkTheme,
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, child) => MediaQuery(
+    data: MediaQuery.of(context).copyWith(
+      textScaler: MediaQuery.of(context).textScaler.clamp(
+        minScaleFactor: 0.85,
+        maxScaleFactor: 1.1,
+      ),
+    ),
+    child: child!,
+  ),
+
+ 
           home: const AuthGate(),
           navigatorObservers: [
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
