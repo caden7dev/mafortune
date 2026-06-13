@@ -197,17 +197,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (result == true) await _loadData();
   }
 
-  Widget _getScreen(int index) {
-    switch (index) {
-      case 0: return _buildDashboardContent();
-      case 1: return const BilansScreen();
-      case 2: return const RapportsScreen();
-      case 3: return const NotificationsScreen();
-      case 4: return const ProfilScreen();
-      default: return _buildDashboardContent();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -231,9 +220,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: Column(
         children: [
           const OfflineBanner(),
-          Expanded(child: _getScreen(_currentIndex)),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: [
+                _buildDashboardContent(),
+                const BilansScreen(),
+                const RapportsScreen(),
+                const NotificationsScreen(),
+                const ProfilScreen(),
+              ],
+            ),
+          ),
         ],
       ),
+      // ✅ AJOUT DE LA BARRE DE NAVIGATION
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
@@ -284,7 +285,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
-              // ✅ Padding top adaptatif selon la taille d'écran
               padding: EdgeInsets.fromLTRB(
                 20,
                 MediaQuery.of(context).padding.top > 0 ? 16 : 40,
@@ -373,7 +373,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(height: 6),
-                        // ✅ FittedBox pour le solde — s'adapte à tous les écrans
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
@@ -388,7 +387,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        // ✅ Row recettes/dépenses corrigée
                         Row(
                           children: [
                             Expanded(
@@ -775,7 +773,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              // ✅ FittedBox sur le montant pour éviter l'overflow
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,

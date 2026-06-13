@@ -123,8 +123,9 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
   setState(() => _isLoading = true);
 
   try {
-    final user = await _authService.getCurrentUserData();
-    if (user == null) throw Exception('Utilisateur non connecté');
+   final firebaseUser = _authService.currentUser;
+if (firebaseUser == null) throw Exception('Utilisateur non connecté');
+
 
     final montant =
         double.parse(_montantController.text.replaceAll(' ', ''));
@@ -146,18 +147,17 @@ class _NouvelleTransactionScreenState extends State<NouvelleTransactionScreen> {
       });
     } else {
       final transaction = TransactionModel(
-        id: '',
-        commercantId: user.id,
-        categorieId: _selectedCategorieId,
-        montant: montant,
-        type:
-            _isRecette ? TypeTransaction.recette : TypeTransaction.depense,
-        description: _descriptionController.text.trim(),
-        date: _selectedDate,
-        dateCreation: DateTime.now(),
-        modePaiement: _selectedMode,
-        categorie: _selectedCategorie,
-      );
+  id: '',
+  commercantId: firebaseUser.uid,  // ← disponible sans réseau
+  categorieId: _selectedCategorieId,
+  montant: montant,
+  type: _isRecette ? TypeTransaction.recette : TypeTransaction.depense,
+  description: _descriptionController.text.trim(),
+  date: _selectedDate,
+  dateCreation: DateTime.now(),
+  modePaiement: _selectedMode,
+  categorie: _selectedCategorie,
+);
 
       // ✅ On lance l'opération sans attendre la réponse serveur
       _transactionService.addTransaction(transaction).catchError((e) {

@@ -9,8 +9,7 @@ class AuthService {
   final LocalAuthService _localAuth = LocalAuthService();
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-  User? get currentUser => _auth.currentUser;
-
+  User? get currentUser => FirebaseAuth.instance.currentUser;
   Future<bool> isLocalPinSet() async {
     return await _localAuth.hasPin();
   }
