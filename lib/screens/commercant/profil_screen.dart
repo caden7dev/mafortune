@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
-import '../../services/delete_account_service.dart'; // ← NOUVEAU
+import '../../services/delete_account_service.dart';
 import '../../models/utilisateur_model.dart';
 import 'notifications_screen.dart';
 import 'confidentialite_screen.dart';
@@ -14,6 +14,7 @@ import 'modifier_profil_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'gestion_categories_screen.dart';
 import 'budget_screen.dart';
+import '../../widgets/screenshot_wrapper.dart';
 
 class ProfilScreen extends StatefulWidget {
   const ProfilScreen({super.key});
@@ -25,7 +26,7 @@ class ProfilScreen extends StatefulWidget {
 class _ProfilScreenState extends State<ProfilScreen> {
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
-  final DeleteAccountService _deleteService = DeleteAccountService(); // ← NOUVEAU
+  final DeleteAccountService _deleteService = DeleteAccountService();
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -50,7 +51,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Erreur : $e', style: const TextStyle(fontSize: 16)),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -79,7 +83,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Future<void> _changerPin() async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Fonctionnalité en cours de développement'),
+        content: Text(
+          '🔧 Bientôt disponible',
+          style: TextStyle(fontSize: 16),
+        ),
         backgroundColor: Colors.orange,
       ),
     );
@@ -103,19 +110,54 @@ class _ProfilScreenState extends State<ProfilScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Déconnexion'),
-          ),
-        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(28),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('🚪', style: TextStyle(fontSize: 56)),
+            const SizedBox(height: 16),
+            const Text(
+              'Vous déconnecter ?',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Vos données restent enregistrées.\nVous pouvez revenir à tout moment.',
+              style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Oui, me déconnecter', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  side: BorderSide(color: Colors.grey[300]!),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Annuler', style: TextStyle(fontSize: 17)),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
@@ -125,90 +167,157 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  // ✅ NOUVEAU — Suppression de compte
   Future<void> _supprimerCompte() async {
-    // Dialog étape 1 — Avertissement
+    // Étape 1 — Avertissement
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(28),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red),
-            SizedBox(width: 10),
-            Text('Supprimer le compte', style: TextStyle(fontSize: 18)),
+            const Text('⚠️', style: TextStyle(fontSize: 56)),
+            const SizedBox(height: 16),
+            const Text(
+              'Supprimer le compte ?',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.black87),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Tout sera supprimé définitivement :',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red),
+                  ),
+                  const SizedBox(height: 8),
+                  _buildDeleteItem('💸 Toutes vos transactions'),
+                  _buildDeleteItem('🏷️ Vos catégories'),
+                  _buildDeleteItem('👤 Votre profil'),
+                  _buildDeleteItem('🖼️ Votre photo'),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  side: BorderSide(color: Colors.grey[300]!),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Annuler', style: TextStyle(fontSize: 17)),
+              ),
+            ),
           ],
         ),
-        content: const Text(
-          'Cette action est irréversible.\n\n'
-          'Toutes vos données seront supprimées définitivement :\n'
-          '• Vos transactions\n'
-          '• Vos catégories\n'
-          '• Votre profil\n'
-          '• Votre photo\n\n'
-          'Voulez-vous continuer ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Supprimer définitivement'),
-          ),
-        ],
       ),
     );
 
     if (confirm != true) return;
 
-    // Dialog étape 2 — Confirmation finale avec le mot "SUPPRIMER"
+    // Étape 2 — Confirmation finale
     final TextEditingController confirmController = TextEditingController();
     final doubleConfirm = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmation finale'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(28),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Tapez SUPPRIMER pour confirmer :'),
+            const Text(
+              '✍️ Confirmation finale',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Tapez le mot SUPPRIMER pour confirmer :',
+              style: TextStyle(fontSize: 15, color: Colors.black87),
+            ),
             const SizedBox(height: 12),
             TextField(
               controller: confirmController,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
                 hintText: 'SUPPRIMER',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                hintStyle: TextStyle(color: Colors.grey[400]),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.red, width: 2),
                 ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              ),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: () {
+                  if (confirmController.text.trim() == 'SUPPRIMER') {
+                    Navigator.pop(context, true);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Tapez exactement : SUPPRIMER', style: TextStyle(fontSize: 16)),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Supprimer définitivement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 52,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.grey[700],
+                  side: BorderSide(color: Colors.grey[300]!),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                ),
+                child: const Text('Annuler', style: TextStyle(fontSize: 17)),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () {
-              if (confirmController.text.trim() == 'SUPPRIMER') {
-                Navigator.pop(context, true);
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Tapez exactement : SUPPRIMER'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-              }
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Confirmer'),
-          ),
-        ],
       ),
     );
 
@@ -220,13 +329,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const AlertDialog(
-        content: Row(
-          children: [
-            CircularProgressIndicator(color: AppColors.primaryGreen),
-            SizedBox(width: 20),
-            Text('Suppression en cours...'),
-          ],
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: const Padding(
+          padding: EdgeInsets.symmetric(vertical: 12),
+          child: Row(
+            children: [
+              CircularProgressIndicator(color: AppColors.primaryGreen),
+              SizedBox(width: 20),
+              Text('Suppression en cours...', style: TextStyle(fontSize: 16)),
+            ],
+          ),
         ),
       ),
     );
@@ -234,23 +347,22 @@ class _ProfilScreenState extends State<ProfilScreen> {
     try {
       await _deleteService.deleteAccount();
       if (mounted) {
-        Navigator.of(context).pop(); // ferme le dialog loading
+        Navigator.of(context).pop();
         Navigator.of(context).pushReplacementNamed('/welcome');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Compte supprimé avec succès'),
+            content: Text('✅ Compte supprimé avec succès', style: TextStyle(fontSize: 16)),
             backgroundColor: AppColors.primaryGreen,
           ),
         );
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // ferme le dialog loading
-        // Si Firebase demande une ré-authentification récente
+        Navigator.of(context).pop();
         if (e.toString().contains('requires-recent-login')) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Pour supprimer votre compte, veuillez vous reconnecter d\'abord.'),
+              content: Text('Reconnectez-vous d\'abord pour supprimer votre compte.', style: TextStyle(fontSize: 16)),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 5),
             ),
@@ -260,7 +372,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur : ${e.toString()}'),
+              content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)),
               backgroundColor: Colors.red,
             ),
           );
@@ -291,13 +403,32 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     if (_currentUser == null) {
       return Scaffold(
+        backgroundColor: AppColors.backgroundLight,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Text('❌ Erreur de chargement'),
-              const SizedBox(height: 20),
-              ElevatedButton(onPressed: _loadProfile, child: const Text('Réessayer')),
+              const Text('❌', style: TextStyle(fontSize: 56)),
+              const SizedBox(height: 16),
+              const Text(
+                'Impossible de charger\nvotre profil',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _loadProfile,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryGreen,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 32),
+                  ),
+                  child: const Text('Réessayer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
         ),
@@ -310,13 +441,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              // Header
+              // ── Header gradient ──────────────────────────────────────────────
               Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(30),
+                padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
                 decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
                 child: Column(
                   children: [
+                    // Avatar
                     Container(
                       width: 100,
                       height: 100,
@@ -329,42 +461,50 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
                             ? Image.network(
                                 _currentUser!.photo!,
-                                width: 100,
-                                height: 100,
+                                width: 100, height: 100,
                                 fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => Center(
-                                  child: Text(_getInitial(),
-                                    style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                                  child: Text(
+                                    _getInitial(),
+                                    style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white),
                                   ),
                                 ),
                               )
                             : Center(
-                                child: Text(_getInitial(),
-                                  style: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, color: Colors.white),
+                                child: Text(
+                                  _getInitial(),
+                                  style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white),
                                 ),
                               ),
                       ),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 14),
+
+                    // Nom
                     Text(
                       _currentUser!.nomComplet,
                       style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
+
+                    // Téléphone (plus utile que l'email pour les mamans commerçantes)
                     Text(
-                      _currentUser!.email,
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14),
+                      '📱 ${_currentUser!.telephone}',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15),
                     ),
-                    const SizedBox(height: 15),
+                    const SizedBox(height: 14),
+
+                    // Badge activité
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(24),
                       ),
                       child: Text(
-                        _currentUser!.typeActivite ?? 'Commerçant',
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                        '🏪 ${_currentUser!.typeActivite ?? 'Commerçante'}',
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -373,86 +513,235 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
               const SizedBox(height: 20),
 
-              // Informations
+              // ── Solde actuel — mis en avant ──────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(22),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primaryGreen.withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '💰 Solde actuel',
+                        style: TextStyle(color: Colors.white70, fontSize: 15),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Informations ─────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Informations', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 15),
-                    _buildInfoCard('📱 Téléphone', _currentUser!.telephone),
-                    _buildInfoCard('📍 Adresse', _currentUser!.adresse ?? 'Non renseignée'),
-                    _buildInfoCard('🏪 Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
-                    _buildInfoCard('💰 Solde actuel', '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'),
+                    const Text(
+                      'Mes informations',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildInfoCard('📧', 'Email', _currentUser!.email),
+                    _buildInfoCard('📍', 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
+                    _buildInfoCard('🏪', 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
                   ],
                 ),
               ),
 
-              const SizedBox(height: 30),
+              const SizedBox(height: 28),
 
-              // Paramètres
+              // ── Mon compte ───────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Paramètres', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 15),
-                    _buildMenuOption(icon: Icons.edit, title: 'Modifier le profil', onTap: _modifierProfil),
-                    _buildMenuOption(icon: Icons.lock, title: 'Changer le mot de passe', onTap: _changerMotDePasse),
-                    _buildMenuOption(icon: Icons.pin, title: 'Changer le code PIN', onTap: _changerPin),
-                    _buildMenuOption(icon: Icons.category, title: 'Gérer les catégories', onTap: _gestionCategories),
-                    _buildMenuOption(icon: Icons.flag, title: 'Budget mensuel', onTap: _budgetMensuel),
-                    _buildMenuOption(
-                      icon: Icons.notifications,
+                    const Text(
+                      'Mon compte',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildMenuItem(emoji: '✏️', title: 'Modifier mon profil', onTap: _modifierProfil),
+                    _buildMenuItem(emoji: '🔐', title: 'Changer le mot de passe', onTap: _changerMotDePasse),
+                    _buildMenuItem(emoji: '🔢', title: 'Changer le code PIN', onTap: _changerPin),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Gestion financière ───────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Gestion financière',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildMenuItem(emoji: '🏷️', title: 'Mes catégories', onTap: _gestionCategories),
+                    _buildMenuItem(emoji: '🎯', title: 'Budget mensuel', onTap: _budgetMensuel),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Paramètres ───────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Paramètres',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildMenuItem(
+                      emoji: '🔔',
                       title: 'Notifications',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
                     ),
-                    _buildMenuOption(
-                      icon: Icons.security,
+                    _buildMenuItem(
+                      emoji: '🔒',
                       title: 'Confidentialité',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen())),
                     ),
-                    _buildMenuOption(
-                      icon: Icons.palette,
+                    _buildMenuItem(
+                      emoji: '🎨',
                       title: 'Thème',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemeScreen())),
                     ),
-                    _buildMenuOption(
-                      icon: Icons.help,
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // ── Aide ─────────────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Aide',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                    ),
+                    const SizedBox(height: 14),
+                    _buildMenuItem(
+                      emoji: '❓',
                       title: 'Aide & Support',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen())),
                     ),
-                    _buildMenuOption(
-                      icon: Icons.info,
-                      title: 'À propos',
+                    _buildMenuItem(
+                      emoji: 'ℹ️',
+                      title: 'À propos de MaFortune',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AProposScreen())),
                     ),
-                    if (_isAdmin)
-                      _buildMenuOption(
-                        icon: Icons.admin_panel_settings,
+                  ],
+                ),
+              ),
+
+              // Admin (si applicable)
+              if (_isAdmin) ...[
+                const SizedBox(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Administration',
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildMenuItem(
+                        emoji: '🛡️',
                         title: 'Tableau de bord Admin',
                         onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
                       ),
+                    ],
+                  ),
+                ),
+              ],
 
-                    const SizedBox(height: 20),
+              const SizedBox(height: 28),
 
-                    _buildMenuOption(
-                      icon: Icons.logout,
-                      title: 'Déconnexion',
-                      onTap: _deconnexion,
-                      isDestructive: true,
+              // ── Actions compte ────────────────────────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  children: [
+                    // Déconnexion
+                    SizedBox(
+                      width: double.infinity,
+                      height: 60,
+                      child: OutlinedButton(
+                        onPressed: _deconnexion,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          side: const BorderSide(color: Colors.red, width: 1.5),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('🚪', style: TextStyle(fontSize: 22)),
+                            SizedBox(width: 10),
+                            Text(
+                              'Me déconnecter',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
-                    // ✅ NOUVEAU — Bouton suppression compte
-                    _buildMenuOption(
-                      icon: Icons.delete_forever,
-                      title: 'Supprimer mon compte',
-                      onTap: _supprimerCompte,
-                      isDestructive: true,
+                    // Supprimer compte — discret
+                    TextButton(
+                      onPressed: _supprimerCompte,
+                      child: Text(
+                        'Supprimer mon compte',
+                        style: TextStyle(
+                          color: Colors.grey[500],
+                          fontSize: 14,
+                          decoration: TextDecoration.underline,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -466,24 +755,40 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  Widget _buildInfoCard(String label, String value) {
+  // ─── Widgets helpers ─────────────────────────────────────────────────────────
+
+  Widget _buildInfoCard(String emoji, String label, String value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         children: [
+          Text(emoji, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                const SizedBox(height: 5),
-                Text(value, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+                ),
               ],
             ),
           ),
@@ -492,47 +797,42 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  Widget _buildMenuOption({
-    required IconData icon,
+  Widget _buildMenuItem({
+    required String emoji,
     required String title,
     required VoidCallback onTap,
-    bool isDestructive = false,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.all(15),
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 17),
             child: Row(
               children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: isDestructive
-                        ? Colors.red.withValues(alpha: 0.1)
-                        : AppColors.primaryGreen.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(icon, color: isDestructive ? Colors.red : AppColors.primaryGreen, size: 20),
-                ),
-                const SizedBox(width: 15),
+                Text(emoji, style: const TextStyle(fontSize: 26)),
+                const SizedBox(width: 16),
                 Expanded(
                   child: Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 15,
+                    style: const TextStyle(
+                      fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      color: isDestructive ? Colors.red : Colors.black87,
+                      color: Colors.black87,
                     ),
                   ),
                 ),
@@ -542,6 +842,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDeleteItem(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text(text, style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4)),
     );
   }
 }

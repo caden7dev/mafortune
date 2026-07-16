@@ -5,108 +5,192 @@ import 'package:flutter/foundation.dart';
 class TransactionService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ─── CACHE MÉMOIRE ───────────────────────────────────────────────────────────
+  // Évite de refaire des appels Firestore identiques dans la même session
+  final Map<String, List<TransactionModel>> _cache = {};
+  final Map<String, DateTime> _cacheTimestamps = {};
+
+  // Durée de validité du cache : 2 minutes
+  static const Duration _cacheDuration = Duration(minutes: 2);
+
+  bool _isCacheValid(String key) {
+    final ts = _cacheTimestamps[key];
+    if (ts == null) return false;
+    return DateTime.now().difference(ts) < _cacheDuration;
+  }
+
+  void _setCache(String key, List<TransactionModel> data) {
+    _cache[key] = data;
+    _cacheTimestamps[key] = DateTime.now();
+  }
+
+  /// Invalide le cache d'un commerçant — à appeler après add/update/delete
+  void invalidateCache(String commercantId) {
+    _cache.removeWhere((key, _) => key.startsWith(commercantId));
+    _cacheTimestamps.removeWhere((key, _) => key.startsWith(commercantId));
+  }
+
+  // ─── ADD ─────────────────────────────────────────────────────────────────────
   Future<void> addTransaction(TransactionModel transaction) async {
     try {
       final docRef = _db.collection('transactions').doc();
-      await docRef.set(transaction.toFirestore());
-      _updateCommercantSolde(transaction.commercantId, transaction.impactSolde);
+      final transactionEnregistree = transaction.copyWith(id: docRef.id);
+      await docRef.set(transactionEnregistree.toFirestore());
+
+      // Invalide le cache pour forcer un rechargement
+      invalidateCache(transactionEnregistree.commercantId);
+
+      _updateCommercantSolde(
+          transactionEnregistree.commercantId,
+          transactionEnregistree.impactSolde);
     } catch (e) {
+      debugPrint('Erreur addTransaction: $e');
       rethrow;
     }
   }
 
+  // ─── GET ALL — avec cache mémoire ────────────────────────────────────────────
   Future<List<TransactionModel>> getTransactionsByCommercant(
     String commercantId, {
     int? limit,
   }) async {
-    try {
-      final snapshot = await _db
-          .collection('transactions')
-          .where('commercantId', isEqualTo: commercantId)
-          .get();
+    final cacheKey = '${commercantId}_all';
 
-      var list = snapshot.docs
+    // Retourne le cache si encore valide
+    if (_isCacheValid(cacheKey) && _cache.containsKey(cacheKey)) {
+      debugPrint('✅ Cache hit: $cacheKey');
+      final cached = _cache[cacheKey]!;
+      if (limit != null && limit < cached.length) {
+        return cached.sublist(0, limit);
+      }
+      return cached;
+    }
+
+    try {
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await _db
+            .collection('transactions')
+            .where('commercantId', isEqualTo: commercantId)
+            .orderBy('dateCreation', descending: true)
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        snapshot = await _db
+            .collection('transactions')
+            .where('commercantId', isEqualTo: commercantId)
+            .get(const GetOptions(source: Source.cache));
+      }
+
+      final list = snapshot.docs
           .map((doc) => TransactionModel.fromFirestore(doc))
           .toList();
 
-      list.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+      // Tri déjà fait par Firestore (orderBy dateCreation desc)
+      // On met en cache TOUTE la liste
+      _setCache(cacheKey, list);
 
       if (limit != null && limit < list.length) {
-        list = list.sublist(0, limit);
+        return list.sublist(0, limit);
       }
-
       return list;
     } catch (e) {
+      debugPrint('Erreur getTransactionsByCommercant: $e');
       rethrow;
     }
   }
 
-  Future<List<TransactionModel>> getTransactionsByPeriode(
-    String commercantId,
-    DateTime dateDebut,
-    DateTime dateFin,
-  ) async {
-    try {
-      final snapshot = await _db
-          .collection('transactions')
-          .where('commercantId', isEqualTo: commercantId)
-          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(dateDebut))
-          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(dateFin))
-          .orderBy('date', descending: true)
-          .get();
-
-      return snapshot.docs
-          .map((doc) => TransactionModel.fromFirestore(doc))
-          .toList();
-    } catch (e) {
-      // Fallback si l'index n'existe pas encore
-      final all = await getTransactionsByCommercant(commercantId);
-      return all.where((t) {
-        return t.date.isAfter(dateDebut) &&
-            t.date.isBefore(dateFin.add(const Duration(days: 1)));
-      }).toList()
-        ..sort((a, b) => b.date.compareTo(a.date));
-    }
-  }
-
+  // ─── GET QUICK STATS — requête Firestore ciblée sur aujourd'hui ──────────────
+  // ✅ OPTIMISATION : au lieu de charger TOUTES les transactions et filtrer
+  // en mémoire, on demande directement à Firestore les transactions du jour.
   Future<Map<String, dynamic>> getQuickStats(String commercantId) async {
     try {
-      final all = await getTransactionsByCommercant(commercantId);
-      final today = DateTime.now();
+      final now = DateTime.now();
+      final startOfDay = DateTime(now.year, now.month, now.day, 0, 0, 0);
+      final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
+
+      QuerySnapshot<Map<String, dynamic>> snapshot;
+      try {
+        snapshot = await _db
+            .collection('transactions')
+            .where('commercantId', isEqualTo: commercantId)
+            .where('date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+            .get(const GetOptions(source: Source.serverAndCache));
+      } catch (_) {
+        // Fallback cache si pas d'index ou pas de réseau
+        snapshot = await _db
+            .collection('transactions')
+            .where('commercantId', isEqualTo: commercantId)
+            .where('date',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
+            .get(const GetOptions(source: Source.cache));
+      }
 
       double todayIncome = 0;
       double todayExpense = 0;
-      int todayCount = 0;
 
-      for (var t in all) {
-        final sameDay = t.date.year == today.year &&
-            t.date.month == today.month &&
-            t.date.day == today.day;
-
-        if (sameDay) {
-          todayCount++;
-          if (t.estRecette) {
-            todayIncome += t.montant;
-          } else {
-            todayExpense += t.montant;
-          }
+      for (final doc in snapshot.docs) {
+        final t = TransactionModel.fromFirestore(doc);
+        if (t.estRecette) {
+          todayIncome += t.montant;
+        } else {
+          todayExpense += t.montant;
         }
       }
 
       return {
         'todayIncome': todayIncome,
         'todayExpense': todayExpense,
-        'todayTransactionsCount': todayCount,
+        'todayTransactionsCount': snapshot.docs.length,
       };
     } catch (e) {
-      return {
-        'todayIncome': 0.0,
-        'todayExpense': 0.0,
-        'todayTransactionsCount': 0,
-      };
+      debugPrint('Erreur getQuickStats: $e');
+      rethrow;
     }
   }
 
+  // ─── GET PAR PÉRIODE ─────────────────────────────────────────────────────────
+  Future<List<TransactionModel>> getTransactionsByPeriode(
+    String commercantId,
+    DateTime dateDebut,
+    DateTime dateFin,
+  ) async {
+    try {
+      final debut =
+          DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
+      final fin =
+          DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
+
+      final snapshot = await _db
+          .collection('transactions')
+          .where('commercantId', isEqualTo: commercantId)
+          .where('date',
+              isGreaterThanOrEqualTo: Timestamp.fromDate(debut))
+          .where('date', isLessThanOrEqualTo: Timestamp.fromDate(fin))
+          .orderBy('date', descending: true)
+          .get(const GetOptions(source: Source.serverAndCache));
+
+      return snapshot.docs
+          .map((doc) => TransactionModel.fromFirestore(doc))
+          .toList();
+    } catch (e) {
+      debugPrint('Fallback local pour période: $e');
+      // Fallback si index composite manquant
+      final all = await getTransactionsByCommercant(commercantId);
+      final debut =
+          DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
+      final fin =
+          DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
+      return all.where((t) {
+        return !t.date.isBefore(debut) && !t.date.isAfter(fin);
+      }).toList()
+        ..sort((a, b) => b.date.compareTo(a.date));
+    }
+  }
+
+  // ─── GET DETAILED STATS ───────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getDetailedStats(
     String commercantId,
     DateTime dateDebut,
@@ -123,7 +207,7 @@ class TransactionService {
       final recettesParCategorie = <String, double>{};
       final depensesParCategorie = <String, double>{};
 
-      for (var t in transactions) {
+      for (final t in transactions) {
         if (t.estRecette) {
           totalRecettes += t.montant;
           nombreRecettes++;
@@ -149,43 +233,67 @@ class TransactionService {
         'periode': {'debut': dateDebut, 'fin': dateFin},
       };
     } catch (e) {
-      return {
-        'totalRecettes': 0.0,
-        'totalDepenses': 0.0,
-        'beneficeNet': 0.0,
-        'nombreRecettes': 0,
-        'nombreDepenses': 0,
-        'nombreTransactions': 0,
-        'recettesParCategorie': <String, double>{},
-        'depensesParCategorie': <String, double>{},
-        'periode': {'debut': dateDebut, 'fin': dateFin},
-      };
+      debugPrint('Erreur getDetailedStats: $e');
+      rethrow;
     }
   }
 
+  // ─── GET MONTHLY STATS — ✅ UNE SEULE LECTURE FIRESTORE ──────────────────────
+  // Au lieu de faire 12 appels séparés, on charge toutes les transactions
+  // de l'année en UNE SEULE requête et on trie en mémoire.
   Future<Map<String, Map<String, double>>> getMonthlyStats(
     String commercantId,
     int year,
   ) async {
     final stats = <String, Map<String, double>>{};
 
-    for (int month = 1; month <= 12; month++) {
-      final start = DateTime(year, month, 1);
-      final end = DateTime(year, month + 1, 0, 23, 59, 59);
+    try {
+      // Une seule requête pour toute l'année
+      final startOfYear = DateTime(year, 1, 1, 0, 0, 0);
+      final endOfYear = DateTime(year, 12, 31, 23, 59, 59);
 
-      final monthStats =
-          await getDetailedStats(commercantId, start, end);
+      final transactions = await getTransactionsByPeriode(
+          commercantId, startOfYear, endOfYear);
 
-      stats['${month.toString().padLeft(2, '0')}/$year'] = {
-        'recettes': monthStats['totalRecettes'] ?? 0,
-        'depenses': monthStats['totalDepenses'] ?? 0,
-        'benefice': monthStats['beneficeNet'] ?? 0,
-      };
+      // Initialiser tous les mois à 0
+      for (int month = 1; month <= 12; month++) {
+        stats['${month.toString().padLeft(2, '0')}/$year'] = {
+          'recettes': 0,
+          'depenses': 0,
+          'benefice': 0,
+        };
+      }
+
+      // Trier en mémoire — zéro appel Firestore supplémentaire
+      for (final t in transactions) {
+        final key =
+            '${t.date.month.toString().padLeft(2, '0')}/$year';
+        if (!stats.containsKey(key)) continue;
+
+        if (t.estRecette) {
+          stats[key]!['recettes'] = (stats[key]!['recettes'] ?? 0) + t.montant;
+        } else {
+          stats[key]!['depenses'] = (stats[key]!['depenses'] ?? 0) + t.montant;
+        }
+        stats[key]!['benefice'] =
+            (stats[key]!['recettes'] ?? 0) - (stats[key]!['depenses'] ?? 0);
+      }
+    } catch (e) {
+      debugPrint('Erreur getMonthlyStats: $e');
+      // Retourne des stats vides si erreur
+      for (int month = 1; month <= 12; month++) {
+        stats['${month.toString().padLeft(2, '0')}/$year'] = {
+          'recettes': 0,
+          'depenses': 0,
+          'benefice': 0,
+        };
+      }
     }
 
     return stats;
   }
 
+  // ─── HELPERS ─────────────────────────────────────────────────────────────────
   Future<double> getTotalByPeriod(
     String commercantId,
     DateTime dateDebut,
@@ -193,8 +301,7 @@ class TransactionService {
     bool recettes = true,
   }) async {
     try {
-      final stats =
-          await getDetailedStats(commercantId, dateDebut, dateFin);
+      final stats = await getDetailedStats(commercantId, dateDebut, dateFin);
       return recettes
           ? stats['totalRecettes'] ?? 0
           : stats['totalDepenses'] ?? 0;
@@ -210,15 +317,13 @@ class TransactionService {
     bool recettes = true,
   }) async {
     try {
-      final stats =
-          await getDetailedStats(commercantId, dateDebut, dateFin);
+      final stats = await getDetailedStats(commercantId, dateDebut, dateFin);
       final categories = recettes
           ? stats['recettesParCategorie'] as Map<String, double>
           : stats['depensesParCategorie'] as Map<String, double>;
 
       final sorted = categories.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-
       return {for (var e in sorted.take(5)) e.key: e.value};
     } catch (e) {
       return {};
@@ -235,12 +340,13 @@ class TransactionService {
           .where('commercantId', isEqualTo: commercantId)
           .where('type', isEqualTo: type.name)
           .orderBy('dateCreation', descending: true)
-          .get();
+          .get(const GetOptions(source: Source.serverAndCache));
 
       return snapshot.docs
           .map((doc) => TransactionModel.fromFirestore(doc))
           .toList();
     } catch (e) {
+      debugPrint('Erreur getTransactionsByType: $e');
       return [];
     }
   }
@@ -255,12 +361,13 @@ class TransactionService {
           .where('commercantId', isEqualTo: commercantId)
           .where('categorie', isEqualTo: categorie)
           .orderBy('dateCreation', descending: true)
-          .get();
+          .get(const GetOptions(source: Source.serverAndCache));
 
       return snapshot.docs
           .map((doc) => TransactionModel.fromFirestore(doc))
           .toList();
     } catch (e) {
+      debugPrint('Erreur getTransactionsByCategorie: $e');
       return [];
     }
   }
@@ -270,6 +377,7 @@ class TransactionService {
     String searchTerm,
   ) async {
     try {
+      // Utilise le cache si disponible
       final all = await getTransactionsByCommercant(commercantId);
       final term = searchTerm.toLowerCase();
       return all.where((t) {
@@ -281,12 +389,13 @@ class TransactionService {
     }
   }
 
+  // ─── UPDATE ──────────────────────────────────────────────────────────────────
   Future<void> updateTransaction(TransactionModel transaction) async {
     try {
       final oldDoc = await _db
           .collection('transactions')
           .doc(transaction.id)
-          .get();
+          .get(const GetOptions(source: Source.serverAndCache));
 
       if (!oldDoc.exists) throw Exception('Transaction introuvable');
 
@@ -298,41 +407,41 @@ class TransactionService {
           .doc(transaction.id)
           .update(transaction.toFirestore());
 
-      // ✅ Mise à jour solde non bloquante
+      invalidateCache(transaction.commercantId);
       _updateCommercantSolde(transaction.commercantId, delta);
     } catch (e) {
+      debugPrint('Erreur updateTransaction: $e');
       rethrow;
     }
   }
 
+  // ─── DELETE ──────────────────────────────────────────────────────────────────
   Future<void> deleteTransaction(
       String transactionId, String commercantId) async {
     try {
       final doc = await _db
           .collection('transactions')
           .doc(transactionId)
-          .get();
+          .get(const GetOptions(source: Source.serverAndCache));
 
       if (!doc.exists) throw Exception('Transaction introuvable');
 
       final transaction = TransactionModel.fromFirestore(doc);
-
       await _db.collection('transactions').doc(transactionId).delete();
 
-      // ✅ Mise à jour solde non bloquante
+      invalidateCache(commercantId);
       _updateCommercantSolde(commercantId, -transaction.impactSolde);
     } catch (e) {
+      debugPrint('Erreur deleteTransaction: $e');
       rethrow;
     }
   }
 
-  // ✅ FieldValue.increment fonctionne offline — pas besoin de runTransaction
+  // ─── SOLDE ───────────────────────────────────────────────────────────────────
   void _updateCommercantSolde(String commercantId, double montant) {
     _db.collection('utilisateurs').doc(commercantId).update({
       'soldeActuel': FieldValue.increment(montant),
     }).catchError((e) {
-      // Firestore va rejouer cette opération automatiquement
-      // quand le réseau revient — pas besoin de bloquer l'UI
       debugPrint('Solde sera sync au retour du réseau: $e');
     });
   }

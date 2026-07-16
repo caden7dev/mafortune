@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
-import '../auth/reset_pin_screen.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 
 class PinVerifyScreen extends StatefulWidget {
   const PinVerifyScreen({super.key});
@@ -14,286 +14,299 @@ class PinVerifyScreen extends StatefulWidget {
 }
 
 class _PinVerifyScreenState extends State<PinVerifyScreen> {
-  final TextEditingController _pinController = TextEditingController();
   final LocalAuthService _localAuth = LocalAuthService();
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
 
+  String _pin = '';
   bool _isLoading = false;
-  int _attempts = 0;
-  final int _maxAttempts = 3;
+  int _tentatives = 0;
+  final int _maxTentatives = 3;
+  bool _erreurVisible = false;
 
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkBiometrics();
+  void _appuyerChiffre(String chiffre) {
+    if (_pin.length >= 4 || _isLoading) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _erreurVisible = false;
+      _pin += chiffre;
     });
-  }
-
-  @override
-  void dispose() {
-    _pinController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _checkBiometrics() async {
-    final isAvailable = await _localAuth.isBiometricAvailable();
-    if (isAvailable && mounted) {
-      _showBiometricOption();
+    if (_pin.length == 4) {
+      Future.delayed(const Duration(milliseconds: 200), _verifier);
     }
   }
 
-  void _showBiometricOption() {}
+  void _effacer() {
+    if (_pin.isEmpty) return;
+    HapticFeedback.lightImpact();
+    setState(() => _pin = _pin.substring(0, _pin.length - 1));
+  }
 
-  Future<void> _verify() async {
-    if (_pinController.text.length != 4) {
-      _showError('Veuillez saisir un code PIN à 4 chiffres');
-      return;
-    }
-
+  Future<void> _verifier() async {
     setState(() => _isLoading = true);
 
     try {
-      final isValid = await _localAuth.verifyPin(_pinController.text);
-      
-      if (isValid) {
+      final valide = await _localAuth.verifyPin(_pin);
+
+      if (valide) {
         await _localAuth.updateLastActivity();
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Accès autorisé'),
-              backgroundColor: AppColors.success,
-              duration: Duration(seconds: 1),
-            ),
+          final isAdmin = await _permissionService.isAdmin();
+          Navigator.pushReplacementNamed(
+            context,
+            isAdmin ? '/admin/dashboard' : '/dashboard',
           );
-          await Future.delayed(const Duration(milliseconds: 300));
-          if (mounted) {
-            final isAdmin = await _permissionService.isAdmin();
-            if (isAdmin) {
-              Navigator.pushReplacementNamed(context, '/admin/dashboard');
-            } else {
-              Navigator.pushReplacementNamed(context, '/dashboard');
-            }
-          }
         }
       } else {
-        _attempts++;
-        if (_attempts >= _maxAttempts) {
+        _tentatives++;
+        HapticFeedback.heavyImpact();
+
+        if (_tentatives >= _maxTentatives) {
           await _authService.signOut();
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('❌ Trop de tentatives. Vous avez été déconnecté.'),
-                backgroundColor: Colors.red,
-                duration: Duration(seconds: 3),
-              ),
-            );
             Navigator.pushReplacementNamed(context, '/welcome');
           }
         } else {
-          final remaining = _maxAttempts - _attempts;
-          _showError('Code PIN incorrect. Il vous reste $remaining tentative${remaining > 1 ? 's' : ''}.');
-          _pinController.clear();
+          setState(() {
+            _pin = '';
+            _erreurVisible = true;
+            _isLoading = false;
+          });
         }
       }
     } catch (e) {
-      // ✅ AJOUTÉ
       FirebaseCrashlytics.instance.recordError(
         e, StackTrace.current,
         reason: 'Erreur vérification PIN',
         fatal: false,
       );
-      _showError('Erreur: ${e.toString()}');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      setState(() {
+        _pin = '';
+        _erreurVisible = true;
+        _isLoading = false;
+      });
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  Future<void> _logout() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Déconnexion'),
-        content: const Text('Voulez-vous vraiment vous déconnecter ?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Déconnexion'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      await _authService.signOut();
-      if (mounted) Navigator.pushReplacementNamed(context, '/welcome');
-    }
+  Future<void> _deconnecter() async {
+    await _authService.signOut();
+    if (mounted) Navigator.pushReplacementNamed(context, '/welcome');
   }
 
   @override
   Widget build(BuildContext context) {
+    final restantes = _maxTentatives - _tentatives;
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        actions: [
-          TextButton.icon(
-            onPressed: _logout,
-            icon: const Icon(Icons.logout, color: Colors.red),
-            label: const Text('Déconnexion', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      backgroundColor: Colors.white,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(30),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.fingerprint,
-                  size: 50,
-                  color: AppColors.primaryGreen,
-                ),
+        child: Column(
+          children: [
+            // Header
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
+              decoration: const BoxDecoration(
+                gradient: AppColors.primaryGradient,
+                borderRadius:
+                    BorderRadius.vertical(bottom: Radius.circular(28)),
               ),
-              const SizedBox(height: 30),
-              const Text(
-                'Vérification d\'identité',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 15),
-              Text(
-                'Entrez votre code PIN à 4 chiffres pour accéder à votre compte',
-                style: TextStyle(fontSize: 16, color: Colors.grey[600], height: 1.5),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-              TextField(
-                controller: _pinController,
-                keyboardType: TextInputType.number,
-                obscureText: true,
-                maxLength: 4,
-                autofocus: true,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 20,
-                ),
-                decoration: InputDecoration(
-                  hintText: '••••',
-                  counterText: '',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
+              child: Column(
+                children: [
+                  const Text('👆', style: TextStyle(fontSize: 52)),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Entre ton code secret',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide(color: Colors.grey[300]!, width: 2),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ton code à 4 chiffres',
+                    style:
+                        TextStyle(color: Colors.white70, fontSize: 14),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
-                ),
-                onChanged: (value) {
-                  if (value.length == 4) _verify();
-                },
+                ],
               ),
-              const SizedBox(height: 20),
-              if (_attempts > 0)
-                Container(
-                  padding: const EdgeInsets.all(12),
+            ),
+
+            const Spacer(),
+
+            // Erreur
+            if (_erreurVisible)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.warning_amber, color: Colors.orange, size: 20),
+                      const Text('❌', style: TextStyle(fontSize: 18)),
                       const SizedBox(width: 10),
-                      Text(
-                        'Tentative ${_attempts}/$_maxAttempts',
-                        style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.w600),
+                      Expanded(
+                        child: Text(
+                          restantes > 0
+                              ? 'Code incorrect. Il te reste $restantes essai${restantes > 1 ? 's' : ''}.'
+                              : 'Trop d\'erreurs.',
+                          style: const TextStyle(
+                              color: Colors.red, fontSize: 14),
+                        ),
                       ),
                     ],
                   ),
                 ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _verify,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    elevation: 4,
+              ),
+
+            const SizedBox(height: 24),
+
+            // Indicateurs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(4, (i) {
+                final rempli = i < _pin.length;
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  margin: const EdgeInsets.symmetric(horizontal: 10),
+                  width: rempli ? 24 : 20,
+                  height: rempli ? 24 : 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: _erreurVisible
+                        ? Colors.red.shade300
+                        : rempli
+                            ? AppColors.primaryGreen
+                            : Colors.grey.shade300,
                   ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24, height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                );
+              }),
+            ),
+
+            const Spacer(),
+
+            // Numpad
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Column(
+                children: [
+                  _buildRangee(['1', '2', '3']),
+                  const SizedBox(height: 16),
+                  _buildRangee(['4', '5', '6']),
+                  const SizedBox(height: 16),
+                  _buildRangee(['7', '8', '9']),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      // PIN oublié
+                      GestureDetector(
+                        onTap: () =>
+                            Navigator.pushNamed(context, '/reset_pin'),
+                        child: Container(
+                          width: 80,
+                          height: 80,
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            shape: BoxShape.circle,
                           ),
-                        )
-                      : const Text(
-                          'Déverrouiller',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          child: const Center(
+                            child: Text('?',
+                                style: TextStyle(
+                                    color: Colors.orange,
+                                    fontSize: 32,
+                                    fontWeight: FontWeight.bold)),
+                          ),
                         ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () => Navigator.pushNamed(context, '/reset_pin'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primaryGreen),
-                child: const Text(
-                  'PIN oublié ?',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    decoration: TextDecoration.underline,
+                      ),
+                      _buildTouche('0'),
+                      _buildToucheEffacer(),
+                    ],
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
+
+            const SizedBox(height: 24),
+
+            // Chargement
+            if (_isLoading)
+              const CircularProgressIndicator(
+                  color: AppColors.primaryGreen),
+
+            const SizedBox(height: 16),
+
+            // Déconnexion discrète
+            TextButton(
+              onPressed: _deconnecter,
+              child: const Text(
+                'Ce n\'est pas moi →',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+            ),
+
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRangee(List<String> chiffres) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: chiffres.map(_buildTouche).toList(),
+    );
+  }
+
+  Widget _buildTouche(String chiffre) {
+    return GestureDetector(
+      onTap: () => _appuyerChiffre(chiffre),
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.shade300,
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Center(
+          child: Text(
+            chiffre,
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildToucheEffacer() {
+    return GestureDetector(
+      onTap: _effacer,
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: Colors.red.shade50,
+          shape: BoxShape.circle,
+        ),
+        child: const Center(
+          child: Icon(Icons.backspace_outlined,
+              color: Colors.red, size: 28),
         ),
       ),
     );

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_text_styles.dart';
-import '../../widgets/custom_bottom_nav.dart'; // ✅ Import
+import '../../widgets/custom_bottom_nav.dart';
 
 class AProposScreen extends StatefulWidget {
   const AProposScreen({super.key});
@@ -12,75 +11,61 @@ class AProposScreen extends StatefulWidget {
 }
 
 class _AProposScreenState extends State<AProposScreen> {
-  final List<Map<String, dynamic>> _versions = [
-    {
-      'version': '1.0.0',
-      'date': '15 Mars 2024',
-      'features': [
-        '✨ Première version de l\'application',
-        '📊 Gestion des recettes et dépenses',
-        '📈 Tableau de bord avec statistiques',
-        '📑 Génération de rapports',
-        '🔔 Système d\'alertes',
-        '👤 Gestion du profil utilisateur',
-      ],
-    },
-  ];
-
-  // ✅ Index de la barre de navigation (4 = Profil)
   int _currentIndex = 4;
 
-  Future<void> _openWebsite() async {
-    final Uri uri = Uri.parse('https://www.mafortune.tg');
+  final List<String> _features = [
+    '📊 Suivi de vos recettes et dépenses',
+    '📈 Tableau de bord avec vos statistiques',
+    '📑 Génération de rapports PDF',
+    '🔔 Alertes et notifications',
+    '🎯 Budget mensuel',
+    '👤 Gestion du profil commerçant',
+  ];
+
+  Future<void> _openUrl(String url) async {
+    final Uri uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible d\'ouvrir le site web')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('❌ Impossible d\'ouvrir la page',
+                style: TextStyle(fontSize: 16)),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
-  Future<void> _openPrivacyPolicy() async {
-    final Uri uri = Uri.parse('https://www.mafortune.tg/confidentialite');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible d\'ouvrir la page')),
-      );
-    }
-  }
-
-  Future<void> _openTerms() async {
-    final Uri uri = Uri.parse('https://www.mafortune.tg/conditions');
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible d\'ouvrir la page')),
-      );
-    }
-  }
-
+  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('À propos'),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'ℹ️ À propos',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Logo et nom de l'application
+            // ── Header logo ──────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(30),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                color: AppColors.primaryGreen.withOpacity(0.08),
               ),
               child: Column(
                 children: [
@@ -89,297 +74,166 @@ class _AProposScreenState extends State<AProposScreen> {
                     height: 100,
                     decoration: BoxDecoration(
                       color: AppColors.primaryGreen,
-                      borderRadius: BorderRadius.circular(25),
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.primaryGreen.withOpacity(0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: const Center(
-                      child: Text(
-                        '💰',
-                        style: TextStyle(fontSize: 50),
-                      ),
+                      child: Text('💰', style: TextStyle(fontSize: 52)),
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  Text(
+                  const SizedBox(height: 18),
+                  const Text(
                     'MaFortune',
-                    style: AppTextStyles.h3.copyWith(
-                      color: AppColors.primaryGreen,
+                    style: TextStyle(
+                      fontSize: 30,
                       fontWeight: FontWeight.bold,
+                      color: AppColors.primaryGreen,
                     ),
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Version 1.0.0',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey[600],
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryGreen.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Version 1.0.0',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.primaryGreen,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 10),
                   Text(
                     'Gestion financière pour commerçants',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: Colors.grey[500],
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
               ),
             ),
-            
-            // Description
-            Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.info_outline, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      Text(
-                        'À propos de MaFortune',
-                        style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    'MaFortune est une application de gestion financière conçue spécialement pour les commerçants du secteur informel au Togo. '
-                    'Elle vous aide à suivre vos recettes et dépenses, générer des rapports et mieux gérer votre activité.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                  const SizedBox(height: 15),
-                  Text(
-                    'Notre mission est de digitaliser la gestion financière des petits commerçants pour les aider à prendre de meilleures décisions et à développer leur activité.',
-                    style: TextStyle(
-                      fontSize: 14,
-                      height: 1.5,
-                      color: Colors.grey[700],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // Fonctionnalités
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.stars, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Fonctionnalités',
-                        style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  ..._versions.first['features'].map<Widget>((feature) {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text('• ', style: TextStyle(fontSize: 16)),
-                          Expanded(
-                            child: Text(
-                              feature,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.grey[700],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ],
-              ),
-            ),
-            
+
             const SizedBox(height: 20),
-            
-            // Liens utiles
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+
+            // ── À propos ─────────────────────────────────────────────────────
+            _buildSection(
+              emoji: 'ℹ️',
+              title: 'À propos de MaFortune',
+              child: Column(
+                children: [
+                  _buildParagraph(
+                    'MaFortune est une application de gestion financière conçue pour les commerçants du secteur informel au Togo. Elle vous aide à suivre vos recettes et dépenses, générer des rapports et mieux gérer votre activité.',
+                  ),
+                  const SizedBox(height: 12),
+                  _buildParagraph(
+                    'Notre mission : digitaliser la gestion financière des petits commerçants pour les aider à prendre de meilleures décisions et à développer leur activité.',
                   ),
                 ],
               ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Fonctionnalités ───────────────────────────────────────────────
+            _buildSection(
+              emoji: '⭐',
+              title: 'Fonctionnalités',
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                children: _features.map((f) => _buildFeatureItem(f)).toList(),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // ── Liens utiles ─────────────────────────────────────────────────
+            _buildSection(
+              emoji: '🔗',
+              title: 'Liens utiles',
+              child: Column(
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.link, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Liens utiles',
-                        style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
                   _buildLinkItem(
-                    icon: Icons.language,
+                    emoji: '🌐',
                     title: 'Site web',
-                    onTap: _openWebsite,
+                    onTap: () => _openUrl('https://www.mafortune.tg'),
                   ),
                   _buildLinkItem(
-                    icon: Icons.privacy_tip,
+                    emoji: '🔒',
                     title: 'Politique de confidentialité',
-                    onTap: _openPrivacyPolicy,
+                    onTap: () =>
+                        _openUrl('https://www.mafortune.tg/confidentialite'),
                   ),
                   _buildLinkItem(
-                    icon: Icons.description,
+                    emoji: '📄',
                     title: 'Conditions d\'utilisation',
-                    onTap: _openTerms,
+                    onTap: () =>
+                        _openUrl('https://www.mafortune.tg/conditions'),
+                    isLast: true,
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Informations légales
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+
+            const SizedBox(height: 16),
+
+            // ── Informations légales ─────────────────────────────────────────
+            _buildSection(
+              emoji: '⚖️',
+              title: 'Informations légales',
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.gavel, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Informations légales',
-                        style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  _buildInfoRow('Développeur', 'MaFortune Team'),
-                  _buildInfoRow('Email', 'contact@mafortune.tg'),
-                  _buildInfoRow('Téléphone', '+228 90 00 00 00'),
-                  _buildInfoRow('Année', '2024'),
+                  _buildInfoRow('👨‍💻', 'Développeur', 'MaFortune Team'),
+                  _buildInfoRow('📧', 'Email', 'contact@mafortune.tg'),
+                  _buildInfoRow('📞', 'Téléphone', '+228 90 00 00 00'),
+                  _buildInfoRow('📅', 'Année', '2024'),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 20),
-            
-            // Crédits
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
+
+            const SizedBox(height: 16),
+
+            // ── Crédits ──────────────────────────────────────────────────────
+            _buildSection(
+              emoji: '👏',
+              title: 'Crédits',
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.code, color: AppColors.primaryGreen),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Crédits',
-                        style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 15),
-                  _buildCreditItem('Flutter', 'Framework de développement'),
-                  _buildCreditItem('Firebase', 'Base de données et authentification'),
-                  _buildCreditItem('Icons8', 'Icônes utilisées'),
-                  const SizedBox(height: 10),
+                  _buildCreditItem('Flutter', '📱', 'Framework de développement'),
+                  _buildCreditItem('Firebase', '🔥', 'Base de données et auth'),
+                  _buildCreditItem('fl_chart', '📊', 'Graphiques'),
+                  const SizedBox(height: 12),
                   const Divider(),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
                   Center(
                     child: Text(
-                      '© 2024 MaFortune - Tous droits réservés',
+                      '© 2024 MaFortune — Tous droits réservés',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 13,
                         color: Colors.grey[500],
+                        fontStyle: FontStyle.italic,
                       ),
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 40),
           ],
         ),
       ),
-      // ✅ AJOUT DE LA BARRE DE NAVIGATION
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() => _currentIndex = index);
-          
-          // Navigation selon l'index
           switch (index) {
             case 0:
               Navigator.pushReplacementNamed(context, '/dashboard');
@@ -394,7 +248,6 @@ class _AProposScreenState extends State<AProposScreen> {
               Navigator.pushReplacementNamed(context, '/alertes');
               break;
             case 4:
-              // Déjà sur Profil/À propos
               break;
           }
         },
@@ -402,45 +255,80 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  Widget _buildLinkItem({
-    required IconData icon,
+  // ─── SECTION WRAPPER ─────────────────────────────────────────────────────────
+  Widget _buildSection({
+    required String emoji,
     required String title,
-    required VoidCallback onTap,
+    required Widget child,
   }) {
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(icon, size: 22, color: AppColors.primaryGreen),
-      title: Text(
-        title,
-        style: const TextStyle(fontSize: 14),
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+          ),
+        ],
       ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 10),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
     );
   }
 
-  Widget _buildInfoRow(String label, String value) {
+  // ─── PARAGRAPHE ──────────────────────────────────────────────────────────────
+  Widget _buildParagraph(String text) {
+    return Text(
+      text,
+      style: TextStyle(
+        fontSize: 15,
+        height: 1.6,
+        color: Colors.grey[700],
+      ),
+    );
+  }
+
+  // ─── FEATURE ITEM ────────────────────────────────────────────────────────────
+  Widget _buildFeatureItem(String feature) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[600],
-              ),
-            ),
+          Text(
+            feature.substring(0, 2), // emoji
+            style: const TextStyle(fontSize: 22),
           ),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
-              value,
+              feature.substring(2).trim(),
               style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 15,
+                color: Colors.black87,
+                height: 1.4,
               ),
             ),
           ),
@@ -449,33 +337,92 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  Widget _buildCreditItem(String name, String role) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(
-              color: AppColors.primaryGreen,
-              shape: BoxShape.circle,
+  // ─── LIEN ────────────────────────────────────────────────────────────────────
+  Widget _buildLinkItem({
+    required String emoji,
+    required String title,
+    required VoidCallback onTap,
+    bool isLast = false,
+  }) {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            child: Row(
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 22)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios,
+                    size: 16, color: Colors.grey[400]),
+              ],
             ),
           ),
-          const SizedBox(width: 10),
+        ),
+        if (!isLast) Divider(height: 1, color: Colors.grey[100]),
+      ],
+    );
+  }
+
+  // ─── INFO ROW ────────────────────────────────────────────────────────────────
+  Widget _buildInfoRow(String emoji, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
           Text(
-            name,
+            label,
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+          const Spacer(),
+          Text(
+            value,
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
+              color: Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ─── CREDIT ITEM ─────────────────────────────────────────────────────────────
+  Widget _buildCreditItem(String name, String emoji, String role) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 12),
+          Text(
+            name,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            role,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
+          Expanded(
+            child: Text(
+              '— $role',
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],

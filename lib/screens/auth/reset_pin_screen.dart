@@ -21,7 +21,7 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
 
   Future<void> _sendResetEmail() async {
     if (_userEmail.isEmpty) {
-      _showError('Aucun compte connecté. Veuillez vous reconnecter.');
+      _showError('Aucun compte connecté. Revenez et reconnectez-vous.');
       return;
     }
 
@@ -38,7 +38,6 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
       }
     } on FirebaseAuthException catch (e) {
       setState(() => _isLoading = false);
-      // ✅ AJOUTÉ
       FirebaseCrashlytics.instance.recordError(
         e, StackTrace.current,
         reason: 'Erreur Firebase reset PIN : ${e.code}',
@@ -49,20 +48,19 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
           _showError('Aucun compte trouvé pour cet email.');
           break;
         case 'too-many-requests':
-          _showError('Trop de tentatives. Réessayez dans quelques minutes.');
+          _showError('Trop de tentatives. Attendez quelques minutes.');
           break;
         default:
-          _showError('Erreur : ${e.message}');
+          _showError('Problème de connexion. Réessayez.');
       }
     } catch (e) {
       setState(() => _isLoading = false);
-      // ✅ AJOUTÉ
       FirebaseCrashlytics.instance.recordError(
         e, StackTrace.current,
         reason: 'Erreur reset PIN',
         fatal: false,
       );
-      _showError('Une erreur est survenue. Vérifiez votre connexion.');
+      _showError('Vérifiez votre connexion internet et réessayez.');
     }
   }
 
@@ -74,7 +72,10 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 16),
+        ),
         backgroundColor: Colors.red,
         duration: const Duration(seconds: 4),
       ),
@@ -89,167 +90,345 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: AppColors.primaryGreen),
+          icon: const Icon(Icons.arrow_back_ios, color: AppColors.primaryGreen, size: 26),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'PIN oublié',
-          style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600),
+          '🔑 Code PIN oublié',
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
         ),
       ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(30),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: _emailSent ? _buildSuccessView() : _buildRequestView(),
         ),
       ),
     );
   }
 
+  // ─── VUE 1 : Demande d'envoi ────────────────────────────────────────────────
   Widget _buildRequestView() {
     return Column(
       children: [
-        const SizedBox(height: 20),
+        const SizedBox(height: 16),
+
+        // Icône principale
         Container(
-          width: 100, height: 100,
+          width: 110,
+          height: 110,
           decoration: BoxDecoration(
-            color: Colors.orange.withOpacity(0.1),
+            color: Colors.orange.withOpacity(0.12),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.lock_reset, size: 50, color: Colors.orange),
+          child: const Center(
+            child: Text('🔒', style: TextStyle(fontSize: 56)),
+          ),
         ),
-        const SizedBox(height: 30),
+
+        const SizedBox(height: 28),
+
+        // Titre
         const Text(
-          'Réinitialiser votre PIN',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87),
+          'Vous avez oublié\nvotre code PIN ?',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+            height: 1.3,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 15),
-        Text(
-          'Nous allons envoyer un lien de réinitialisation à votre adresse email.',
-          style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
-          textAlign: TextAlign.center,
+
+        const SizedBox(height: 16),
+
+        // Explication simple
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.blue.withOpacity(0.07),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: const Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('💡', style: TextStyle(fontSize: 22)),
+              SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  'Nous allons envoyer un message à votre adresse email pour vous aider à créer un nouveau code.',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 30),
+
+        const SizedBox(height: 24),
+
+        // Email masqué
         if (_userEmail.isNotEmpty)
           Container(
-            padding: const EdgeInsets.all(16),
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: AppColors.primaryGreen.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.primaryGreen.withOpacity(0.3)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: AppColors.primaryGreen.withOpacity(0.3),
+                width: 1.5,
+              ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.email_outlined, color: AppColors.primaryGreen, size: 22),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Email du compte', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
-                      const SizedBox(height: 2),
-                      Text(
-                        _maskEmail(_userEmail),
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87),
-                      ),
-                    ],
+                Text(
+                  '📧 Votre email',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _maskEmail(_userEmail),
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
           ),
+
         const SizedBox(height: 40),
+
+        // Bouton principal — grand
         SizedBox(
-          width: double.infinity, height: 56,
+          width: double.infinity,
+          height: 64,
           child: ElevatedButton(
             onPressed: _isLoading ? null : _sendResetEmail,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              disabledBackgroundColor: AppColors.primaryGreen.withOpacity(0.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               elevation: 4,
             ),
             child: _isLoading
                 ? const SizedBox(
-                    width: 24, height: 24,
+                    width: 28,
+                    height: 28,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: 3,
                       valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
                     ),
                   )
-                : const Text(
-                    'Envoyer le lien de réinitialisation',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('📨', style: TextStyle(fontSize: 24)),
+                      SizedBox(width: 12),
+                      Text(
+                        'Envoyer le lien',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
           ),
         ),
+
         const SizedBox(height: 16),
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: Text('Retour', style: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500)),
+
+        // Bouton retour — secondaire
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: OutlinedButton(
+            onPressed: () => Navigator.pop(context),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.grey[700],
+              side: BorderSide(color: Colors.grey[300]!, width: 1.5),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            child: const Text(
+              'Retour',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+          ),
         ),
+
+        const SizedBox(height: 24),
       ],
     );
   }
 
+  // ─── VUE 2 : Email envoyé avec succès ────────────────────────────────────────
   Widget _buildSuccessView() {
     return Column(
       children: [
-        const SizedBox(height: 30),
+        const SizedBox(height: 20),
+
+        // Icône succès
         Container(
-          width: 110, height: 110,
+          width: 120,
+          height: 120,
           decoration: BoxDecoration(
-            color: AppColors.primaryGreen.withOpacity(0.1),
+            color: AppColors.primaryGreen.withOpacity(0.12),
             shape: BoxShape.circle,
           ),
-          child: const Icon(Icons.mark_email_read_outlined, size: 55, color: AppColors.primaryGreen),
+          child: const Center(
+            child: Text('✅', style: TextStyle(fontSize: 60)),
+          ),
         ),
-        const SizedBox(height: 30),
+
+        const SizedBox(height: 28),
+
+        // Titre succès
         const Text(
           'Email envoyé !',
-          style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: TextStyle(
+            fontSize: 30,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 15),
+
+        const SizedBox(height: 10),
+
         Text(
-          'Un lien de réinitialisation a été envoyé à\n${_maskEmail(_userEmail)}',
-          style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.6),
+          _maskEmail(_userEmail),
+          style: TextStyle(
+            fontSize: 16,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 30),
-        _buildStep('1', 'Ouvrez votre boîte email'),
-        _buildStep('2', 'Cliquez sur le lien reçu de Firebase'),
-        _buildStep('3', 'Créez un nouveau mot de passe'),
-        _buildStep('4', 'Revenez ici et connectez-vous'),
-        _buildStep('5', 'Créez un nouveau code PIN'),
-        const SizedBox(height: 40),
+
+        const SizedBox(height: 28),
+
+        // Étapes à suivre — style accessible
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Que faire maintenant ?',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 16),
+              _buildStep('📧', '1', 'Ouvrez votre boîte email'),
+              _buildStep('🔗', '2', 'Cliquez sur le lien reçu'),
+              _buildStep('🔐', '3', 'Créez un nouveau mot de passe'),
+              _buildStep('📲', '4', 'Revenez dans l\'application'),
+              _buildStep('🔢', '5', 'Créez un nouveau code PIN'),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 16),
+
+        // Note spam
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: const Row(
+            children: [
+              Text('⚠️', style: TextStyle(fontSize: 20)),
+              SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Vous ne trouvez pas l\'email ?\nVérifiez votre dossier SPAM.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black87,
+                    height: 1.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 36),
+
+        // Bouton aller à la connexion
         SizedBox(
-          width: double.infinity, height: 56,
+          width: double.infinity,
+          height: 64,
           child: ElevatedButton(
             onPressed: _goToLogin,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
               elevation: 4,
             ),
-            child: const Text(
-              'Aller à la connexion',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('🔓', style: TextStyle(fontSize: 24)),
+                SizedBox(width: 12),
+                Text(
+                  'Aller à la connexion',
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
           ),
         ),
-        const SizedBox(height: 16),
-        Text(
-          'Vérifiez aussi vos spams si vous ne trouvez pas l\'email.',
-          style: TextStyle(fontSize: 12, color: Colors.grey[500], fontStyle: FontStyle.italic),
-          textAlign: TextAlign.center,
-        ),
+
+        const SizedBox(height: 30),
       ],
     );
   }
 
+  // ─── Helpers ────────────────────────────────────────────────────────────────
   String _maskEmail(String email) {
     if (email.isEmpty) return '';
     final parts = email.split('@');
@@ -260,20 +439,43 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
     return '${name.substring(0, 2)}***${name.substring(name.length - 1)}@$domain';
   }
 
-  Widget _buildStep(String number, String text) {
+  Widget _buildStep(String emoji, String number, String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
+          // Numéro
           Container(
-            width: 28, height: 28,
-            decoration: const BoxDecoration(color: AppColors.primaryGreen, shape: BoxShape.circle),
+            width: 32,
+            height: 32,
+            decoration: const BoxDecoration(
+              color: AppColors.primaryGreen,
+              shape: BoxShape.circle,
+            ),
             child: Center(
-              child: Text(number, style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+              child: Text(
+                number,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 15, color: Colors.black87))),
+          const SizedBox(width: 12),
+          Text(emoji, style: const TextStyle(fontSize: 22)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                fontSize: 16,
+                color: Colors.black87,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_colors.dart';
-import '../../core/constants/app_text_styles.dart';
-import '../../widgets/custom_bottom_nav.dart'; // ✅ Import
+import '../../widgets/custom_bottom_nav.dart';
 
 class AideScreen extends StatefulWidget {
   const AideScreen({super.key});
@@ -12,254 +11,319 @@ class AideScreen extends StatefulWidget {
 }
 
 class _AideScreenState extends State<AideScreen> {
+  int _currentIndex = 4;
+
   final List<Map<String, dynamic>> _faqItems = [
     {
+      'emoji': '➕',
       'question': 'Comment ajouter une recette ?',
-      'answer': 'Sur l\'écran d\'accueil, cliquez sur le bouton "Nouvelle Recette". Remplissez le montant, la catégorie, la description et la date, puis cliquez sur "Enregistrer".',
+      'answer':
+          'Sur l\'écran d\'accueil, appuyez sur le bouton "Nouvelle Recette". Remplissez le montant, la catégorie et la date, puis appuyez sur "Enregistrer".',
     },
     {
+      'emoji': '✏️',
       'question': 'Comment modifier une transaction ?',
-      'answer': 'Sur l\'écran d\'accueil, dans la liste des transactions récentes, cliquez sur le bouton "Modifier" de la transaction que vous souhaitez modifier.',
+      'answer':
+          'Sur l\'écran d\'accueil, dans la liste des transactions récentes, appuyez sur "Modifier" à côté de la transaction à changer.',
     },
     {
+      'emoji': '🗑️',
       'question': 'Comment supprimer une transaction ?',
-      'answer': 'Sur l\'écran d\'accueil, dans la liste des transactions récentes, cliquez sur le bouton "Supprimer" de la transaction que vous souhaitez supprimer, puis confirmez la suppression.',
+      'answer':
+          'Sur l\'écran d\'accueil, appuyez sur "Supprimer" à côté de la transaction, puis confirmez la suppression.',
     },
     {
+      'emoji': '📊',
       'question': 'Comment consulter mes rapports ?',
-      'answer': 'Appuyez sur l\'onglet "Rapports" en bas de l\'écran. Vous pouvez choisir entre rapport mensuel, trimestriel, annuel ou personnalisé.',
+      'answer':
+          'Appuyez sur l\'onglet "Rapports" en bas de l\'écran. Vous pouvez choisir entre mensuel, trimestriel ou annuel.',
     },
     {
+      'emoji': '👤',
       'question': 'Comment modifier mon profil ?',
-      'answer': 'Allez dans l\'onglet "Profil", puis cliquez sur "Modifier le profil". Vous pourrez modifier vos informations personnelles.',
+      'answer':
+          'Allez dans l\'onglet "Profil", puis appuyez sur "Modifier mon profil". Vous pouvez changer votre nom, téléphone et photo.',
     },
     {
+      'emoji': '🔐',
       'question': 'Comment changer mon mot de passe ?',
-      'answer': 'Dans l\'onglet "Profil", cliquez sur "Changer le mot de passe". Entrez votre mot de passe actuel et le nouveau mot de passe, puis confirmez.',
+      'answer':
+          'Dans l\'onglet "Profil", appuyez sur "Changer le mot de passe". Entrez votre mot de passe actuel et le nouveau, puis confirmez.',
     },
     {
+      'emoji': '🔒',
       'question': 'Mes données sont-elles sécurisées ?',
-      'answer': 'Oui, toutes vos données sont chiffrées et stockées de manière sécurisée dans Firebase. Vos informations personnelles ne sont jamais partagées sans votre consentement.',
+      'answer':
+          'Oui. Toutes vos données sont chiffrées et stockées en sécurité dans Firebase. Vos informations ne sont jamais partagées sans votre accord.',
     },
     {
+      'emoji': '📤',
       'question': 'Comment exporter mes données ?',
-      'answer': 'Allez dans l\'onglet "Profil" → "Confidentialité", puis cliquez sur "Exporter mes données". Un fichier JSON sera téléchargé avec toutes vos transactions.',
+      'answer':
+          'Allez dans "Profil" → "Confidentialité", puis appuyez sur "Exporter mes données". Un fichier avec toutes vos transactions sera téléchargé.',
     },
   ];
 
-  // ✅ Index de la barre de navigation (4 = Profil)
-  int _currentIndex = 4;
-
   Future<void> _sendEmail() async {
-    final Uri emailUri = Uri(
+    final Uri uri = Uri(
       scheme: 'mailto',
       path: 'support@mafortune.tg',
-      query: 'subject=Demande d\'aide - MaFortune&body=Bonjour,%0D%0A%0D%0AJe souhaite obtenir de l\'aide concernant :%0D%0A%0D%0A',
+      query:
+          'subject=Demande d\'aide - MaFortune&body=Bonjour,%0D%0A%0D%0AJe souhaite obtenir de l\'aide concernant :%0D%0A%0D%0A',
     );
-    if (await canLaunchUrl(emailUri)) {
-      await launchUrl(emailUri);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible d\'ouvrir l\'application email')),
-      );
+      _showError('Impossible d\'ouvrir l\'application email');
     }
   }
 
   Future<void> _makePhoneCall() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+22890000000');
-    if (await canLaunchUrl(phoneUri)) {
-      await launchUrl(phoneUri);
+    final Uri uri = Uri(scheme: 'tel', path: '+22890000000');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible de passer l\'appel')),
-      );
+      _showError('Impossible de passer l\'appel');
     }
   }
 
   Future<void> _openWebsite() async {
-    final Uri websiteUri = Uri.parse('https://www.mafortune.tg');
-    if (await canLaunchUrl(websiteUri)) {
-      await launchUrl(websiteUri, mode: LaunchMode.externalApplication);
+    final Uri uri = Uri.parse('https://www.mafortune.tg');
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('❌ Impossible d\'ouvrir le site web')),
-      );
+      _showError('Impossible d\'ouvrir le site web');
     }
   }
 
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('❌ $msg', style: const TextStyle(fontSize: 16)),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.backgroundLight,
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text('Aide & Support'),
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,
         elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          '❓ Aide & Support',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Header
+            // ── Header ──────────────────────────────────────────────────────
             Container(
-              padding: const EdgeInsets.all(20),
+              width: double.infinity,
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withValues(alpha: 0.1),
+                color: AppColors.primaryGreen.withOpacity(0.08),
               ),
               child: Column(
                 children: [
-                  const Icon(Icons.help_center, size: 60, color: AppColors.primaryGreen),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Comment pouvons-nous vous aider ?',
-                    style: AppTextStyles.h5.copyWith(color: AppColors.primaryGreen),
+                  const Text('🆘', style: TextStyle(fontSize: 60)),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Comment pouvons-nous\nvous aider ?',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                      height: 1.3,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 8),
                   Text(
-                    'Consultez notre FAQ ou contactez-nous directement',
-                    style: TextStyle(color: Colors.grey[600]),
+                    'Consultez la FAQ ou contactez-nous directement.',
+                    style: TextStyle(
+                        fontSize: 15, color: Colors.grey[600], height: 1.4),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-            
-            // Contact Cards
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: _buildContactCard(
-                      icon: Icons.email,
-                      title: 'Email',
-                      subtitle: 'support@mafortune.tg',
-                      color: Colors.blue,
-                      onTap: _sendEmail,
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: _buildContactCard(
-                      icon: Icons.phone,
-                      title: 'Téléphone',
-                      subtitle: '+228 90 00 00 00',
-                      color: Colors.green,
-                      onTap: _makePhoneCall,
-                    ),
-                  ),
-                  const SizedBox(width: 15),
-                  Expanded(
-                    child: _buildContactCard(
-                      icon: Icons.language,
-                      title: 'Site web',
-                      subtitle: 'mafortune.tg',
-                      color: Colors.orange,
-                      onTap: _openWebsite,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            // FAQ Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  const Icon(Icons.question_answer, color: AppColors.primaryGreen),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Questions fréquentes',
-                    style: AppTextStyles.h6.copyWith(color: AppColors.primaryGreen),
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 15),
-            
-            // FAQ List
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              itemCount: _faqItems.length,
-              itemBuilder: (context, index) {
-                final faq = _faqItems[index];
-                return _buildFaqItem(
-                  question: faq['question'] as String,
-                  answer: faq['answer'] as String,
-                );
-              },
-            ),
-            
+
             const SizedBox(height: 20),
-            
-            // Feedback Section
-            Container(
-              margin: const EdgeInsets.all(20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+
+            // ── Contacts ─────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 14),
+                    child: Text(
+                      'Nous contacter',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87),
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildContactCard(
+                          emoji: '📧',
+                          title: 'Email',
+                          subtitle: 'support@\nmafortune.tg',
+                          color: Colors.blue,
+                          onTap: _sendEmail,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildContactCard(
+                          emoji: '📞',
+                          title: 'Téléphone',
+                          subtitle: '+228\n90 00 00 00',
+                          color: AppColors.primaryGreen,
+                          onTap: _makePhoneCall,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: _buildContactCard(
+                          emoji: '🌐',
+                          title: 'Site web',
+                          subtitle: 'mafortune.tg',
+                          color: Colors.orange,
+                          onTap: _openWebsite,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+            ),
+
+            const SizedBox(height: 28),
+
+            // ── FAQ ──────────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.feedback, size: 40, color: AppColors.primaryGreen),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Vous avez une suggestion ?',
-                    style: AppTextStyles.h6,
+                  const Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 14),
+                    child: Text(
+                      'Questions fréquentes',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87),
+                    ),
                   ),
-                  const SizedBox(height: 5),
-                  Text(
-                    'Votre avis nous intéresse !',
-                    style: TextStyle(color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 15),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('📝 Formulaire de feedback à venir...')),
-                        );
-                      },
-                      icon: const Icon(Icons.rate_review),
-                      label: const Text('Donner mon avis'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryGreen,
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                  ...(_faqItems.map((faq) => _buildFaqItem(
+                        emoji: faq['emoji'] as String,
+                        question: faq['question'] as String,
+                        answer: faq['answer'] as String,
+                      ))),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            // ── Feedback ─────────────────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    const Text('💬', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Vous avez une suggestion ?',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Votre avis nous aide à améliorer MaFortune.',
+                      style:
+                          TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 56,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('📝 Formulaire de feedback à venir...',
+                                  style: TextStyle(fontSize: 16)),
+                              backgroundColor: AppColors.primaryGreen,
+                            ),
+                          );
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryGreen,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14)),
+                          elevation: 3,
+                        ),
+                        child: const Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text('⭐', style: TextStyle(fontSize: 22)),
+                            SizedBox(width: 10),
+                            Text('Donner mon avis',
+                                style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.bold)),
+                          ],
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            
+
             const SizedBox(height: 40),
           ],
         ),
       ),
-      // ✅ AJOUT DE LA BARRE DE NAVIGATION
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() => _currentIndex = index);
-          
-          // Navigation selon l'index
           switch (index) {
             case 0:
               Navigator.pushReplacementNamed(context, '/dashboard');
@@ -274,7 +338,6 @@ class _AideScreenState extends State<AideScreen> {
               Navigator.pushReplacementNamed(context, '/alertes');
               break;
             case 4:
-              // Déjà sur Profil/Aide
               break;
           }
         },
@@ -282,8 +345,9 @@ class _AideScreenState extends State<AideScreen> {
     );
   }
 
+  // ─── CARTE CONTACT ───────────────────────────────────────────────────────────
   Widget _buildContactCard({
-    required IconData icon,
+    required String emoji,
     required String title,
     required String subtitle,
     required Color color,
@@ -292,43 +356,38 @@ class _AideScreenState extends State<AideScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+                color: Colors.black.withOpacity(0.05), blurRadius: 8),
           ],
         ),
         child: Column(
           children: [
             Container(
-              padding: const EdgeInsets.all(12),
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 28),
+              child: Center(
+                child: Text(emoji, style: const TextStyle(fontSize: 26)),
+              ),
             ),
             const SizedBox(height: 10),
             Text(
               title,
               style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+                  fontSize: 14, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 4),
             Text(
               subtitle,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey[600],
-              ),
+              style: TextStyle(fontSize: 11, color: Colors.grey[600]),
               textAlign: TextAlign.center,
             ),
           ],
@@ -337,45 +396,60 @@ class _AideScreenState extends State<AideScreen> {
     );
   }
 
+  // ─── FAQ ITEM ────────────────────────────────────────────────────────────────
   Widget _buildFaqItem({
+    required String emoji,
     required String question,
     required String answer,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+              color: Colors.black.withOpacity(0.04), blurRadius: 6),
         ],
       ),
-      child: ExpansionTile(
-        leading: const Icon(Icons.help_outline, color: AppColors.primaryGreen),
-        title: Text(
-          question,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              answer,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
+      child: Theme(
+        // Supprime le divider par défaut de ExpansionTile
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: EdgeInsets.zero,
+          leading: Text(emoji, style: const TextStyle(fontSize: 26)),
+          title: Text(
+            question,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
             ),
           ),
-        ],
+          iconColor: AppColors.primaryGreen,
+          collapsedIconColor: Colors.grey,
+          children: [
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.primaryGreen.withOpacity(0.06),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                answer,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.black87,
+                  height: 1.5,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

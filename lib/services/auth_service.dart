@@ -8,16 +8,24 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LocalAuthService _localAuth = LocalAuthService();
 
+  // ─── CACHE PROFIL ─────────────────────────────────────────────────────────
+  // Évite de rappeler Firestore à chaque écran pour le même utilisateur
+  UtilisateurModel? _cachedUser;
+  String? _cachedUserId;
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
   User? get currentUser => FirebaseAuth.instance.currentUser;
-  Future<bool> isLocalPinSet() async {
-    return await _localAuth.hasPin();
+
+  Future<bool> isLocalPinSet() async => await _localAuth.hasPin();
+  Future<void> clearLocalPin() async => await _localAuth.clearPin();
+
+  /// Invalide le cache — à appeler après updateUserProfile
+  void invalidateUserCache() {
+    _cachedUser = null;
+    _cachedUserId = null;
   }
 
-  Future<void> clearLocalPin() async {
-    await _localAuth.clearPin();
-  }
-
+  // ─── INSCRIPTION ──────────────────────────────────────────────────────────
   Future<UtilisateurModel?> signUpCommercant({
     required String email,
     required String password,
@@ -52,6 +60,10 @@ class AuthService {
           .doc(userCredential.user!.uid)
           .set(utilisateur.toFirestore());
 
+      // Met en cache dès l'inscription
+      _cachedUser = utilisateur;
+      _cachedUserId = utilisateur.id;
+
       return utilisateur;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
@@ -60,6 +72,7 @@ class AuthService {
     }
   }
 
+  // ─── CONNEXION ────────────────────────────────────────────────────────────
   Future<UtilisateurModel?> signIn({
     required String email,
     required String password,
@@ -87,12 +100,15 @@ class AuthService {
         throw 'Votre compte a été désactivé. Contactez l\'administrateur.';
       }
 
-      await _firestore
+      // Met en cache le profil dès la connexion
+      _cachedUser = utilisateur;
+      _cachedUserId = utilisateur.id;
+
+      // Mise à jour dernière sync — fire and forget (pas d'await)
+      _firestore
           .collection('utilisateurs')
           .doc(utilisateur.id)
-          .update({
-        'derniereSynchronisation': FieldValue.serverTimestamp(),
-      });
+          .update({'derniereSynchronisation': FieldValue.serverTimestamp()});
 
       return utilisateur;
     } on FirebaseAuthException catch (e) {
@@ -102,10 +118,69 @@ class AuthService {
     }
   }
 
+  // ─── DÉCONNEXION ──────────────────────────────────────────────────────────
   Future<void> signOut() async {
+    invalidateUserCache(); // Vide le cache au logout
     await _auth.signOut();
   }
 
+  // ─── GET PROFIL — avec cache ──────────────────────────────────────────────
+  // ✅ OPTIMISATION : retourne le cache si le même utilisateur est déjà chargé
+  // Au lieu de faire un appel Firestore à chaque écran (profil, dashboard, etc.)
+  Future<UtilisateurModel?> getCurrentUserData({
+    bool forceRefresh = false,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      // Retourne le cache si valide et pas de forceRefresh
+      if (!forceRefresh &&
+          _cachedUser != null &&
+          _cachedUserId == user.uid) {
+        return _cachedUser;
+      }
+
+      final doc = await _firestore
+          .collection('utilisateurs')
+          .doc(user.uid)
+          .get();
+
+      if (!doc.exists) return null;
+
+      final utilisateur = UtilisateurModel.fromFirestore(doc);
+
+      // Met à jour le cache
+      _cachedUser = utilisateur;
+      _cachedUserId = user.uid;
+
+      return utilisateur;
+    } catch (e) {
+      // Si Firestore échoue, retourne le cache même expiré
+      if (_cachedUser != null) return _cachedUser;
+      return null;
+    }
+  }
+
+  // ─── UPDATE PROFIL ────────────────────────────────────────────────────────
+  Future<UtilisateurModel> updateUserProfile(UtilisateurModel user) async {
+    try {
+      await _firestore
+          .collection('utilisateurs')
+          .doc(user.id)
+          .update(user.toFirestore());
+
+      // Met à jour le cache avec les nouvelles données
+      _cachedUser = user;
+      _cachedUserId = user.id;
+
+      return user;
+    } catch (e) {
+      throw 'Erreur lors de la mise à jour du profil: $e';
+    }
+  }
+
+  // ─── RESET MOT DE PASSE ───────────────────────────────────────────────────
   Future<void> resetPassword({required String email}) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
@@ -114,6 +189,7 @@ class AuthService {
     }
   }
 
+  // ─── CHANGER MOT DE PASSE ─────────────────────────────────────────────────
   Future<void> changePassword({
     required String currentPassword,
     required String newPassword,
@@ -139,36 +215,7 @@ class AuthService {
     }
   }
 
-  Future<UtilisateurModel> updateUserProfile(UtilisateurModel user) async {
-    try {
-      await _firestore
-          .collection('utilisateurs')
-          .doc(user.id)
-          .update(user.toFirestore());
-      return user;
-    } catch (e) {
-      throw 'Erreur lors de la mise à jour du profil: $e';
-    }
-  }
-
-  Future<UtilisateurModel?> getCurrentUserData() async {
-    try {
-      final user = _auth.currentUser;
-      if (user == null) return null;
-
-      final doc = await _firestore
-          .collection('utilisateurs')
-          .doc(user.uid)
-          .get();
-
-      if (!doc.exists) return null;
-
-      return UtilisateurModel.fromFirestore(doc);
-    } catch (e) {
-      return null;
-    }
-  }
-
+  // ─── GESTION ERREURS ──────────────────────────────────────────────────────
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
