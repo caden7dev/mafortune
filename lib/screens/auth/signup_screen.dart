@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart'; // Import indispensable pour utiliser AuthProvider
 import '../../core/constants/app_colors.dart';
-import '../../services/auth_service.dart';
+import '../../providers/auth_provider.dart'; // Import de ton nouveau provider
 import '../../widgets/screenshot_wrapper.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -12,15 +13,12 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final AuthService _authService = AuthService();
-
   final _prenomController = TextEditingController();
   final _nomController = TextEditingController();
   final _telephoneController = TextEditingController();
 
   String? _selectedActivity;
-  bool _isLoading = false;
-  String? _errorMessage;
+  String? _localErrorMessage;
   int _etape = 1; // 1 = nom, 2 = téléphone, 3 = activité
 
   // Activités avec emoji — reconnaissables sans lire
@@ -55,322 +53,296 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _creerCompte() async {
     if (_prenomController.text.trim().isEmpty) {
-      setState(() => _errorMessage = 'Entre ton prénom');
+      setState(() => _localErrorMessage = 'Entre ton prénom');
       return;
     }
     if (_telephoneController.text.trim().length < 8) {
-      setState(() => _errorMessage = 'Numéro de téléphone invalide');
+      setState(() => _localErrorMessage = 'Numéro de téléphone invalide');
       return;
     }
     if (_selectedActivity == null) {
-      setState(() => _errorMessage = 'Choisis ton activité');
+      setState(() => _localErrorMessage = 'Choisis ton activité');
       return;
     }
 
     setState(() {
-      _isLoading = true;
-      _errorMessage = null;
+      _localErrorMessage = null;
     });
 
     final telephone = _telephoneController.text.trim();
     final email = _genererEmail(telephone);
     final password = _genererPassword(telephone);
+    final authProvider = context.read<AuthProvider>();
 
-    try {
-      final user = await _authService.signUpCommercant(
-        email: email,
-        password: password,
-        nom: _nomController.text.trim().isEmpty
-            ? _prenomController.text.trim()
-            : _nomController.text.trim(),
-        prenom: _prenomController.text.trim(),
-        telephone: telephone,
-        typeActivite: _selectedActivity!,
-      );
+    // Appel à l'action d'inscription via notre AuthProvider
+    final success = await authProvider.registerCommercant(
+      email: email,
+      password: password,
+      nom: _nomController.text.trim().isEmpty
+          ? _prenomController.text.trim()
+          : _nomController.text.trim(),
+      prenom: _prenomController.text.trim(),
+      telephone: telephone,
+      typeActivite: _selectedActivity!,
+    );
 
-      if (user != null && mounted) {
-        Navigator.pushReplacementNamed(context, '/pin_setup');
+    if (success && mounted) {
+      Navigator.pushReplacementNamed(context, '/pin_setup');
+    } else if (mounted) {
+      String msg = authProvider.errorMessage ?? 'Une erreur est survenue';
+      if (msg.contains('email-already-in-use')) {
+        msg = 'Ce numéro est déjà utilisé. Connecte-toi.';
+      } else if (msg.contains('network')) {
+        msg = 'Pas de connexion Internet';
       }
-    } catch (e) {
-      if (mounted) {
-        String msg = e.toString();
-        if (msg.contains('email-already-in-use')) {
-          msg = 'Ce numéro est déjà utilisé. Connecte-toi.';
-        } else if (msg.contains('network')) {
-          msg = 'Pas de connexion Internet';
-        } else {
-          msg = 'Une erreur est survenue. Réessaie.';
-        }
-        setState(() {
-          _errorMessage = msg;
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _localErrorMessage = msg;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Header vert
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back,
-                            color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Spacer(),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Créer mon compte',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    "C'est rapide et gratuit",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 15,
-                    ),
-                  ),
+    // Écoute de l'état de chargement global de notre AuthProvider
+    final isLoading = context.watch<AuthProvider>().isLoading;
 
-                  const SizedBox(height: 20),
-
-                  // Indicateur d'étapes
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [1, 2, 3].map((i) {
-                      return Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 6),
-                        width: _etape == i ? 32 : 10,
-                        height: 10,
-                        decoration: BoxDecoration(
-                          color: _etape == i
-                              ? Colors.white
-                              : Colors.white38,
-                          borderRadius: BorderRadius.circular(5),
-                        ),
-                      );
-                    }).toList(),
+    return ScreenshotWrapper(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              // Header vert
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                decoration: const BoxDecoration(
+                  gradient: AppColors.primaryGradient,
+                  borderRadius: BorderRadius.vertical(
+                    bottom: Radius.circular(28),
                   ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
+                ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Erreur
-                    if (_errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back, color: Colors.white),
+                          onPressed: () => Navigator.pop(context),
                         ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.red, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(_errorMessage!,
-                                  style: const TextStyle(
-                                      color: Colors.red, fontSize: 14)),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 20),
-                    ],
-
-                    // ÉTAPE 1 — Nom et prénom
-                    _buildSectionTitle('👤', 'Comment tu t\'appelles ?'),
-                    const SizedBox(height: 16),
-
-                    _buildChamp(
-                      controller: _prenomController,
-                      label: 'Ton prénom *',
-                      hint: 'Ex: Ama',
-                      onChanged: (_) => setState(() => _etape = 1),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildChamp(
-                      controller: _nomController,
-                      label: 'Ton nom (optionnel)',
-                      hint: 'Ex: Koffi',
-                    ),
-
-                    const SizedBox(height: 28),
-
-                    // ÉTAPE 2 — Téléphone
-                    _buildSectionTitle('📱', 'Ton numéro de téléphone'),
-                    const SizedBox(height: 16),
-
-                    _buildChamp(
-                      controller: _telephoneController,
-                      label: 'Numéro *',
-                      hint: '+228 90 00 00 00',
-                      clavier: TextInputType.phone,
-                      onChanged: (_) => setState(() => _etape = 2),
-                      formatters: [
-                        FilteringTextInputFormatter.allow(
-                            RegExp(r'[0-9+ ]'))
+                        const Spacer(),
                       ],
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '🔒 Ton numéro sert à te connecter — personne ne le verra',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                      'Créer mon compte',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-
-                    const SizedBox(height: 28),
-
-                    // ÉTAPE 3 — Activité
-                    _buildSectionTitle(
-                        '🏪', 'Qu\'est-ce que tu fais comme travail ?'),
-                    const SizedBox(height: 16),
-
-                    GridView.count(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      crossAxisCount: 2,
-                      childAspectRatio: 1.4,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                      children: _activites.map((activite) {
-                        final isSelected =
-                            _selectedActivity == activite['label'];
-                        return GestureDetector(
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            setState(() {
-                              _selectedActivity = activite['label'];
-                              _etape = 3;
-                            });
-                          },
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? AppColors.primaryGreen
-                                  : Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: isSelected
-                                    ? AppColors.primaryGreen
-                                    : Colors.grey.shade300,
-                                width: 2,
-                              ),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Text(
-                                  activite['emoji']!,
-                                  style: const TextStyle(fontSize: 32),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  activite['label']!,
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSelected
-                                        ? Colors.white
-                                        : Colors.black87,
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
-                            ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "C'est rapide et gratuit",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    // Indicateur d'étapes
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [1, 2, 3].map((i) {
+                        return Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          width: _etape == i ? 32 : 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: _etape == i ? Colors.white : Colors.white38,
+                            borderRadius: BorderRadius.circular(5),
                           ),
                         );
                       }).toList(),
                     ),
-
-                    const SizedBox(height: 36),
-
-                    // Bouton créer
-                    SizedBox(
-                      width: double.infinity,
-                      height: 64,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _creerCompte,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryGreen,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          elevation: 2,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                width: 26,
-                                height: 26,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                '✅  Créer mon compte',
-                                style: TextStyle(
-                                  fontSize: 20,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    Center(
-                      child: TextButton(
-                        onPressed: () =>
-                            Navigator.pushReplacementNamed(
-                                context, '/login'),
-                        child: const Text(
-                          "J'ai déjà un compte →",
-                          style: TextStyle(
-                            color: AppColors.primaryGreen,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Message d'erreur
+                      if (_localErrorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.shade200),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _localErrorMessage!,
+                                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
+                      // ÉTAPE 1 — Nom et prénom
+                      _buildSectionTitle('👤', 'Comment tu t\'appelles ?'),
+                      const SizedBox(height: 16),
+                      _buildChamp(
+                        controller: _prenomController,
+                        label: 'Ton prénom *',
+                        hint: 'Ex: Ama',
+                        onChanged: (_) => setState(() => _etape = 1),
+                      ),
+                      const SizedBox(height: 14),
+                      _buildChamp(
+                        controller: _nomController,
+                        label: 'Ton nom (optionnel)',
+                        hint: 'Ex: Koffi',
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ÉTAPE 2 — Téléphone
+                      _buildSectionTitle('📱', 'Ton numéro de téléphone'),
+                      const SizedBox(height: 16),
+                      _buildChamp(
+                        controller: _telephoneController,
+                        label: 'Numéro *',
+                        hint: '+228 90 00 00 00',
+                        clavier: TextInputType.phone,
+                        onChanged: (_) => setState(() => _etape = 2),
+                        formatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '🔒 Ton numéro sert à te connecter — personne ne le verra',
+                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ÉTAPE 3 — Activité
+                      _buildSectionTitle('🏪', 'Qu\'est-ce que tu fais comme travail ?'),
+                      const SizedBox(height: 16),
+                      GridView.count(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        crossAxisCount: 2,
+                        childAspectRatio: 1.4,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        children: _activites.map((activite) {
+                          final isSelected = _selectedActivity == activite['label'];
+                          return GestureDetector(
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _selectedActivity = activite['label'];
+                                _etape = 3;
+                              });
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.primaryGreen : Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(16),
+                                border: Border.all(
+                                  color: isSelected ? AppColors.primaryGreen : Colors.grey.shade300,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(
+                                    activite['emoji']!,
+                                    style: const TextStyle(fontSize: 32),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    activite['label']!,
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w600,
+                                      color: isSelected ? Colors.white : Colors.black87,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                      const SizedBox(height: 36),
+
+                      // Bouton créer
+                      SizedBox(
+                        width: double.infinity,
+                        height: 64,
+                        child: ElevatedButton(
+                          onPressed: isLoading ? null : _creerCompte,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryGreen,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  width: 26,
+                                  height: 26,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text(
+                                  '✅   Créer mon compte',
+                                  style: TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Center(
+                        child: TextButton(
+                          onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                          child: const Text(
+                            "J'ai déjà un compte →",
+                            style: TextStyle(
+                              color: AppColors.primaryGreen,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -426,22 +398,18 @@ class _SignupScreenState extends State<SignupScreen> {
             hintStyle: const TextStyle(color: Colors.grey),
             filled: true,
             fillColor: Colors.grey.shade50,
-            contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 16),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: Colors.grey.shade300, width: 1.5),
+              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: Colors.grey.shade300, width: 1.5),
+              borderSide: BorderSide(color: Colors.grey.shade300, width: 1.5),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(
-                  color: AppColors.primaryGreen, width: 2),
+              borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
             ),
           ),
         ),

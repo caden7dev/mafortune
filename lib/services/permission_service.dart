@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/utilisateur_model.dart';
+import 'package:flutter/foundation.dart';
 
 class PermissionService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -23,7 +24,7 @@ class PermissionService {
       
       return utilisateur.typeUtilisateur == TypeUtilisateur.administrateur;
     } catch (e) {
-      print('❌ Erreur vérification admin: $e');
+     debugPrint('❌ Erreur vérification admin: $e');
       return false;
     }
   }
@@ -45,7 +46,7 @@ class PermissionService {
       
       return utilisateur.typeUtilisateur;
     } catch (e) {
-      print('❌ Erreur récupération type utilisateur: $e');
+      debugPrint('❌ Erreur récupération type utilisateur: $e');
       return null;
     }
   }

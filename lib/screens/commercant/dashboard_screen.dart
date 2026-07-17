@@ -340,7 +340,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         width: 52,
                         height: 52,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.25),
+                          color: Colors.white.withValues(alpha: 0.25),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
@@ -366,7 +366,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               _currentUser!.typeActivite ??
                                   'Commerçante',
                               style: TextStyle(
-                                  color: Colors.white.withOpacity(0.8),
+                                  color: Colors.white.withValues(alpha: 0.8),
                                   fontSize: 13),
                             ),
                           ],
@@ -382,10 +382,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: Colors.white.withOpacity(0.3),
+                          color: Colors.white.withValues(alpha: 0.3),
                           width: 1.5),
                     ),
                     child: Column(
@@ -463,7 +463,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           boxShadow: [
                             BoxShadow(
                               color: AppColors.primaryGreen
-                                  .withOpacity(0.35),
+                                  .withValues(alpha: 0.35),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -504,7 +504,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           boxShadow: [
                             BoxShadow(
                               color:
-                                  AppColors.expenseRed.withOpacity(0.35),
+                                  AppColors.expenseRed.withValues(alpha: 0.35),
                               blurRadius: 12,
                               offset: const Offset(0, 4),
                             ),
@@ -756,7 +756,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ),
         boxShadow: [
           BoxShadow(
-              color: theme.colorScheme.shadow.withOpacity(0.05),
+              color: theme.colorScheme.shadow.withValues(alpha: 0.05),
               blurRadius: 6,
               offset: const Offset(0, 2))
         ],

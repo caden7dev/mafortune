@@ -390,7 +390,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -448,7 +448,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
         ],
       ),
       child: Form(
@@ -572,7 +572,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.06), blurRadius: 12),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.06), blurRadius: 12),
         ],
       ),
       child: Column(
@@ -757,7 +757,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
           ),
           const SizedBox(height: 4),
           Text(label,
-              style: TextStyle(fontSize: 13, color: color.withOpacity(0.8))),
+              style: TextStyle(fontSize: 13, color: color.withValues(alpha: 0.8))),
         ],
       ),
     );
@@ -782,9 +782,9 @@ class _BudgetScreenState extends State<BudgetScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withOpacity(0.4), width: 1.5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 1.5),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -806,7 +806,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 Text(
                   message,
                   style: TextStyle(
-                      fontSize: 14, color: color.withOpacity(0.9), height: 1.4),
+                      fontSize: 14, color: color.withValues(alpha: 0.9), height: 1.4),
                 ),
               ],
             ),
@@ -828,7 +828,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
         ],
       ),
       child: Column(
@@ -895,7 +895,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
                     child: LinearProgressIndicator(
                       value: pct,
                       minHeight: 10,
-                      backgroundColor: color.withOpacity(0.15),
+                      backgroundColor: color.withValues(alpha: 0.15),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                     ),
                   ),
@@ -922,7 +922,7 @@ class _BudgetScreenState extends State<BudgetScreen> {
       decoration: BoxDecoration(
         color: Colors.amber[50],
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.amber.withOpacity(0.3)),
+        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -32,40 +32,45 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
       _pin += chiffre;
     });
     if (_pin.length == 4) {
-      Future.delayed(const Duration(milliseconds: 200), _verifier);
+      Future.delayed(const Duration(milliseconds: 200), () {
+        _verifier();
+      });
     }
   }
 
   void _effacer() {
-    if (_pin.isEmpty) return;
-    HapticFeedback.lightImpact();
+    if (_pin.isEmpty || _isLoading) return;
+    HapticFeedback.selectionClick();
     setState(() => _pin = _pin.substring(0, _pin.length - 1));
   }
 
   Future<void> _verifier() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
 
     try {
       final valide = await _localAuth.verifyPin(_pin);
+      if (!mounted) return;
 
       if (valide) {
         await _localAuth.updateLastActivity();
-        if (mounted) {
-          final isAdmin = await _permissionService.isAdmin();
-          Navigator.pushReplacementNamed(
-            context,
-            isAdmin ? '/admin/dashboard' : '/dashboard',
-          );
-        }
+        if (!mounted) return;
+
+        final isAdmin = await _permissionService.isAdmin();
+        if (!mounted) return;
+
+        Navigator.pushReplacementNamed(
+          context,
+          isAdmin ? '/admin/dashboard' : '/dashboard',
+        );
       } else {
         _tentatives++;
         HapticFeedback.heavyImpact();
 
         if (_tentatives >= _maxTentatives) {
           await _authService.signOut();
-          if (mounted) {
-            Navigator.pushReplacementNamed(context, '/welcome');
-          }
+          if (!mounted) return;
+          Navigator.pushReplacementNamed(context, '/welcome');
         } else {
           setState(() {
             _pin = '';
@@ -74,12 +79,14 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
           });
         }
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       FirebaseCrashlytics.instance.recordError(
-        e, StackTrace.current,
+        e,
+        stackTrace,
         reason: 'Erreur vérification PIN',
         fatal: false,
       );
+      if (!mounted) return;
       setState(() {
         _pin = '';
         _erreurVisible = true;
@@ -89,8 +96,16 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   }
 
   Future<void> _deconnecter() async {
-    await _authService.signOut();
-    if (mounted) Navigator.pushReplacementNamed(context, '/welcome');
+    if (_isLoading) return;
+    setState(() => _isLoading = true);
+    
+    try {
+      await _authService.signOut();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/welcome');
+    } catch (e) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -108,8 +123,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
               padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
               decoration: const BoxDecoration(
                 gradient: AppColors.primaryGradient,
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(28)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
               ),
               child: Column(
                 children: [
@@ -126,8 +140,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Ton code à 4 chiffres',
-                    style:
-                        TextStyle(color: Colors.white70, fontSize: 14),
+                    style: TextStyle(color: Colors.white70, fontSize: 14),
                   ),
                 ],
               ),
@@ -154,8 +167,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                           restantes > 0
                               ? 'Code incorrect. Il te reste $restantes essai${restantes > 1 ? 's' : ''}.'
                               : 'Trop d\'erreurs.',
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 14),
+                          style: const TextStyle(color: Colors.red, fontSize: 14),
                         ),
                       ),
                     ],
@@ -165,7 +177,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
 
             const SizedBox(height: 24),
 
-            // Indicateurs
+            // Indicateurs avec AnimatedContainer
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(4, (i) {
@@ -205,8 +217,9 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                     children: [
                       // PIN oublié
                       GestureDetector(
-                        onTap: () =>
-                            Navigator.pushNamed(context, '/reset_pin'),
+                        onTap: _isLoading
+                            ? null
+                            : () => Navigator.pushNamed(context, '/reset_pin'),
                         child: Container(
                           width: 80,
                           height: 80,
@@ -215,11 +228,14 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             shape: BoxShape.circle,
                           ),
                           child: const Center(
-                            child: Text('?',
-                                style: TextStyle(
-                                    color: Colors.orange,
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold)),
+                            child: Text(
+                              '?',
+                              style: TextStyle(
+                                color: Colors.orange,
+                                fontSize: 32,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -233,16 +249,19 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
 
             const SizedBox(height: 24),
 
-            // Chargement
-            if (_isLoading)
-              const CircularProgressIndicator(
-                  color: AppColors.primaryGreen),
+            // Zone Loader
+            SizedBox(
+              height: 40,
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: AppColors.primaryGreen)
+                  : const SizedBox.shrink(),
+            ),
 
             const SizedBox(height: 16),
 
-            // Déconnexion discrète
+            // Déconnexion
             TextButton(
-              onPressed: _deconnecter,
+              onPressed: _isLoading ? null : _deconnecter,
               child: const Text(
                 'Ce n\'est pas moi →',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
@@ -305,8 +324,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
           shape: BoxShape.circle,
         ),
         child: const Center(
-          child: Icon(Icons.backspace_outlined,
-              color: Colors.red, size: 28),
+          child: Icon(Icons.backspace_outlined, color: Colors.red, size: 28),
         ),
       ),
     );

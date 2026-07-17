@@ -364,7 +364,7 @@ class _RapportsScreenState extends State<RapportsScreen>
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryGreen.withOpacity(0.1) : Colors.grey[50],
+          color: selected ? AppColors.primaryGreen.withValues(alpha: 0.1) : Colors.grey[50],
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: selected ? AppColors.primaryGreen : Colors.grey[200]!,
@@ -630,7 +630,7 @@ class _RapportsScreenState extends State<RapportsScreen>
         height: 44,
         padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: active ? AppColors.primaryGreen.withOpacity(0.1) : Colors.grey[100],
+          color: active ? AppColors.primaryGreen.withValues(alpha: 0.1) : Colors.grey[100],
           borderRadius: BorderRadius.circular(22),
           border: Border.all(
             color: active ? AppColors.primaryGreen : Colors.grey[300]!,
@@ -682,7 +682,7 @@ class _RapportsScreenState extends State<RapportsScreen>
             height: 44,
             padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: selected ? activeColor.withOpacity(0.12) : Colors.grey[100],
+              color: selected ? activeColor.withValues(alpha: 0.12) : Colors.grey[100],
               borderRadius: BorderRadius.circular(22),
               border: Border.all(
                 color: selected ? activeColor : Colors.grey[300]!,
@@ -718,7 +718,7 @@ class _RapportsScreenState extends State<RapportsScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
         ],
       ),
       child: Row(
@@ -826,10 +826,10 @@ class _RapportsScreenState extends State<RapportsScreen>
       child: Container(
         height: 44,
         decoration: BoxDecoration(
-          color: disabled ? Colors.grey[100] : color.withOpacity(0.1),
+          color: disabled ? Colors.grey[100] : color.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: disabled ? Colors.grey[200]! : color.withOpacity(0.4),
+            color: disabled ? Colors.grey[200]! : color.withValues(alpha: 0.4),
           ),
         ),
         child: Row(
@@ -904,7 +904,7 @@ class _RapportsScreenState extends State<RapportsScreen>
             borderRadius: BorderRadius.circular(14),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -1077,7 +1077,7 @@ class _RapportsScreenState extends State<RapportsScreen>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.05), blurRadius: 8),
+                      color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
                 ],
               ),
               child: Column(
@@ -1111,7 +1111,7 @@ class _RapportsScreenState extends State<RapportsScreen>
                             barWidth: 3,
                             belowBarData: BarAreaData(
                               show: true,
-                              color: AppColors.primaryGreen.withOpacity(0.1),
+                              color: AppColors.primaryGreen.withValues(alpha: 0.1),
                             ),
                             dotData: FlDotData(
                               show: spots.length <= 10,
@@ -1196,7 +1196,7 @@ class _RapportsScreenState extends State<RapportsScreen>
                 borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                      color: Colors.black.withOpacity(0.05), blurRadius: 8),
+                      color: Colors.black.withValues(alpha: 0.05), blurRadius: 8),
                 ],
               ),
               child: Column(
@@ -1298,7 +1298,7 @@ class _RapportsScreenState extends State<RapportsScreen>
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.05), blurRadius: 6),
+              color: Colors.black.withValues(alpha: 0.05), blurRadius: 6),
         ],
       ),
       child: Column(

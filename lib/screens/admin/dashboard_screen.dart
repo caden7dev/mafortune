@@ -164,10 +164,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         width: 50,
                         height: 50,
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.white.withOpacity(0.3),
+                            color: Colors.white.withValues(alpha: 0.3),
                             width: 2,
                           ),
                         ),
@@ -223,25 +223,25 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         icon: '👥',
                         label: 'Utilisateurs actifs',
                         value: _activeUsers.toString(),
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                       ),
                       _buildStatCard(
                         icon: '🏪',
                         label: 'Volume total',
                         value: '${(_totalVolume / 1000000).toStringAsFixed(0)}M',
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                       ),
                       _buildStatCard(
                         icon: '📊',
                         label: 'Transactions/jour',
                         value: (_totalTransactions / 30).toStringAsFixed(0),
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                       ),
                       _buildStatCard(
                         icon: '📈',
                         label: 'Croissance',
                         value: '+${_growthRate.toStringAsFixed(0)}%',
-                        color: Colors.white.withOpacity(0.95),
+                        color: Colors.white.withValues(alpha: 0.95),
                       ),
                     ],
                   ),
@@ -391,7 +391,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                         width: 45,
                                         height: 45,
                                         decoration: BoxDecoration(
-                                          color: AppColors.primaryGreen.withOpacity(0.1),
+                                          color: AppColors.primaryGreen.withValues(alpha: 0.1),
                                           shape: BoxShape.circle,
                                         ),
                                         child: Center(
@@ -435,7 +435,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                                               vertical: 2,
                                             ),
                                             decoration: BoxDecoration(
-                                              color: roleColor.withOpacity(0.1),
+                                              color: roleColor.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Text(
@@ -491,7 +491,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
+            color: Colors.black.withValues(alpha: 0.1),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -551,7 +551,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: iconColor, size: 28),

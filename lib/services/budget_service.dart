@@ -7,7 +7,8 @@ class BudgetService {
 
   Future<BudgetModel?> getCurrentBudget(String commercantId) async {
     final now = DateTime.now();
-    final startOfMonth = DateTime(now.year, now.month, 1);
+    // Normalisation stricte au premier jour du mois à minuit UTC/Local
+    final startOfMonth = DateTime(now.year, now.month, 1, 0, 0, 0);
     
     try {
       final snapshot = await _firestore
@@ -15,22 +16,29 @@ class BudgetService {
           .where('commercantId', isEqualTo: commercantId)
           .where('mois', isEqualTo: Timestamp.fromDate(startOfMonth))
           .limit(1)
-          .get();
+          .get(const GetOptions(source: Source.serverAndCache)); // Optimisation hors-ligne
       
       if (snapshot.docs.isEmpty) return null;
       return BudgetModel.fromFirestore(snapshot.docs.first);
     } catch (e) {
+      debugPrint('Erreur lors de la récupération du budget : $e');
       return null;
     }
   }
 
   Future<void> saveBudget(BudgetModel budget) async {
     try {
+      // Normalisation de la date avant sauvegarde
+      final budgetNormalise = budget.copyWith(
+        mois: DateTime(budget.mois.year, budget.mois.month, 1, 0, 0, 0),
+      );
+      
       await _firestore
           .collection('budgets')
-          .doc(budget.id)
-          .set(budget.toFirestore());
+          .doc(budgetNormalise.id)
+          .set(budgetNormalise.toFirestore(), SetOptions(merge: true));
     } catch (e) {
+      debugPrint('Erreur lors de la sauvegarde du budget : $e');
       throw 'Erreur lors de la sauvegarde du budget';
     }
   }
@@ -39,6 +47,7 @@ class BudgetService {
     try {
       await _firestore.collection('budgets').doc(budgetId).delete();
     } catch (e) {
+      debugPrint('Erreur lors de la suppression du budget : $e');
       throw 'Erreur lors de la suppression du budget';
     }
   }

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ✅ CORRECTION : Enums en lowerCamelCase
+// ✅ Enums en lowerCamelCase
 enum TypeUtilisateur { commercant, administrateur, partenaire }
 
 class UtilisateurModel {
@@ -54,6 +54,13 @@ class UtilisateurModel {
   factory UtilisateurModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     
+    // Conversion sécurisée du solde en double (supporte les formats int et double de Firestore)
+    double convertSolde(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString()) ?? 0.0;
+    }
+
     return UtilisateurModel(
       id: doc.id,
       nom: data['nom'] ?? '',
@@ -63,16 +70,18 @@ class UtilisateurModel {
       photo: data['photo'],
       typeUtilisateur: _typeUtilisateurFromString(data['typeUtilisateur']),
       estActif: data['estActif'] ?? true,
-      dateCreation: (data['dateCreation'] as Timestamp).toDate(),
+      dateCreation: data['dateCreation'] != null 
+          ? (data['dateCreation'] as Timestamp).toDate() 
+          : DateTime.now(),
       derniereSynchronisation: data['derniereSynchronisation'] != null
           ? (data['derniereSynchronisation'] as Timestamp).toDate()
           : null,
       typeActivite: data['typeActivite'],
       adresse: data['adresse'],
-      soldeActuel: (data['soldeActuel'] ?? 0.0).toDouble(),
+      soldeActuel: convertSolde(data['soldeActuel']),
       niveau: data['niveau'],
       permissions: data['permissions'] != null
-          ? List<String>.from(data['permissions'])
+          ? List<String>.from(data['permissions'].map((item) => item.toString()))
           : null,
       organisation: data['organisation'],
       secteurActivite: data['secteurActivite'],
@@ -90,7 +99,7 @@ class UtilisateurModel {
       'email': email,
       'telephone': telephone,
       'photo': photo,
-      'typeUtilisateur': typeUtilisateur.name, // name retourne "commercant", "administrateur", etc.
+      'typeUtilisateur': typeUtilisateur.name, // "commercant", "administrateur", etc.
       'estActif': estActif,
       'dateCreation': Timestamp.fromDate(dateCreation),
       'derniereSynchronisation': derniereSynchronisation != null
@@ -113,7 +122,6 @@ class UtilisateurModel {
   static TypeUtilisateur _typeUtilisateurFromString(String? type) {
     if (type == null) return TypeUtilisateur.commercant;
     
-    // Convertir en minuscules pour gérer l'ancien format
     final lowerType = type.toLowerCase();
     
     switch (lowerType) {

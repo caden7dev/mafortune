@@ -22,13 +22,14 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   String? _erreur;
 
   void _appuyerChiffre(String chiffre) {
+    if (_isLoading) return;
     HapticFeedback.lightImpact();
+    
     setState(() {
       _erreur = null;
       if (!_etapeConfirmation) {
         if (_pin.length < 4) _pin += chiffre;
         if (_pin.length == 4) {
-          // Passer à la confirmation après 300ms
           Future.delayed(const Duration(milliseconds: 300), () {
             if (mounted) setState(() => _etapeConfirmation = true);
           });
@@ -45,7 +46,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   }
 
   void _effacer() {
-    HapticFeedback.lightImpact();
+    if (_isLoading) return;
+    HapticFeedback.selectionClick(); // Retour tactile plus discret pour la suppression
     setState(() {
       _erreur = null;
       if (!_etapeConfirmation) {
@@ -59,6 +61,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   }
 
   Future<void> _valider() async {
+    if (!mounted) return;
+
     if (_pin != _pinConfirm) {
       HapticFeedback.heavyImpact();
       setState(() {
@@ -74,16 +78,22 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
     try {
       await _localAuth.savePin(_pin);
-      if (mounted) {
-        final isAdmin = await _permissionService.isAdmin();
-        Navigator.pushReplacementNamed(
-          context,
-          isAdmin ? '/admin/dashboard' : '/dashboard',
-        );
-      }
+      if (!mounted) return;
+
+      final isAdmin = await _permissionService.isAdmin();
+      if (!mounted) return;
+
+      Navigator.pushReplacementNamed(
+        context,
+        isAdmin ? '/admin/dashboard' : '/dashboard',
+      );
     } catch (e) {
+      if (!mounted) return;
       setState(() {
-        _erreur = 'Erreur. Réessaie.';
+        _erreur = 'Une erreur est survenue. Réessaie.';
+        _pin = '';
+        _pinConfirm = '';
+        _etapeConfirmation = false;
         _isLoading = false;
       });
     }
@@ -104,17 +114,14 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
               padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
               decoration: const BoxDecoration(
                 gradient: AppColors.primaryGradient,
-                borderRadius:
-                    BorderRadius.vertical(bottom: Radius.circular(28)),
+                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
               ),
               child: Column(
                 children: [
                   const Text('🔐', style: TextStyle(fontSize: 52)),
                   const SizedBox(height: 16),
                   Text(
-                    _etapeConfirmation
-                        ? 'Répète ton code'
-                        : 'Choisis ton code secret',
+                    _etapeConfirmation ? 'Répète ton code' : 'Choisis ton code secret',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -127,8 +134,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                     _etapeConfirmation
                         ? 'Entre le même code une deuxième fois'
                         : 'Un code à 4 chiffres — tu en auras besoin chaque jour',
-                    style: const TextStyle(
-                        color: Colors.white70, fontSize: 14),
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -137,7 +143,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
             const Spacer(),
 
-            // Erreur
+            // Section Erreur avec animation de fondu basique
             if (_erreur != null)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -154,8 +160,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                       Expanded(
                         child: Text(
                           _erreur!,
-                          style: const TextStyle(
-                              color: Colors.red, fontSize: 14),
+                          style: const TextStyle(color: Colors.red, fontSize: 14),
                         ),
                       ),
                     ],
@@ -165,24 +170,21 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
             const SizedBox(height: 24),
 
-            // Indicateurs PIN
+            // Indicateurs PIN (Avec AnimatedContainer pour harmoniser avec l'écran de vérification)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: List.generate(4, (i) {
                 final rempli = i < pinActuel.length;
-                return Container(
+                return AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
                   margin: const EdgeInsets.symmetric(horizontal: 10),
-                  width: 22,
-                  height: 22,
+                  width: rempli ? 22 : 18,
+                  height: rempli ? 22 : 18,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: rempli
-                        ? AppColors.primaryGreen
-                        : Colors.grey.shade300,
+                    color: rempli ? AppColors.primaryGreen : Colors.grey.shade300,
                     border: Border.all(
-                      color: rempli
-                          ? AppColors.primaryGreen
-                          : Colors.grey.shade400,
+                      color: rempli ? AppColors.primaryGreen : Colors.grey.shade400,
                       width: 2,
                     ),
                   ),
@@ -206,7 +208,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
-                      const SizedBox(width: 80), // espace vide
+                      const SizedBox(width: 80), // Espace vide
                       _buildTouche('0'),
                       _buildToucheEffacer(),
                     ],
@@ -217,9 +219,13 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
             const SizedBox(height: 32),
 
-            if (_isLoading)
-              const CircularProgressIndicator(
-                  color: AppColors.primaryGreen),
+            // Loader persistant
+            SizedBox(
+              height: 40,
+              child: _isLoading
+                  ? const CircularProgressIndicator(color: AppColors.primaryGreen)
+                  : const SizedBox.shrink(),
+            ),
 
             const SizedBox(height: 24),
           ],
@@ -277,8 +283,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           shape: BoxShape.circle,
         ),
         child: const Center(
-          child: Icon(Icons.backspace_outlined,
-              color: Colors.red, size: 28),
+          child: Icon(Icons.backspace_outlined, color: Colors.red, size: 28),
         ),
       ),
     );

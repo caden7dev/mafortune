@@ -1,4 +1,4 @@
- import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/utilisateur_model.dart';
 import '../models/categorie_model.dart';
 
@@ -58,7 +58,7 @@ class FirestoreService {
     }
   }
 
-  // Lister tous les utilisateurs (pour admin)
+  // Lister tous les utilisateurs (sécurisé : réservé aux admins via les Security Rules)
   Future<List<UtilisateurModel>> getAllUtilisateurs() async {
     try {
       QuerySnapshot snapshot = await _firestore
@@ -139,10 +139,26 @@ class FirestoreService {
             .toList());
   }
 
-  // ==================== STATISTIQUES ====================
+  // ==================== STATISTIQUES SÉCURISÉES (Commerçants) ====================
 
-  // Compter le nombre total d'utilisateurs
-  Future<int> countUtilisateurs() async {
+  // Compter les transactions d'un commerçant connecté uniquement
+  Future<int> countTransactionsPourCommercant(String userId) async {
+    try {
+      AggregateQuerySnapshot snapshot = await _firestore
+          .collection('transactions')
+          .where('commercant_id', isEqualTo: userId)
+          .count()
+          .get();
+      return snapshot.count ?? 0;
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  // ==================== STATISTIQUES GLOBALES (Admin uniquement) ====================
+
+  // Compter le nombre total d'utilisateurs (Admin uniquement)
+  Future<int> countTotalUtilisateursGlobal() async {
     try {
       AggregateQuerySnapshot snapshot = await _firestore
           .collection('utilisateurs')
@@ -154,8 +170,8 @@ class FirestoreService {
     }
   }
 
-  // Compter les utilisateurs actifs
-  Future<int> countUtilisateursActifs() async {
+  // Compter les utilisateurs actifs globalement (Admin uniquement)
+  Future<int> countUtilisateursActifsGlobal() async {
     try {
       AggregateQuerySnapshot snapshot = await _firestore
           .collection('utilisateurs')
@@ -168,8 +184,8 @@ class FirestoreService {
     }
   }
 
-  // Compter les transactions
-  Future<int> countTransactions() async {
+  // Compter l'ensemble des transactions de la plateforme (Admin uniquement)
+  Future<int> countTotalTransactionsGlobal() async {
     try {
       AggregateQuerySnapshot snapshot = await _firestore
           .collection('transactions')

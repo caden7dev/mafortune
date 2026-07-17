@@ -4,55 +4,66 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
-import 'screens/auth/welcome_screen.dart';
-import 'screens/auth/login_screen.dart';
-import 'screens/auth/signup_screen.dart';
-import 'screens/auth/pin_setup_screen.dart';
-import 'screens/auth/pin_verify_screen.dart';
-import 'screens/commercant/dashboard_screen.dart';
-import 'screens/commercant/bilans_screen.dart';
-import 'screens/commercant/rapports_screen.dart';
-import 'screens/commercant/profil_screen.dart';
-import 'screens/commercant/theme_screen.dart';
+
+// Services
 import 'services/theme_service.dart';
 import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
 import 'services/network_service.dart';
 import 'services/bilan_notification_service.dart';
-import 'core/constants/app_colors.dart';
+
+// Screens
+import 'screens/auth/welcome_screen.dart';
+import 'screens/auth/login_screen.dart';
+import 'screens/auth/signup_screen.dart';
+import 'screens/auth/pin_setup_screen.dart';
+import 'screens/auth/pin_verify_screen.dart';
+import 'screens/auth/reset_pin_screen.dart';
+import 'screens/auth/onboarding_screen.dart';
+import 'screens/commercant/dashboard_screen.dart';
+import 'screens/commercant/bilans_screen.dart';
+import 'screens/commercant/rapports_screen.dart';
+import 'screens/commercant/profil_screen.dart';
+import 'screens/commercant/theme_screen.dart';
+import 'screens/commercant/budget_screen.dart';
 import 'screens/admin/dashboard_screen.dart';
 import 'screens/admin/users_screen.dart';
 import 'screens/admin/stats_screen.dart';
 import 'screens/admin/settings_screen.dart';
 import 'screens/admin/notifications_screen.dart';
-import 'screens/commercant/budget_screen.dart';
-import 'screens/auth/reset_pin_screen.dart';
+
+// Core & Widgets
+import 'core/constants/app_colors.dart';
+import 'widgets/screenshot_wrapper.dart';
+
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'dart:ui';
-import 'screens/auth/onboarding_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-// ✅ Import screenshot wrapper
-import 'widgets/screenshot_wrapper.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Initialisation de Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
+  // Capture des erreurs avec Crashlytics
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
 
+  // Paramètres Firestore (Cache illimité)
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
+  // Instanciation des services requis au démarrage
   final networkService = NetworkService();
   await networkService.initialize();
 
@@ -62,19 +73,26 @@ void main() async {
   await themeService.loadTheme();
 
   runApp(
-    ChangeNotifierProvider<NetworkService>.value(
-      value: networkService,
-      child: MyApp(themeService: themeService),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<NetworkService>.value(value: networkService),
+        Provider<AuthService>(create: (_) => AuthService()),
+        Provider<LocalAuthService>(create: (_) => LocalAuthService()),
+        //  Cette écriture est correcte car ton application écoute déjà le ValueNotifier directement
+Provider<ThemeService>.value(value: themeService),
+      ],
+      child: const MyApp(),
     ),
   );
 }
 
 class MyApp extends StatelessWidget {
-  final ThemeService themeService;
-  const MyApp({super.key, required this.themeService});
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final themeService = Provider.of<ThemeService>(context, listen: false);
+
     return ValueListenableBuilder<bool>(
       valueListenable: themeService.themeNotifier,
       builder: (context, isDarkMode, child) {
@@ -86,13 +104,12 @@ class MyApp extends StatelessWidget {
           darkTheme: themeService.darkTheme,
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
 
-          // ✅ ScreenshotWrapper ajouté ICI — couvre toutes les pages
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: MediaQuery.of(context).textScaler.clamp(
-                minScaleFactor: 0.85,
-                maxScaleFactor: 1.1,
-              ),
+                    minScaleFactor: 0.85,
+                    maxScaleFactor: 1.1,
+                  ),
             ),
             child: ScreenshotWrapper(
               child: child!,
@@ -137,9 +154,6 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  final AuthService _authService = AuthService();
-  final LocalAuthService _localAuth = LocalAuthService();
-
   @override
   void initState() {
     super.initState();
@@ -150,15 +164,21 @@ class _AuthGateState extends State<AuthGate> {
     final prefs = await SharedPreferences.getInstance();
     final onboardingDone = prefs.getBool('onboarding_done') ?? false;
 
+    if (!mounted) return;
+
     if (!onboardingDone) {
-      if (mounted) Navigator.pushReplacementNamed(context, '/onboarding');
+      Navigator.pushReplacementNamed(context, '/onboarding');
       return;
     }
 
-    final user = _authService.currentUser;
+    // Récupération sécurisée des services depuis le Provider
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final localAuth = Provider.of<LocalAuthService>(context, listen: false);
+
+    final user = authService.currentUser;
     if (user != null) {
       BilanNotificationService.planifierBilanQuotidien();
-      final hasPin = await _localAuth.hasPin();
+      final hasPin = await localAuth.hasPin();
       if (mounted) {
         Navigator.pushReplacementNamed(
           context,

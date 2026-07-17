@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter/foundation.dart';
 
 class StorageService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -21,7 +22,7 @@ class StorageService {
       }
       return null;
     } catch (e) {
-      print('❌ Erreur sélection image: $e');
+     debugPrint('❌ Erreur sélection image: $e');
       return null;
     }
   }
@@ -42,7 +43,7 @@ class StorageService {
       }
       return null;
     } catch (e) {
-      print('❌ Erreur prise de photo: $e');
+     debugPrint('❌ Erreur prise de photo: $e');
       return null;
     }
   }
@@ -58,7 +59,7 @@ class StorageService {
       
       return downloadUrl;
     } catch (e) {
-      print('❌ Erreur upload: $e');
+      debugPrint('❌ Erreur upload: $e');
       return null;
     }
   }
@@ -70,7 +71,7 @@ class StorageService {
       final ref = _storage.ref().child('profile_photos/$fileName');
       await ref.delete();
     } catch (e) {
-      print('❌ Erreur suppression: $e');
+      debugPrint('❌ Erreur suppression: $e');
     }
   }
 }

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart'; // Importé pour utiliser la classe Color dans les getters utiles
 
+// ✅ Enums en lowerCamelCase
 enum TypeCategorie { recette, depense }
 
 class CategorieModel {
@@ -7,7 +9,7 @@ class CategorieModel {
   final String nom;
   final TypeCategorie type;
   final String icone;
-  final String couleur;
+  final String couleur; // Stocké en format Hexadécimal (ex: "#4CAF50" ou "4CAF50")
   final String? description;
   final bool estParDefaut;
   final bool estActive;
@@ -32,7 +34,7 @@ class CategorieModel {
     // Convertir le type avec gestion de la rétrocompatibilité
     TypeCategorie getType(String? typeValue) {
       if (typeValue == null) return TypeCategorie.recette;
-      final lowerType = typeValue.toLowerCase();
+      final lowerType = typeValue.toLowerCase().trim();
       return lowerType == 'depense' ? TypeCategorie.depense : TypeCategorie.recette;
     }
     
@@ -45,7 +47,9 @@ class CategorieModel {
       description: data['description'],
       estParDefaut: data['estParDefaut'] ?? false,
       estActive: data['estActive'] ?? true,
-      dateCreation: (data['dateCreation'] as Timestamp).toDate(),
+      dateCreation: data['dateCreation'] != null 
+          ? (data['dateCreation'] as Timestamp).toDate() 
+          : DateTime.now(),
     );
   }
 
@@ -91,6 +95,17 @@ class CategorieModel {
   // Getters utiles
   bool get estRecette => type == TypeCategorie.recette;
   bool get estDepense => type == TypeCategorie.depense;
+
+  /// Convertit la chaîne Hexadécimale du modèle en objet [Color] utilisable directement dans Flutter.
+  /// Gère les formats avec ou sans le symbole '#' (ex: '#4CAF50' ou 'FF4CAF50' ou '4CAF50').
+  Color get colorValue {
+    String hexColor = couleur.replaceAll('#', '').trim();
+    if (hexColor.length == 6) {
+      hexColor = 'FF$hexColor'; // Ajoute l'opacité par défaut (FF = 100%)
+    }
+    final intColor = int.tryParse(hexColor, radix: 16);
+    return intColor != null ? Color(intColor) : const Color(0xFF4CAF50); // Fallback vert par défaut
+  }
 
   // Catégories par défaut pour les recettes
   static List<CategorieModel> categoriesRecettesDefaut() {

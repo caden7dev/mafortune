@@ -17,9 +17,12 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
   bool _isCapturing = false;
 
   Future<void> _capture() async {
+    // 1. On masque le bouton de capture immédiatement
     setState(() => _isCapturing = true);
+    
     try {
-      await Future.delayed(const Duration(milliseconds: 200));
+      // On laisse le temps au framework de reconstruire l'arbre sans le bouton
+      await Future.delayed(const Duration(milliseconds: 100));
 
       final boundary = _repaintKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
@@ -32,20 +35,21 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
 
       final bytes = byteData.buffer.asUint8List();
 
-      final dir = await getExternalStorageDirectory();
+      // ✅ Utilisation du répertoire de documents de l'application (Pas besoin de permissions intrusives)
+      final dir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
-      final file = File('${dir!.path}/mafortune_$timestamp.png');
+      final file = File('${dir.path}/mafortune_$timestamp.png');
       await file.writeAsBytes(bytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+          const SnackBar(
             content: Text(
-              '✅ Capture sauvegardée !',
-              style: const TextStyle(fontSize: 14),
+              '✅ Capture sauvegardée dans vos documents !',
+              style: TextStyle(fontSize: 14),
             ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
+            duration: Duration(seconds: 3),
           ),
         );
       }
@@ -59,7 +63,9 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
         );
       }
     } finally {
-      if (mounted) setState(() => _isCapturing = false);
+      if (mounted) {
+        setState(() => _isCapturing = false);
+      }
     }
   }
 
@@ -89,42 +95,35 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
           ),
         ),
 
-        // ── Bouton 📸 ────────────────────────────────────────────────────
-        Positioned(
-          bottom: 110,
-          right: 20,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: _isCapturing ? null : _capture,
-              borderRadius: BorderRadius.circular(30),
-              child: Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.7),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.3),
-                    width: 1,
+        // ── Bouton 📸 (Masqué pendant la capture) ────────────────────────
+        if (!_isCapturing)
+          Positioned(
+            bottom: 110,
+            right: 20,
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: _capture,
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  width: 46,
+                  height: 46,
+                  decoration: BoxDecoration(
+                    // ✅ Remplacement de withOpacity par la nouvelle norme de couleur
+                    color: Colors.black.withValues(alpha: 0.7),
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.3),
+                      width: 1,
+                    ),
                   ),
-                ),
-                child: Center(
-                  child: _isCapturing
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Text('📸', style: TextStyle(fontSize: 20)),
+                  child: const Center(
+                    child: Text('📸', style: TextStyle(fontSize: 20)),
+                  ),
                 ),
               ),
             ),
           ),
-        ),
       ],
     );
   }

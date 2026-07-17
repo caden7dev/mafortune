@@ -5,11 +5,12 @@ import '../core/constants/app_colors.dart';
 class ThemeService {
   static const String _themeKey = 'is_dark_mode';
   static final ThemeService _instance = ThemeService._internal();
+  
   factory ThemeService() => _instance;
   ThemeService._internal();
 
   bool _isDarkMode = false;
-  final ValueNotifier<bool> themeNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> themeNotifier = ValueNotifier<bool>(false);
 
   bool get isDarkMode => _isDarkMode;
 
@@ -30,7 +31,7 @@ class ThemeService {
     await setTheme(!_isDarkMode);
   }
 
-  // Thème clair
+  // ☀️ Thème clair
   ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
@@ -41,7 +42,7 @@ class ThemeService {
         primary: AppColors.primaryGreen,
         secondary: AppColors.primaryGreen,
         surface: Colors.white,
-        background: AppColors.backgroundLight,
+        // ✅ Nettoyé : suppression de 'background' déprécié en Material 3
         error: Colors.red,
       ),
       appBarTheme: const AppBarTheme(
@@ -91,7 +92,7 @@ class ThemeService {
     );
   }
 
-  // Thème sombre
+  // 🌙 Thème sombre
   ThemeData get darkTheme {
     return ThemeData(
       useMaterial3: true,
@@ -102,7 +103,7 @@ class ThemeService {
         primary: AppColors.primaryGreen,
         secondary: AppColors.primaryGreen,
         surface: Color(0xFF1E1E1E),
-        background: Color(0xFF121212),
+        // ✅ Nettoyé : suppression de 'background' déprécié en Material 3
         error: Colors.red,
       ),
       appBarTheme: const AppBarTheme(

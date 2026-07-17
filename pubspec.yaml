@@ -52,6 +52,7 @@ dependencies:
 
   # State Management
   provider: ^6.1.2
+  crypto: ^3.0.7
 
 
 

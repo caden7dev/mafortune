@@ -14,10 +14,11 @@ import 'modifier_profil_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'gestion_categories_screen.dart';
 import 'budget_screen.dart';
-import '../../widgets/screenshot_wrapper.dart';
 
 class ProfilScreen extends StatefulWidget {
-  const ProfilScreen({super.key});
+  // ✅ Reçoit le user déjà chargé par le dashboard — zéro appel Firestore supplémentaire
+  final UtilisateurModel? preloadedUser;
+  const ProfilScreen({super.key, this.preloadedUser});
 
   @override
   State<ProfilScreen> createState() => _ProfilScreenState();
@@ -34,8 +35,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
     _checkAdminStatus();
+
+    // ✅ Si le dashboard a déjà chargé l'utilisateur, on l'utilise directement
+    if (widget.preloadedUser != null) {
+      _currentUser = widget.preloadedUser;
+      _isLoading = false;
+    } else {
+      _loadProfile();
+    }
   }
 
   Future<void> _checkAdminStatus() async {
@@ -43,10 +51,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (mounted) setState(() => _isAdmin = isAdmin);
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _loadProfile({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
     try {
-      final user = await _authService.getCurrentUserData();
+      final user = await _authService.getCurrentUserData(
+        forceRefresh: forceRefresh,
+      );
       setState(() => _currentUser = user);
     } catch (e) {
       if (mounted) {
@@ -70,7 +80,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
         builder: (context) => ModifierProfilScreen(currentUser: _currentUser!),
       ),
     );
-    if (result == true) await _loadProfile();
+    // ✅ Après modification, force le rechargement depuis Firestore
+    if (result == true) await _loadProfile(forceRefresh: true);
   }
 
   Future<void> _changerMotDePasse() async {
@@ -83,10 +94,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Future<void> _changerPin() async {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text(
-          '🔧 Bientôt disponible',
-          style: TextStyle(fontSize: 16),
-        ),
+        content: Text('🔧 Bientôt disponible', style: TextStyle(fontSize: 16)),
         backgroundColor: Colors.orange,
       ),
     );
@@ -139,7 +147,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Oui, me déconnecter', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Oui, me déconnecter',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
@@ -163,12 +172,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     if (confirm == true) {
       await _authService.signOut();
-      if (mounted) Navigator.of(context).pushReplacementNamed('/welcome');
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/login');
     }
   }
 
   Future<void> _supprimerCompte() async {
-    // Étape 1 — Avertissement
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -194,10 +203,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Tout sera supprimé définitivement :',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red),
-                  ),
+                  const Text('Tout sera supprimé définitivement :',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.red)),
                   const SizedBox(height: 8),
                   _buildDeleteItem('💸 Toutes vos transactions'),
                   _buildDeleteItem('🏷️ Vos catégories'),
@@ -217,7 +224,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Continuer',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
@@ -241,7 +249,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     if (confirm != true) return;
 
-    // Étape 2 — Confirmation finale
     final TextEditingController confirmController = TextEditingController();
     final doubleConfirm = await showDialog<bool>(
       context: context,
@@ -253,15 +260,11 @@ class _ProfilScreenState extends State<ProfilScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              '✍️ Confirmation finale',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
+            const Text('✍️ Confirmation finale',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            const Text(
-              'Tapez le mot SUPPRIMER pour confirmer :',
-              style: TextStyle(fontSize: 15, color: Colors.black87),
-            ),
+            const Text('Tapez le mot SUPPRIMER pour confirmer :',
+                style: TextStyle(fontSize: 15, color: Colors.black87)),
             const SizedBox(height: 12),
             TextField(
               controller: confirmController,
@@ -288,7 +291,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   } else {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
-                        content: Text('Tapez exactement : SUPPRIMER', style: TextStyle(fontSize: 16)),
+                        content: Text('Tapez exactement : SUPPRIMER',
+                            style: TextStyle(fontSize: 16)),
                         backgroundColor: Colors.red,
                       ),
                     );
@@ -299,7 +303,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Supprimer définitivement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Supprimer définitivement',
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
@@ -324,7 +329,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
     confirmController.dispose();
     if (doubleConfirm != true) return;
 
-    // Suppression en cours
     if (!mounted) return;
     showDialog(
       context: context,
@@ -351,7 +355,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
         Navigator.of(context).pushReplacementNamed('/welcome');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('✅ Compte supprimé avec succès', style: TextStyle(fontSize: 16)),
+            content: Text('✅ Compte supprimé avec succès',
+                style: TextStyle(fontSize: 16)),
             backgroundColor: AppColors.primaryGreen,
           ),
         );
@@ -362,7 +367,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
         if (e.toString().contains('requires-recent-login')) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Reconnectez-vous d\'abord pour supprimer votre compte.', style: TextStyle(fontSize: 16)),
+              content: Text(
+                  'Reconnectez-vous d\'abord pour supprimer votre compte.',
+                  style: TextStyle(fontSize: 16)),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 5),
             ),
@@ -372,7 +379,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)),
+              content: Text('Erreur : ${e.toString()}',
+                  style: const TextStyle(fontSize: 16)),
               backgroundColor: Colors.red,
             ),
           );
@@ -381,9 +389,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  String _formatAmount(double amount) {
-    return NumberFormat('#,###', 'fr_FR').format(amount).replaceAll(',', ' ');
-  }
+  String _formatAmount(double amount) =>
+      NumberFormat('#,###', 'fr_FR').format(amount).replaceAll(',', ' ');
 
   String _getInitial() {
     if (_currentUser == null) return '?';
@@ -426,7 +433,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                     padding: const EdgeInsets.symmetric(horizontal: 32),
                   ),
-                  child: const Text('Réessayer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  child: const Text('Réessayer',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -448,10 +456,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
                 child: Column(
                   children: [
-                    // Avatar
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 100, height: 100,
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.3),
                         shape: BoxShape.circle,
@@ -461,41 +467,30 @@ class _ProfilScreenState extends State<ProfilScreen> {
                         child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
                             ? Image.network(
                                 _currentUser!.photo!,
-                                width: 100, height: 100,
-                                fit: BoxFit.cover,
+                                width: 100, height: 100, fit: BoxFit.cover,
                                 errorBuilder: (_, __, ___) => Center(
-                                  child: Text(
-                                    _getInitial(),
-                                    style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white),
-                                  ),
+                                  child: Text(_getInitial(),
+                                      style: const TextStyle(fontSize: 42,
+                                          fontWeight: FontWeight.bold, color: Colors.white)),
                                 ),
                               )
                             : Center(
-                                child: Text(
-                                  _getInitial(),
-                                  style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white),
-                                ),
+                                child: Text(_getInitial(),
+                                    style: const TextStyle(fontSize: 42,
+                                        fontWeight: FontWeight.bold, color: Colors.white)),
                               ),
                       ),
                     ),
                     const SizedBox(height: 14),
-
-                    // Nom
-                    Text(
-                      _currentUser!.nomComplet,
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
-                    ),
+                    Text(_currentUser!.nomComplet,
+                        style: const TextStyle(color: Colors.white, fontSize: 24,
+                            fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center),
                     const SizedBox(height: 6),
-
-                    // Téléphone (plus utile que l'email pour les mamans commerçantes)
-                    Text(
-                      '📱 ${_currentUser!.telephone}',
-                      style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 15),
-                    ),
+                    Text('📱 ${_currentUser!.telephone}',
+                        style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.9), fontSize: 15)),
                     const SizedBox(height: 14),
-
-                    // Badge activité
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                       decoration: BoxDecoration(
@@ -504,7 +499,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       ),
                       child: Text(
                         '🏪 ${_currentUser!.typeActivite ?? 'Commerçante'}',
-                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+                        style: const TextStyle(color: Colors.white, fontSize: 15,
+                            fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -513,7 +509,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
               const SizedBox(height: 20),
 
-              // ── Solde actuel — mis en avant ──────────────────────────────────
+              // ── Solde ────────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Container(
@@ -522,34 +518,24 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                      begin: Alignment.topLeft, end: Alignment.bottomRight,
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primaryGreen.withOpacity(0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
-                      ),
+                      BoxShadow(color: AppColors.primaryGreen.withOpacity(0.3),
+                          blurRadius: 12, offset: const Offset(0, 6))
                     ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        '💰 Solde actuel',
-                        style: TextStyle(color: Colors.white70, fontSize: 15),
-                      ),
+                      const Text('💰 Solde actuel',
+                          style: TextStyle(color: Colors.white70, fontSize: 15)),
                       const SizedBox(height: 8),
                       Text(
                         '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
+                        style: const TextStyle(color: Colors.white, fontSize: 32,
+                            fontWeight: FontWeight.bold, letterSpacing: 0.5),
                       ),
                     ],
                   ),
@@ -559,155 +545,86 @@ class _ProfilScreenState extends State<ProfilScreen> {
               const SizedBox(height: 24),
 
               // ── Informations ─────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Mes informations',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildInfoCard('📧', 'Email', _currentUser!.email),
-                    _buildInfoCard('📍', 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
-                    _buildInfoCard('🏪', 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
-                  ],
-                ),
-              ),
+              _buildSection('Mes informations', [
+                _buildInfoCard('📧', 'Email', _currentUser!.email),
+                _buildInfoCard('📍', 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
+                _buildInfoCard('🏪', 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
+              ]),
 
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               // ── Mon compte ───────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Mon compte',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMenuItem(emoji: '✏️', title: 'Modifier mon profil', onTap: _modifierProfil),
-                    _buildMenuItem(emoji: '🔐', title: 'Changer le mot de passe', onTap: _changerMotDePasse),
-                    _buildMenuItem(emoji: '🔢', title: 'Changer le code PIN', onTap: _changerPin),
-                  ],
-                ),
-              ),
+              _buildSection('Mon compte', [
+                _buildMenuItem(emoji: '✏️', title: 'Modifier mon profil', onTap: _modifierProfil),
+                _buildMenuItem(emoji: '🔐', title: 'Changer le mot de passe', onTap: _changerMotDePasse),
+                _buildMenuItem(emoji: '🔢', title: 'Changer le code PIN', onTap: _changerPin),
+              ]),
 
               const SizedBox(height: 24),
 
               // ── Gestion financière ───────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Gestion financière',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMenuItem(emoji: '🏷️', title: 'Mes catégories', onTap: _gestionCategories),
-                    _buildMenuItem(emoji: '🎯', title: 'Budget mensuel', onTap: _budgetMensuel),
-                  ],
-                ),
-              ),
+              _buildSection('Gestion financière', [
+                _buildMenuItem(emoji: '🏷️', title: 'Mes catégories', onTap: _gestionCategories),
+                _buildMenuItem(emoji: '🎯', title: 'Budget mensuel', onTap: _budgetMensuel),
+              ]),
 
               const SizedBox(height: 24),
 
               // ── Paramètres ───────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Paramètres',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMenuItem(
-                      emoji: '🔔',
-                      title: 'Notifications',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                    ),
-                    _buildMenuItem(
-                      emoji: '🔒',
-                      title: 'Confidentialité',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen())),
-                    ),
-                    _buildMenuItem(
-                      emoji: '🎨',
-                      title: 'Thème',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemeScreen())),
-                    ),
-                  ],
+              _buildSection('Paramètres', [
+                _buildMenuItem(
+                  emoji: '🔔', title: 'Notifications',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const NotificationsScreen())),
                 ),
-              ),
+                _buildMenuItem(
+                  emoji: '🔒', title: 'Confidentialité',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ConfidentialiteScreen())),
+                ),
+                _buildMenuItem(
+                  emoji: '🎨', title: 'Thème',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const ThemeScreen())),
+                ),
+              ]),
 
               const SizedBox(height: 24),
 
               // ── Aide ─────────────────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Aide',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 14),
-                    _buildMenuItem(
-                      emoji: '❓',
-                      title: 'Aide & Support',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen())),
-                    ),
-                    _buildMenuItem(
-                      emoji: 'ℹ️',
-                      title: 'À propos de MaFortune',
-                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AProposScreen())),
-                    ),
-                  ],
+              _buildSection('Aide', [
+                _buildMenuItem(
+                  emoji: '❓', title: 'Aide & Support',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AideScreen())),
                 ),
-              ),
+                _buildMenuItem(
+                  emoji: 'ℹ️', title: 'À propos de MaFortune',
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AProposScreen())),
+                ),
+              ]),
 
-              // Admin (si applicable)
+              // ── Admin ────────────────────────────────────────────────────────
               if (_isAdmin) ...[
                 const SizedBox(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Administration',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 14),
-                      _buildMenuItem(
-                        emoji: '🛡️',
-                        title: 'Tableau de bord Admin',
-                        onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
-                      ),
-                    ],
+                _buildSection('Administration', [
+                  _buildMenuItem(
+                    emoji: '🛡️', title: 'Tableau de bord Admin',
+                    onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
                   ),
-                ),
+                ]),
               ],
 
               const SizedBox(height: 28),
 
-              // ── Actions compte ────────────────────────────────────────────────
+              // ── Actions ──────────────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Column(
                   children: [
-                    // Déconnexion
                     SizedBox(
-                      width: double.infinity,
-                      height: 60,
+                      width: double.infinity, height: 60,
                       child: OutlinedButton(
                         onPressed: _deconnexion,
                         style: OutlinedButton.styleFrom(
@@ -720,25 +637,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           children: [
                             Text('🚪', style: TextStyle(fontSize: 22)),
                             SizedBox(width: 10),
-                            Text(
-                              'Me déconnecter',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
+                            Text('Me déconnecter',
+                                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
-                    // Supprimer compte — discret
                     TextButton(
                       onPressed: _supprimerCompte,
                       child: Text(
                         'Supprimer mon compte',
                         style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 14,
+                          color: Colors.grey[500], fontSize: 14,
                           decoration: TextDecoration.underline,
                         ),
                       ),
@@ -755,7 +666,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  // ─── Widgets helpers ─────────────────────────────────────────────────────────
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+  Widget _buildSection(String title, List<Widget> children) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
+                  color: Colors.black87)),
+          const SizedBox(height: 14),
+          ...children,
+        ],
+      ),
+    );
+  }
 
   Widget _buildInfoCard(String emoji, String label, String value) {
     return Container(
@@ -765,11 +692,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8, offset: const Offset(0, 2))
         ],
       ),
       child: Row(
@@ -780,15 +704,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                ),
+                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
-                ),
+                Text(value, style: const TextStyle(fontSize: 16,
+                    fontWeight: FontWeight.w600, color: Colors.black87)),
               ],
             ),
           ),
@@ -808,11 +727,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8, offset: const Offset(0, 2))
         ],
       ),
       child: Material(
@@ -827,14 +743,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 Text(emoji, style: const TextStyle(fontSize: 26)),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
+                  child: Text(title, style: const TextStyle(fontSize: 16,
+                      fontWeight: FontWeight.w600, color: Colors.black87)),
                 ),
                 Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
               ],
@@ -848,7 +758,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget _buildDeleteItem(String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Text(text, style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4)),
+      child: Text(text,
+          style: const TextStyle(fontSize: 14, color: Colors.black87, height: 1.4)),
     );
   }
 }

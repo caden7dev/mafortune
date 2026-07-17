@@ -30,19 +30,23 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: _userEmail);
       await _localAuth.clearPin();
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _emailSent = true;
-        });
-      }
-    } on FirebaseAuthException catch (e) {
-      setState(() => _isLoading = false);
+      
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+        _emailSent = true;
+      });
+    } on FirebaseAuthException catch (e, stackTrace) {
       FirebaseCrashlytics.instance.recordError(
-        e, StackTrace.current,
+        e,
+        stackTrace,
         reason: 'Erreur Firebase reset PIN : ${e.code}',
         fatal: false,
       );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+
       switch (e.code) {
         case 'user-not-found':
           _showError('Aucun compte trouvé pour cet email.');
@@ -53,23 +57,36 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
         default:
           _showError('Problème de connexion. Réessayez.');
       }
-    } catch (e) {
-      setState(() => _isLoading = false);
+    } catch (e, stackTrace) {
       FirebaseCrashlytics.instance.recordError(
-        e, StackTrace.current,
-        reason: 'Erreur reset PIN',
+        e,
+        stackTrace,
+        reason: 'Erreur reset PIN standard',
         fatal: false,
       );
+
+      if (!mounted) return;
+      setState(() => _isLoading = false);
       _showError('Vérifiez votre connexion internet et réessayez.');
     }
   }
 
   Future<void> _goToLogin() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) Navigator.pushReplacementNamed(context, '/login');
+    setState(() => _isLoading = true);
+    try {
+      await FirebaseAuth.instance.signOut();
+      if (!mounted) return;
+      Navigator.pushReplacementNamed(context, '/login');
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        _showError('Erreur lors de la déconnexion.');
+      }
+    }
   }
 
   void _showError(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -91,7 +108,7 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: AppColors.primaryGreen, size: 26),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           '🔑 Code PIN oublié',
@@ -262,7 +279,7 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
           width: double.infinity,
           height: 56,
           child: OutlinedButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: _isLoading ? null : () => Navigator.pop(context),
             style: OutlinedButton.styleFrom(
               foregroundColor: Colors.grey[700],
               side: BorderSide(color: Colors.grey[300]!, width: 1.5),
@@ -365,7 +382,7 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
 
         const SizedBox(height: 16),
 
-        // Note spam
+        // Note de mise en garde contre le spam
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
@@ -397,29 +414,39 @@ class _ResetPinScreenState extends State<ResetPinScreen> {
           width: double.infinity,
           height: 64,
           child: ElevatedButton(
-            onPressed: _goToLogin,
+            onPressed: _isLoading ? null : _goToLogin,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryGreen,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: AppColors.primaryGreen.withOpacity(0.5),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
               elevation: 4,
             ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text('🔓', style: TextStyle(fontSize: 24)),
-                SizedBox(width: 12),
-                Text(
-                  'Aller à la connexion',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+            child: _isLoading
+                ? const SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                    ),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text('🔓', style: TextStyle(fontSize: 24)),
+                      SizedBox(width: 12),
+                      Text(
+                        'Aller à la connexion',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-              ],
-            ),
           ),
         ),
 

@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ✅ CORRECTION : Enums en lowerCamelCase
+// ✅ Enums en lowerCamelCase
 enum TypeTransaction { recette, depense }
 
 enum ModePaiement { especes, mobileMoney, carte, cheque }
@@ -50,25 +50,41 @@ class TransactionModel {
   factory TransactionModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     
+    // Conversion ultra-sécurisée du montant en double (supporte int et double)
+    double convertMontant(dynamic value) {
+      if (value == null) return 0.0;
+      if (value is num) return value.toDouble();
+      return double.tryParse(value.toString()) ?? 0.0;
+    }
+
+    // Helper de sécurité pour le type de transaction
+    TypeTransaction convertType(dynamic value) {
+      if (value == null) return TypeTransaction.recette;
+      final typeStr = value.toString().toLowerCase().trim();
+      return typeStr == 'recette' ? TypeTransaction.recette : TypeTransaction.depense;
+    }
+
     return TransactionModel(
       id: doc.id,
       commercantId: data['commercantId'] ?? '',
-      type: data['type'] == 'recette' 
-          ? TypeTransaction.recette 
-          : TypeTransaction.depense,
-      montant: (data['montant'] ?? 0.0).toDouble(),
+      type: convertType(data['type']),
+      montant: convertMontant(data['montant']),
       categorie: data['categorie'] ?? '',
       categorieId: data['categorieId'] ?? '',
       description: data['description'],
-      date: (data['date'] as Timestamp).toDate(),
+      date: data['date'] != null 
+          ? (data['date'] as Timestamp).toDate() 
+          : DateTime.now(),
       photoRecu: data['photoRecu'],
       estSynchronise: data['estSynchronise'] ?? true,
-      dateCreation: (data['dateCreation'] as Timestamp).toDate(),
+      dateCreation: data['dateCreation'] != null 
+          ? (data['dateCreation'] as Timestamp).toDate() 
+          : DateTime.now(),
       dateModification: data['dateModification'] != null
           ? (data['dateModification'] as Timestamp).toDate()
           : null,
       modePaiement: data['modePaiement'] != null
-          ? _modePaiementFromString(data['modePaiement'])
+          ? _modePaiementFromString(data['modePaiement'].toString())
           : null,
       client: data['client'],
       fournisseur: data['fournisseur'],
@@ -80,7 +96,7 @@ class TransactionModel {
   Map<String, dynamic> toFirestore() {
     return {
       'commercantId': commercantId,
-      'type': type.name, // name retourne "recette" ou "depense"
+      'type': type.name, // "recette" ou "depense"
       'montant': montant,
       'categorie': categorie,
       'categorieId': categorieId,
@@ -99,20 +115,21 @@ class TransactionModel {
     };
   }
 
-  
-
-  // Helper pour convertir string en enum ModePaiement
+  // Helper de secours robuste pour convertir string en enum ModePaiement
   static ModePaiement _modePaiementFromString(String mode) {
-    // Convertir en minuscules pour gérer l'ancien format
-    final lowerMode = mode.toLowerCase();
+    final lowerMode = mode.toLowerCase().trim();
     switch (lowerMode) {
       case 'mobilemoney':
       case 'mobile_money':
         return ModePaiement.mobileMoney;
       case 'carte':
+      case 'cartebancaire':
+      case 'carte_bancaire':
         return ModePaiement.carte;
       case 'cheque':
         return ModePaiement.cheque;
+      case 'especes':
+      case 'espèces':
       default:
         return ModePaiement.especes;
     }

@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/utilisateur_model.dart';
 import 'local_auth_service.dart';
+import 'package:flutter/foundation.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -9,17 +10,25 @@ class AuthService {
   final LocalAuthService _localAuth = LocalAuthService();
 
   // ─── CACHE PROFIL ─────────────────────────────────────────────────────────
-  // Évite de rappeler Firestore à chaque écran pour le même utilisateur
   UtilisateurModel? _cachedUser;
   String? _cachedUserId;
 
+  AuthService() {
+    // Écoute les changements d'état d'authentification pour invalider le cache automatiquement
+    _auth.authStateChanges().listen((User? user) {
+      if (user == null) {
+        invalidateUserCache();
+      }
+    });
+  }
+
   Stream<User?> get authStateChanges => _auth.authStateChanges();
-  User? get currentUser => FirebaseAuth.instance.currentUser;
+  User? get currentUser => _auth.currentUser;
 
   Future<bool> isLocalPinSet() async => await _localAuth.hasPin();
   Future<void> clearLocalPin() async => await _localAuth.clearPin();
 
-  /// Invalide le cache — à appeler après updateUserProfile
+  /// Invalide le cache — à appeler après une modification de profil
   void invalidateUserCache() {
     _cachedUser = null;
     _cachedUserId = null;
@@ -68,7 +77,7 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
-      throw 'Une erreur est survenue lors de l\'inscription: $e';
+      throw 'Une erreur est survenue lors de l\'inscription : $e';
     }
   }
 
@@ -104,17 +113,18 @@ class AuthService {
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
 
-      // Mise à jour dernière sync — fire and forget (pas d'await)
+      // Mise à jour de la dernière synchronisation (sans bloquer l'UI, mais sécurisé)
       _firestore
           .collection('utilisateurs')
           .doc(utilisateur.id)
-          .update({'derniereSynchronisation': FieldValue.serverTimestamp()});
+          .update({'derniereSynchronisation': FieldValue.serverTimestamp()})
+          .catchError((e) => debugPrint("Erreur de mise à jour de la synchro : $e"));
 
       return utilisateur;
     } on FirebaseAuthException catch (e) {
       throw _handleAuthException(e);
     } catch (e) {
-      throw 'Une erreur est survenue lors de la connexion: $e';
+      throw 'Une erreur est survenue lors de la connexion : $e';
     }
   }
 
@@ -125,8 +135,6 @@ class AuthService {
   }
 
   // ─── GET PROFIL — avec cache ──────────────────────────────────────────────
-  // ✅ OPTIMISATION : retourne le cache si le même utilisateur est déjà chargé
-  // Au lieu de faire un appel Firestore à chaque écran (profil, dashboard, etc.)
   Future<UtilisateurModel?> getCurrentUserData({
     bool forceRefresh = false,
   }) async {
@@ -156,27 +164,41 @@ class AuthService {
 
       return utilisateur;
     } catch (e) {
-      // Si Firestore échoue, retourne le cache même expiré
+      // Si Firestore échoue (ex: hors-ligne), retourne le cache même expiré
       if (_cachedUser != null) return _cachedUser;
       return null;
     }
   }
 
   // ─── UPDATE PROFIL ────────────────────────────────────────────────────────
+  /// Met à jour uniquement les informations modifiables du profil utilisateur 
+  /// pour éviter d'écraser des champs sensibles d'administration (rôles, solde, etc.)
   Future<UtilisateurModel> updateUserProfile(UtilisateurModel user) async {
     try {
+      // ✅ PROTECTION : On ne pousse que les champs de profil modifiables par l'utilisateur
+      final Map<String, dynamic> updates = {
+        'nom': user.nom,
+        'prenom': user.prenom,
+        'telephone': user.telephone,
+        'photo': user.photo,
+        'derniereSynchronisation': FieldValue.serverTimestamp(),
+      };
+
+      // Si c'est un commerçant, on permet de modifier ses infos d'activité locales
+      if (user.estCommercant) {
+        updates['typeActivite'] = user.typeActivite;
+        updates['adresse'] = user.adresse;
+      }
+
       await _firestore
           .collection('utilisateurs')
           .doc(user.id)
-          .update(user.toFirestore());
+          .update(updates);
 
-      // Met à jour le cache avec les nouvelles données
-      _cachedUser = user;
-      _cachedUserId = user.id;
-
-      return user;
+      // On récupère le profil à jour pour être certain d'avoir la synchro Firestore
+      return await getCurrentUserData(forceRefresh: true) ?? user;
     } catch (e) {
-      throw 'Erreur lors de la mise à jour du profil: $e';
+      throw 'Erreur lors de la mise à jour du profil : $e';
     }
   }
 
@@ -237,7 +259,7 @@ class AuthService {
       case 'network-request-failed':
         return 'Problème de connexion internet. Vérifiez votre réseau';
       default:
-        return 'Erreur d\'authentification: ${e.message}';
+        return 'Erreur d\'authentification : ${e.message}';
     }
   }
 }

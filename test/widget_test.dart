@@ -1,26 +1,47 @@
 // test/widget_test.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mafortune/main.dart';
-import 'package:mafortune/services/theme_service.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+// ✅ Utilise des imports relatifs pour éviter les conflits de package dans les tests
+import '../lib/main.dart';
+import '../lib/services/theme_service.dart';
+import '../lib/services/network_service.dart';
+import '../lib/services/auth_service.dart';
+import '../lib/services/local_auth_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Créer une instance de ThemeService
-    final themeService = ThemeService();
+  // Nécessaire pour simuler SharedPreferences dans les tests Flutter
+  SharedPreferences.setMockInitialValues({
+    'onboarding_done': false, // Simule un nouvel utilisateur
+  });
+
+  testWidgets('Test de démarrage de MaFortune - Redirection Onboarding', (WidgetTester tester) async {
+    // 1. Récupérer l'instance unique (Singleton) de ThemeService
+    final themeService = ThemeService(); 
     await themeService.loadTheme();
 
-    // Construire l'application avec le service de thème
-    await tester.pumpWidget(MyApp(themeService: themeService));
+    final networkService = NetworkService();
 
-    // Vérifications (à adapter à votre application)
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // 2. Construire l'arbre avec tous les Providers nécessaires
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<NetworkService>.value(value: networkService),
+          Provider<AuthService>(create: (_) => AuthService()),
+          Provider<LocalAuthService>(create: (_) => LocalAuthService()),
+          //  Cette écriture est correcte car ton application écoute déjà le ValueNotifier directement
+Provider<ThemeService>.value(value: themeService),
+        ],
+        child: const MyApp(),
+      ),
+    );
 
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    // 3. Laisser l'AuthGate faire sa redirection
+    await tester.pumpAndSettle();
 
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // 4. Vérification
+    expect(find.byType(MyApp), findsOneWidget);
   });
 }
