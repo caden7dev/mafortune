@@ -5,7 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../services/tts_service.dart';
-import '../../widgets/screenshot_wrapper.dart';
+
 class SaisieRapideScreen extends StatefulWidget {
   final bool? isVenteInitial;
   const SaisieRapideScreen({super.key, this.isVenteInitial});
@@ -23,12 +23,12 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
   bool _isLoading = false;
 
   @override
-void initState() {
-  super.initState();
-  if (widget.isVenteInitial != null) {
-    _isVente = widget.isVenteInitial!;
+  void initState() {
+    super.initState();
+    if (widget.isVenteInitial != null) {
+      _isVente = widget.isVenteInitial!;
+    }
   }
-}
 
   double get _montant => double.tryParse(_montantStr) ?? 0;
 
@@ -89,57 +89,49 @@ void initState() {
       categorieId: _isVente ? 'ventes' : 'achats',
       montant: _montant,
       type: _isVente ? TypeTransaction.recette : TypeTransaction.depense,
-      description: _isVente ? 'Vente rapide' : 'Dépense rapide',
+      description: _isVente ? 'Vente' : 'Dépense',
       date: DateTime.now(),
       dateCreation: DateTime.now(),
       modePaiement: ModePaiement.especes,
       categorie: _isVente ? 'Ventes' : 'Achats',
     );
 
-    _transactionService.addTransaction(transaction).catchError((e) {
-      debugPrint('Sync en attente: $e');
-    });
+    try {
+      // ✅ CORRECTION — await obligatoire pour attendre l'enregistrement Firestore
+      await _transactionService.addTransaction(transaction);
 
-    HapticFeedback.heavyImpact();
+      // ✅ Le cache est invalidé dans addTransaction — le dashboard verra les nouvelles données
 
-   // APRÈS
-if (mounted) {
-  Navigator.pop(context, true);
+      HapticFeedback.heavyImpact();
 
-  // ✅ Confirmation visuelle
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Row(
-        children: [
-          Icon(
-            _isVente ? Icons.trending_up : Icons.trending_down,
-            color: Colors.white,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Text(
-            '${_isVente ? "Vente" : "Dépense"} de ${_formatAffichage(_montantStr)} FCFA enregistrée',
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
+      if (mounted) {
+        // ✅ On retourne true APRÈS que la transaction est bien enregistrée
+        Navigator.pop(context, true);
+
+        // Confirmation vocale
+        final tts = TtsService();
+        if (_isVente) {
+          tts.confirmerVente(_montant);
+        } else {
+          tts.confirmerDepense(_montant);
+        }
+      }
+    } catch (e) {
+      debugPrint('Erreur enregistrement transaction: $e');
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Erreur : $e',
+              style: const TextStyle(fontSize: 15),
             ),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
           ),
-        ],
-      ),
-      backgroundColor:
-          _isVente ? AppColors.primaryGreen : AppColors.expenseRed,
-      duration: const Duration(seconds: 3),
-    ),
-  );
-
-  // ✅ Confirmation vocale — l'app parle
-  final tts = TtsService();
-  if (_isVente) {
-    tts.confirmerVente(_montant);
-  } else {
-    tts.confirmerDepense(_montant);
-  }
-}
+        );
+      }
+    }
   }
 
   String _formatAffichage(String valeur) {
@@ -181,7 +173,7 @@ if (mounted) {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Text(
-              'Saisie rapide',
+              'Saisie simple',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
@@ -225,8 +217,7 @@ if (mounted) {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color:
-                                  _isVente ? Colors.white : Colors.grey[600],
+                              color: _isVente ? Colors.white : Colors.grey[600],
                             ),
                           ),
                         ],
@@ -254,8 +245,7 @@ if (mounted) {
                         children: [
                           Icon(
                             Icons.trending_down,
-                            color:
-                                !_isVente ? Colors.white : Colors.grey[500],
+                            color: !_isVente ? Colors.white : Colors.grey[500],
                             size: 28,
                           ),
                           const SizedBox(height: 6),
@@ -264,9 +254,7 @@ if (mounted) {
                             style: TextStyle(
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
-                              color: !_isVente
-                                  ? Colors.white
-                                  : Colors.grey[600],
+                              color: !_isVente ? Colors.white : Colors.grey[600],
                             ),
                           ),
                         ],
@@ -283,8 +271,7 @@ if (mounted) {
           // Affichage du montant
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
             decoration: BoxDecoration(
               color: couleur.withOpacity(0.08),
               borderRadius: BorderRadius.circular(16),
@@ -337,16 +324,13 @@ if (mounted) {
                         decoration: BoxDecoration(
                           color: couleur.withOpacity(0.1),
                           borderRadius: BorderRadius.circular(10),
-                          border:
-                              Border.all(color: couleur.withOpacity(0.25)),
+                          border: Border.all(color: couleur.withOpacity(0.25)),
                         ),
                         child: Center(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
-                              v >= 1000
-                                  ? '${v ~/ 1000}k'
-                                  : '$v',
+                              v >= 1000 ? '${v ~/ 1000}k' : '$v',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.bold,
@@ -386,9 +370,7 @@ if (mounted) {
           // Bouton valider
           Padding(
             padding: EdgeInsets.fromLTRB(
-              20,
-              8,
-              20,
+              20, 8, 20,
               MediaQuery.of(context).padding.bottom + 16,
             ),
             child: SizedBox(

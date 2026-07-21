@@ -15,8 +15,6 @@ import 'profil_screen.dart';
 import 'theme_screen.dart';
 import '../../services/tts_service.dart';
 import '../../services/bilan_notification_service.dart';
-import '../../widgets/screenshot_wrapper.dart';
-
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -54,7 +52,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return name[0].toUpperCase();
   }
 
-  // Prénom seulement — plus simple à lire
   String _getPrenom() {
     if (_currentUser == null) return '';
     final parts = _currentUser!.nomComplet.trim().split(' ');
@@ -67,78 +64,76 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadData();
   }
 
- Future<void> _loadData() async {
-  if (mounted) {
-    setState(() {
-      _isLoading = true;
-      _recentTransactions = [];
-      _weekData = [];
-      _quickStats = {};
-    });
-  }
-
-  try {
-    _currentUser = await _authService.getCurrentUserData();
-    if (_currentUser == null) return;
-
-    final stats =
-        await _transactionService.getQuickStats(_currentUser!.id);
-    if (mounted) setState(() => _quickStats = stats);
-
-    final allTransactions = await _transactionService
-        .getTransactionsByCommercant(_currentUser!.id);
-    allTransactions
-        .sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
-
+  Future<void> _loadData({bool forceRefresh = false}) async {
     if (mounted) {
-      setState(
-          () => _recentTransactions = allTransactions.take(10).toList());
+      setState(() {
+        _isLoading = true;
+        _recentTransactions = [];
+        _weekData = [];
+        _quickStats = {};
+      });
     }
 
-    await _loadWeekData(allTransactions);
-    if (mounted) setState(() {});
+    try {
+      // ✅ forceRefresh=true après une transaction pour recharger le solde depuis Firestore
+      _currentUser = await _authService.getCurrentUserData(
+        forceRefresh: forceRefresh,
+      );
+      if (_currentUser == null) return;
 
-    // ✅ NOUVEAU — Si l'app a été ouverte via la notif du bilan, lire à voix haute
-    if (BilanNotificationService.launchedFromBilan) {
-      BilanNotificationService.launchedFromBilan = false; // consommé
-      final recettes = (stats['todayIncome'] ?? 0).toDouble();
-      final depenses = (stats['todayExpense'] ?? 0).toDouble();
-      await Future.delayed(const Duration(milliseconds: 600));
-      TtsService().bilanDuJour(recettes, depenses);
+      // ✅ Appels parallèles
+      final results = await Future.wait([
+        _transactionService.getQuickStats(_currentUser!.id),
+        _transactionService.getTransactionsByCommercant(_currentUser!.id),
+      ]);
+
+      final stats = results[0] as Map<String, dynamic>;
+      final allTransactions = results[1] as List<TransactionModel>;
+
+      allTransactions.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+
+      if (mounted) {
+        setState(() {
+          _quickStats = stats;
+          _recentTransactions = allTransactions.take(10).toList();
+        });
+      }
+
+      await _loadWeekData(allTransactions);
+
+      if (BilanNotificationService.launchedFromBilan) {
+        BilanNotificationService.launchedFromBilan = false;
+        final recettes = (stats['todayIncome'] ?? 0).toDouble();
+        final depenses = (stats['todayExpense'] ?? 0).toDouble();
+        await Future.delayed(const Duration(milliseconds: 600));
+        TtsService().bilanDuJour(recettes, depenses);
+      }
+    } catch (e) {
+      debugPrint('Erreur chargement: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
-  } catch (e) {
-    debugPrint('Erreur chargement: $e');
-  } finally {
-    if (mounted) setState(() => _isLoading = false);
   }
-}
 
-  Future<void> _loadWeekData(
-      List<TransactionModel> allTransactions) async {
+  Future<void> _loadWeekData(List<TransactionModel> allTransactions) async {
     final now = DateTime.now();
     final weekData = <Map<String, dynamic>>[];
 
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
       final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay =
-          DateTime(date.year, date.month, date.day, 23, 59, 59);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
 
       double recettes = 0, depenses = 0;
       for (var t in allTransactions) {
         if (t.date.isAfter(startOfDay) && t.date.isBefore(endOfDay)) {
-          if (t.estRecette)
-            recettes += t.montant;
-          else
-            depenses += t.montant;
+          if (t.estRecette) recettes += t.montant;
+          else depenses += t.montant;
         }
       }
 
       weekData.add({
-        'jour': DateFormat('EEE', 'fr_FR')
-            .format(date)
-            .substring(0, 3)
-            .toUpperCase(),
+        'jour': DateFormat('EEE', 'fr_FR').format(date).substring(0, 3).toUpperCase(),
         'recettes': recettes,
         'depenses': depenses,
         'date': date,
@@ -159,8 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (lower.contains('service')) return '🔧';
     if (lower.contains('loyer')) return '🏠';
     if (lower.contains('salaire')) return '👨‍💼';
-    if (lower.contains('electricite') ||
-        lower.contains('électricité')) return '💡';
+    if (lower.contains('electricite') || lower.contains('électricité')) return '💡';
     return '📊';
   }
 
@@ -171,18 +165,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => SaisieRapideScreen(isVenteInitial: isVente),
     );
-    if (result == true) await _loadData();
+    // ✅ forceRefresh=true pour recharger le solde ET les transactions depuis Firestore
+    if (result == true) await _loadData(forceRefresh: true);
   }
 
-  Future<void> _supprimerTransaction(
-      TransactionModel transaction) async {
+  Future<void> _supprimerTransaction(TransactionModel transaction) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Supprimer ?',
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer ?', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text(
           'Supprimer cette transaction de ${_formatAmount(transaction.montant)} FCFA ?',
           style: const TextStyle(fontSize: 16),
@@ -195,10 +187,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white),
-            child: const Text('Oui, supprimer',
-                style: TextStyle(fontSize: 16)),
+                backgroundColor: Colors.red, foregroundColor: Colors.white),
+            child: const Text('Oui, supprimer', style: TextStyle(fontSize: 16)),
           ),
         ],
       ),
@@ -213,13 +203,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('✅ Transaction supprimée'),
               backgroundColor: AppColors.success));
-          await _loadData();
+          // ✅ forceRefresh après suppression aussi
+          await _loadData(forceRefresh: true);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('❌ Erreur: $e'),
-              backgroundColor: Colors.red));
+              content: Text('❌ Erreur: $e'), backgroundColor: Colors.red));
           setState(() => _isLoading = false);
         }
       }
@@ -242,15 +232,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             IconButton(
               icon: const Icon(Icons.palette_outlined),
               onPressed: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const ThemeScreen())),
+                  context, MaterialPageRoute(builder: (_) => const ThemeScreen())),
               tooltip: 'Thème',
             ),
         ],
       ),
-
-      
       body: Column(
         children: [
           const OfflineBanner(),
@@ -262,7 +248,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 const BilansScreen(),
                 const RapportsScreen(),
                 const NotificationsScreen(),
-                const ProfilScreen(),
+                // ✅ preloadedUser transmis au profil
+                ProfilScreen(preloadedUser: _currentUser),
               ],
             ),
           ),
@@ -278,13 +265,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           }
         },
       ),
+      // ✅ "Saisie simple" au lieu de "Saisie rapide"
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton.extended(
               onPressed: () => _ouvrirSaisie(isVente: true),
               backgroundColor: AppColors.primaryGreen,
               icon: const Icon(Icons.add, color: Colors.white, size: 26),
               label: const Text(
-                'Saisie rapide',
+                'Saisir',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -299,8 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildDashboardContent() {
     if (_isLoading) {
       return const Center(
-          child:
-              CircularProgressIndicator(color: AppColors.primaryGreen));
+          child: CircularProgressIndicator(color: AppColors.primaryGreen));
     }
 
     if (_currentUser == null) {
@@ -311,42 +298,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const Text('❌ Utilisateur non connecté',
                 style: TextStyle(fontSize: 16)),
             const SizedBox(height: 20),
-            ElevatedButton(
-                onPressed: _loadData,
-                child: const Text('Réessayer')),
+            ElevatedButton(onPressed: _loadData, child: const Text('Réessayer')),
           ],
         ),
       );
     }
 
     return RefreshIndicator(
-      onRefresh: _loadData,
+      // ✅ Pull to refresh force aussi un rechargement complet
+      onRefresh: () => _loadData(forceRefresh: true),
       color: AppColors.primaryGreen,
       child: CustomScrollView(
         slivers: [
-          // ─── HEADER ───────────────────────────────────────────
+          // ─── HEADER ──────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
-              decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient),
+              decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Salutation + avatar
                   Row(
                     children: [
                       Container(
-                        width: 52,
-                        height: 52,
+                        width: 52, height: 52,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.25),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
                           child: Text(_getInitial(),
-                              style: const TextStyle(
-                                  fontSize: 26, color: Colors.white)),
+                              style: const TextStyle(fontSize: 26, color: Colors.white)),
                         ),
                       ),
                       const SizedBox(width: 14),
@@ -357,14 +339,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               'Bonjour ${_getPrenom()} 👋',
                               style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
+                                  color: Colors.white, fontSize: 20,
+                                  fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              _currentUser!.typeActivite ??
-                                  'Commerçante',
+                              _currentUser!.typeActivite ?? 'Commerçante',
                               style: TextStyle(
                                   color: Colors.white.withValues(alpha: 0.8),
                                   fontSize: 13),
@@ -377,7 +356,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
                   const SizedBox(height: 20),
 
-                  // Carte solde
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(20),
@@ -385,17 +363,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.5),
+                          color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'Mon argent aujourd\'hui',
-                          style: TextStyle(
-                              color: Colors.white70, fontSize: 14),
-                        ),
+                        const Text('Mon argent aujourd\'hui',
+                            style: TextStyle(color: Colors.white70, fontSize: 14)),
                         const SizedBox(height: 8),
                         FittedBox(
                           fit: BoxFit.scaleDown,
@@ -403,10 +377,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: Text(
                             '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
                             style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 34,
-                              fontWeight: FontWeight.bold,
-                            ),
+                                color: Colors.white, fontSize: 34,
+                                fontWeight: FontWeight.bold),
                           ),
                         ),
                         const SizedBox(height: 16),
@@ -414,23 +386,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           children: [
                             Expanded(
                               child: _buildMiniStat(
-                                '📈',
-                                'Gagné',
+                                '📈', 'Gagné',
                                 '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F',
                                 Colors.greenAccent,
                               ),
                             ),
                             Container(
-                              width: 1,
-                              height: 40,
-                              color: Colors.white30,
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 12),
-                            ),
+                                width: 1, height: 40,
+                                color: Colors.white30,
+                                margin: const EdgeInsets.symmetric(horizontal: 12)),
                             Expanded(
                               child: _buildMiniStat(
-                                '📉',
-                                'Dépensé',
+                                '📉', 'Dépensé',
                                 '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F',
                                 Colors.redAccent.shade100,
                               ),
@@ -445,13 +412,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // ─── 2 GROS BOUTONS ACCESSIBLES ──────────────────────
+          // ─── 2 GROS BOUTONS ──────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Row(
                 children: [
-                  // J'AI VENDU — vert
                   Expanded(
                     child: GestureDetector(
                       onTap: () => _ouvrirSaisie(isVente: true),
@@ -462,37 +428,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.primaryGreen
-                                  .withValues(alpha: 0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
+                                color: AppColors.primaryGreen.withValues(alpha: 0.35),
+                                blurRadius: 12, offset: const Offset(0, 4))
                           ],
                         ),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('💰',
-                                style: TextStyle(fontSize: 38)),
+                            Text('💰', style: TextStyle(fontSize: 38)),
                             SizedBox(height: 8),
-                            Text(
-                              "J'AI VENDU",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
+                            Text("J'AI VENDU",
+                                style: TextStyle(color: Colors.white,
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                     ),
                   ),
-
                   const SizedBox(width: 14),
-
-                  // J'AI DÉPENSÉ — rouge
                   Expanded(
                     child: GestureDetector(
                       onTap: () => _ouvrirSaisie(isVente: false),
@@ -503,28 +456,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color:
-                                  AppColors.expenseRed.withValues(alpha: 0.35),
-                              blurRadius: 12,
-                              offset: const Offset(0, 4),
-                            ),
+                                color: AppColors.expenseRed.withValues(alpha: 0.35),
+                                blurRadius: 12, offset: const Offset(0, 4))
                           ],
                         ),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('🛒',
-                                style: TextStyle(fontSize: 38)),
+                            Text('🛒', style: TextStyle(fontSize: 38)),
                             SizedBox(height: 8),
-                            Text(
-                              "J'AI DÉPENSÉ",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
+                            Text("J'AI DÉPENSÉ",
+                                style: TextStyle(color: Colors.white,
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -535,18 +478,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // ─── GRAPHIQUE SEMAINE ────────────────────────────────
+          // ─── GRAPHIQUE SEMAINE ────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Cette semaine',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
+                  const Text('Cette semaine',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 10),
                   _buildWeekChart(),
                 ],
@@ -556,19 +496,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-          // ─── TRANSACTIONS RÉCENTES ────────────────────────────
+          // ─── TRANSACTIONS RÉCENTES ────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Dernières opérations (${_recentTransactions.length})',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ],
+              child: Text(
+                'Dernières opérations (${_recentTransactions.length})',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -584,19 +518,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         children: [
                           Text('📭', style: TextStyle(fontSize: 52)),
                           SizedBox(height: 12),
-                          Text(
-                            'Aucune opération pour l\'instant',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 15),
-                            textAlign: TextAlign.center,
-                          ),
+                          Text('Aucune opération pour l\'instant',
+                              style: TextStyle(color: Colors.grey, fontSize: 15),
+                              textAlign: TextAlign.center),
                           SizedBox(height: 8),
-                          Text(
-                            'Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ',
-                            style: TextStyle(
-                                color: Colors.grey, fontSize: 13),
-                            textAlign: TextAlign.center,
-                          ),
+                          Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                              textAlign: TextAlign.center),
                         ],
                       ),
                     ),
@@ -604,8 +532,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 )
               : SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTransactionCard(
-                        _recentTransactions[index]),
+                    (context, index) =>
+                        _buildTransactionCard(_recentTransactions[index]),
                     childCount: _recentTransactions.length,
                   ),
                 ),
@@ -616,8 +544,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildMiniStat(
-      String emoji, String label, String valeur, Color couleur) {
+  Widget _buildMiniStat(String emoji, String label, String valeur, Color couleur) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -625,23 +552,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
           children: [
             Text(emoji, style: const TextStyle(fontSize: 14)),
             const SizedBox(width: 6),
-            Text(label,
-                style: const TextStyle(
-                    color: Colors.white70, fontSize: 12)),
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
           ],
         ),
         const SizedBox(height: 4),
         FittedBox(
           fit: BoxFit.scaleDown,
           alignment: Alignment.centerLeft,
-          child: Text(
-            valeur,
-            style: TextStyle(
-              color: couleur,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+          child: Text(valeur,
+              style: TextStyle(
+                  color: couleur, fontSize: 17, fontWeight: FontWeight.bold)),
         ),
       ],
     );
@@ -654,8 +574,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       return Container(
         height: 140,
         decoration: BoxDecoration(
-            color: theme.cardColor,
-            borderRadius: BorderRadius.circular(16)),
+            color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
         child: const Center(
           child: Text('📊 Aucune donnée cette semaine',
               style: TextStyle(color: Colors.grey)),
@@ -673,8 +592,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       height: 160,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(16)),
+          color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -691,16 +609,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    width: 14,
-                    height: hR.clamp(3.0, 100.0),
+                    width: 14, height: hR.clamp(3.0, 100.0),
                     decoration: BoxDecoration(
                         color: AppColors.primaryGreen,
                         borderRadius: BorderRadius.circular(4)),
                   ),
                   const SizedBox(width: 3),
                   Container(
-                    width: 14,
-                    height: hD.clamp(3.0, 100.0),
+                    width: 14, height: hD.clamp(3.0, 100.0),
                     decoration: BoxDecoration(
                         color: AppColors.expenseRed,
                         borderRadius: BorderRadius.circular(4)),
@@ -710,8 +626,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               const SizedBox(height: 6),
               Text(day['jour'] as String,
                   style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 10, fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurface)),
             ],
           );
@@ -722,10 +637,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildTransactionCard(TransactionModel transaction) {
     final theme = Theme.of(context);
-    final timeStr =
-        DateFormat('HH:mm').format(transaction.dateCreation);
-    final dateStr =
-        DateFormat('dd/MM/yyyy').format(transaction.date);
+    final timeStr = DateFormat('HH:mm').format(transaction.dateCreation);
+    final dateStr = DateFormat('dd/MM/yyyy').format(transaction.date);
     final now = DateTime.now();
     final isToday = transaction.dateCreation.year == now.year &&
         transaction.dateCreation.month == now.month &&
@@ -736,9 +649,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     final displayDate = isToday
         ? 'Aujourd\'hui, $timeStr'
-        : isYesterday
-            ? 'Hier, $timeStr'
-            : dateStr;
+        : isYesterday ? 'Hier, $timeStr' : dateStr;
+
+    // ✅ "Vente rapide" → "Vente" / "Dépense rapide" → "Dépense"
+    String displayDescription = transaction.description ?? transaction.categorie;
+    if (displayDescription == 'Vente rapide') displayDescription = 'Vente';
+    if (displayDescription == 'Dépense rapide') displayDescription = 'Dépense';
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
@@ -749,28 +665,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
         border: Border(
           left: BorderSide(
             color: transaction.estRecette
-                ? AppColors.primaryGreen
-                : AppColors.expenseRed,
+                ? AppColors.primaryGreen : AppColors.expenseRed,
             width: 4,
           ),
         ),
         boxShadow: [
           BoxShadow(
               color: theme.colorScheme.shadow.withValues(alpha: 0.05),
-              blurRadius: 6,
-              offset: const Offset(0, 2))
+              blurRadius: 6, offset: const Offset(0, 2))
         ],
       ),
       child: Row(
         children: [
-          // Icône catégorie
           Container(
-            width: 48,
-            height: 48,
+            width: 48, height: 48,
             decoration: BoxDecoration(
               color: transaction.estRecette
-                  ? Colors.green.shade50
-                  : Colors.red.shade50,
+                  ? Colors.green.shade50 : Colors.red.shade50,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Center(
@@ -778,34 +689,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   style: const TextStyle(fontSize: 24)),
             ),
           ),
-
           const SizedBox(width: 12),
-
-          // Description + date
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  transaction.description ?? transaction.categorie,
+                  displayDescription,
                   style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 15, fontWeight: FontWeight.w600,
                       color: Color(0xFF1F2937)),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 3),
                 Text(displayDate,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF6B7280))),
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
               ],
             ),
           ),
-
           const SizedBox(width: 8),
-
-          // Montant — grand et coloré
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
@@ -814,32 +716,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Text(
                   '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 16, fontWeight: FontWeight.bold,
                     color: transaction.estRecette
-                        ? Colors.green.shade600
-                        : Colors.red.shade600,
+                        ? Colors.green.shade600 : Colors.red.shade600,
                   ),
                 ),
               ),
               const SizedBox(height: 4),
-              // Bouton supprimer compact
               GestureDetector(
                 onTap: () => _supprimerTransaction(transaction),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    '🗑 Supprimer',
-                    style: TextStyle(
-                        color: Colors.red,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500),
-                  ),
+                      color: Colors.red.shade50,
+                      borderRadius: BorderRadius.circular(6)),
+                  child: const Text('🗑 Supprimer',
+                      style: TextStyle(
+                          color: Colors.red, fontSize: 11,
+                          fontWeight: FontWeight.w500)),
                 ),
               ),
             ],

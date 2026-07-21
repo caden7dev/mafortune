@@ -5,19 +5,19 @@ import '../services/auth_service.dart';
 
 class AuthProvider with ChangeNotifier {
   final AuthService _authService = AuthService();
-  
+
   UtilisateurModel? _userModel;
   bool _isLoading = false;
   String? _errorMessage;
 
-  // Getters
+  // ─── Getters ────────────────────────────────────────────────────────────────
   UtilisateurModel? get userModel => _userModel;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   bool get isAuthenticated => _userModel != null;
 
+  // ─── Constructeur — écoute Firebase Auth en temps réel ───────────────────
   AuthProvider() {
-    // Écoute les changements d'état Firebase Auth en temps réel
     _authService.authStateChanges.listen((User? firebaseUser) async {
       if (firebaseUser == null) {
         _userModel = null;
@@ -28,17 +28,19 @@ class AuthProvider with ChangeNotifier {
     });
   }
 
-  /// Rafraîchit les données de l'utilisateur en mémoire (avec cache optimisé)
+  // ─── Rafraîchir les données utilisateur ──────────────────────────────────
   Future<void> refreshCurrentUser({bool forceRefresh = false}) async {
     try {
-      _userModel = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
+      _userModel = await _authService.getCurrentUserData(
+        forceRefresh: forceRefresh,
+      );
     } catch (e) {
       _errorMessage = e.toString();
     }
     notifyListeners();
   }
 
-  /// Connexion de l'utilisateur
+  // ─── Connexion ────────────────────────────────────────────────────────────
   Future<bool> login(String email, String password) async {
     _setLoading(true);
     _clearErrors();
@@ -53,7 +55,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Inscription d'un nouveau commerçant
+  // ─── Inscription commerçant ───────────────────────────────────────────────
   Future<bool> registerCommercant({
     required String email,
     required String password,
@@ -84,7 +86,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Mise à jour du profil de l'utilisateur
+  // ─── Mise à jour profil ───────────────────────────────────────────────────
   Future<bool> updateProfile(UtilisateurModel updatedUser) async {
     _setLoading(true);
     _clearErrors();
@@ -99,14 +101,14 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  /// Déconnexion
+  // ─── Déconnexion ──────────────────────────────────────────────────────────
   Future<void> logout() async {
     await _authService.signOut();
     _userModel = null;
     notifyListeners();
   }
 
-  /// Envoi d'un email de réinitialisation de mot de passe
+  // ─── Reset mot de passe ───────────────────────────────────────────────────
   Future<bool> sendPasswordReset(String email) async {
     _clearErrors();
     try {
@@ -118,7 +120,7 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // Helpers de gestion d'état interne
+  // ─── Helpers internes ────────────────────────────────────────────────────
   void _setLoading(bool val) {
     _isLoading = val;
     notifyListeners();

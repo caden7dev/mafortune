@@ -12,6 +12,9 @@ import 'services/local_auth_service.dart';
 import 'services/network_service.dart';
 import 'services/bilan_notification_service.dart';
 
+// ✅ AuthProvider
+import 'providers/auth_provider.dart';
+
 // Screens
 import 'screens/auth/welcome_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -45,25 +48,21 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialisation de Firebase
+
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
-  // Capture des erreurs avec Crashlytics
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
     return true;
   };
 
-  // Paramètres Firestore (Cache illimité)
   FirebaseFirestore.instance.settings = const Settings(
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Instanciation des services requis au démarrage
   final networkService = NetworkService();
   await networkService.initialize();
 
@@ -78,8 +77,11 @@ void main() async {
         ChangeNotifierProvider<NetworkService>.value(value: networkService),
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<LocalAuthService>(create: (_) => LocalAuthService()),
-        //  Cette écriture est correcte car ton application écoute déjà le ValueNotifier directement
-Provider<ThemeService>.value(value: themeService),
+        Provider<ThemeService>.value(value: themeService),
+        // ✅ AuthProvider disponible dans toute l'app — résout l'erreur SignupScreen
+        ChangeNotifierProvider<AuthProvider>(
+          create: (_) => AuthProvider(),
+        ),
       ],
       child: const MyApp(),
     ),
@@ -103,7 +105,6 @@ class MyApp extends StatelessWidget {
           theme: themeService.lightTheme,
           darkTheme: themeService.darkTheme,
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: MediaQuery.of(context).textScaler.clamp(
@@ -115,7 +116,6 @@ class MyApp extends StatelessWidget {
               child: child!,
             ),
           ),
-
           home: const AuthGate(),
           navigatorObservers: [
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
@@ -171,7 +171,6 @@ class _AuthGateState extends State<AuthGate> {
       return;
     }
 
-    // Récupération sécurisée des services depuis le Provider
     final authService = Provider.of<AuthService>(context, listen: false);
     final localAuth = Provider.of<LocalAuthService>(context, listen: false);
 
