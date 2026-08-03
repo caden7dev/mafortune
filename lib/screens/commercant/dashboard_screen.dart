@@ -241,17 +241,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           const OfflineBanner(),
           Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                _buildDashboardContent(),
-                const BilansScreen(),
-                const RapportsScreen(),
-                const NotificationsScreen(),
-                // ✅ preloadedUser transmis au profil
-                ProfilScreen(preloadedUser: _currentUser),
-              ],
-            ),
+            child: _buildCurrentTab(),
           ),
         ],
       ),
@@ -261,7 +251,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
           setState(() => _currentIndex = index);
           if (index == 0) {
             Future.delayed(
-                const Duration(milliseconds: 100), () => _loadData());
+                const Duration(milliseconds: 100),
+                () => _loadData(forceRefresh: true));
           }
         },
       ),
@@ -272,7 +263,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               backgroundColor: AppColors.primaryGreen,
               icon: const Icon(Icons.add, color: Colors.white, size: 26),
               label: const Text(
-                'Saisir',
+                'Saisie simple',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -282,6 +273,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
             )
           : null,
     );
+  }
+
+  // ✅ Navigation dynamique — chaque onglet recharge ses données à chaque visite
+  Widget _buildCurrentTab() {
+    switch (_currentIndex) {
+      case 0:
+        return _buildDashboardContent();
+      case 1:
+        // BilansScreen recrée avec une clé unique basée sur le timestamp
+        // Force le rechargement des données à chaque visite
+        return BilansScreen(key: ValueKey('bilans_$_currentIndex'));
+      case 2:
+        return RapportsScreen(key: ValueKey('rapports_$_currentIndex'));
+      case 3:
+        return const NotificationsScreen();
+      case 4:
+        return ProfilScreen(preloadedUser: _currentUser);
+      default:
+        return _buildDashboardContent();
+    }
   }
 
   Widget _buildDashboardContent() {

@@ -173,7 +173,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Text(
-              'Saisie simple',
+              'Saisie',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,

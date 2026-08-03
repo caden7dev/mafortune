@@ -17,12 +17,9 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
   bool _isCapturing = false;
 
   Future<void> _capture() async {
-    // 1. On masque le bouton de capture immédiatement
     setState(() => _isCapturing = true);
-    
     try {
-      // On laisse le temps au framework de reconstruire l'arbre sans le bouton
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 200));
 
       final boundary = _repaintKey.currentContext?.findRenderObject()
           as RenderRepaintBoundary?;
@@ -34,22 +31,36 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
       if (byteData == null) return;
 
       final bytes = byteData.buffer.asUint8List();
-
-      // ✅ Utilisation du répertoire de documents de l'application (Pas besoin de permissions intrusives)
-      final dir = await getApplicationDocumentsDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
+
+      // ✅ Sauvegarde dans /storage/emulated/0/Pictures/MaFortune/
+      // Visible directement dans la Galerie du téléphone
+      Directory? dir;
+
+      if (Platform.isAndroid) {
+        // Dossier Pictures public sur Android
+        dir = Directory('/storage/emulated/0/Pictures/MaFortune');
+      } else {
+        dir = await getApplicationDocumentsDirectory();
+      }
+
+      // Crée le dossier s'il n'existe pas
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+
       final file = File('${dir.path}/mafortune_$timestamp.png');
       await file.writeAsBytes(bytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text(
-              '✅ Capture sauvegardée dans vos documents !',
-              style: TextStyle(fontSize: 14),
+              '✅ Capture sauvegardée dans Galerie → MaFortune',
+              style: const TextStyle(fontSize: 14),
             ),
             backgroundColor: Colors.green,
-            duration: Duration(seconds: 3),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -57,15 +68,14 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Erreur : $e'),
+            content: Text('❌ Erreur : $e',
+                style: const TextStyle(fontSize: 14)),
             backgroundColor: Colors.red,
           ),
         );
       }
     } finally {
-      if (mounted) {
-        setState(() => _isCapturing = false);
-      }
+      if (mounted) setState(() => _isCapturing = false);
     }
   }
 
@@ -73,57 +83,47 @@ class _ScreenshotWrapperState extends State<ScreenshotWrapper> {
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // ── Contenu principal avec coins arrondis ────────────────────────
         RepaintBoundary(
           key: _repaintKey,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(40), // coins arrondis téléphone
-            child: widget.child,
-          ),
+          child: widget.child,
         ),
 
-        // ── Bordure téléphone par-dessus ─────────────────────────────────
-        IgnorePointer(
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(40),
-              border: Border.all(
-                color: Colors.black,
-                width: 6,
-              ),
-            ),
-          ),
-        ),
-
-        // ── Bouton 📸 (Masqué pendant la capture) ────────────────────────
-        if (!_isCapturing)
-          Positioned(
-            bottom: 110,
-            right: 20,
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: _capture,
-                borderRadius: BorderRadius.circular(30),
-                child: Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    // ✅ Remplacement de withOpacity par la nouvelle norme de couleur
-                    color: Colors.black.withValues(alpha: 0.7),
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.3),
-                      width: 1,
-                    ),
+        // Bouton 📸
+        Positioned(
+          bottom: 100,
+          right: 16,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: _isCapturing ? null : _capture,
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.7),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.3),
+                    width: 1,
                   ),
-                  child: const Center(
-                    child: Text('📸', style: TextStyle(fontSize: 20)),
-                  ),
+                ),
+                child: Center(
+                  child: _isCapturing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('📸', style: TextStyle(fontSize: 20)),
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
   }
