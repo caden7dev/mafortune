@@ -7,13 +7,13 @@ plugins {
 
 android {
     namespace = "com.example.mafortune"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36  // ✅ Changé de 34 à 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-        isCoreLibraryDesugaringEnabled = true   // ← Kotlin DSL
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlinOptions {
@@ -22,8 +22,8 @@ android {
 
     defaultConfig {
         applicationId = "com.example.mafortune"
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        minSdk = flutter.minSdkVersion  // ✅ Changé de 21 à 23 (recommandé pour SDK 36)
+        targetSdk = 36  // ✅ Changé de 34 à 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
@@ -40,5 +40,6 @@ flutter {
 }
 
 dependencies {
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")   // ← Kotlin DSL
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    implementation("com.google.android.gms:play-services-auth:20.7.0")
 }

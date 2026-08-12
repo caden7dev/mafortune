@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -98,7 +99,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   Future<void> _deconnecter() async {
     if (_isLoading) return;
     setState(() => _isLoading = true);
-    
+
     try {
       await _authService.signOut();
       if (!mounted) return;
@@ -113,163 +114,223 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     final restantes = _maxTentatives - _tentatives;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 28, 20, 32),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
-              ),
-              child: Column(
-                children: [
-                  const Text('👆', style: TextStyle(fontSize: 52)),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Entre ton code secret',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Ton code à 4 chiffres',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ),
-            ),
-
-            const Spacer(),
-
-            // Erreur
-            if (_erreurVisible)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
-                child: Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
                     children: [
-                      const Text('❌', style: TextStyle(fontSize: 18)),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          restantes > 0
-                              ? 'Code incorrect. Il te reste $restantes essai${restantes > 1 ? 's' : ''}.'
-                              : 'Trop d\'erreurs.',
-                          style: const TextStyle(color: Colors.red, fontSize: 14),
+                      // ── Header Glassmorphic avec Icône de Sécurité ────────
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+                        decoration: const BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(32)),
+                        ),
+                        child: Column(
+                          children: [
+                            // Badge Icône Sécurité Glassmorphic
+                            Container(
+                              width: 72,
+                              height: 72,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.15),
+                                border: Border.all(
+                                  color: Colors.white.withValues(alpha: 0.35),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(40),
+                                child: BackdropFilter(
+                                  filter:
+                                      ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                                  child: const Center(
+                                    child: Icon(
+                                      Icons.lock_outline_rounded,
+                                      size: 36,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            const Text(
+                              'Code de sécurité',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Entrez votre code secret à 4 chiffres',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85),
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
+
+                      const Spacer(),
+                      const SizedBox(height: 16),
+
+                      // ── Message d'erreur ──────────────────────────────────
+                      if (_erreurVisible)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade50,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.red.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.error_outline_rounded,
+                                    color: Colors.red, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Text(
+                                    restantes > 0
+                                        ? 'Code incorrect. Il vous reste $restantes essai${restantes > 1 ? 's' : ''}.'
+                                        : 'Trop de tentatives échouées.',
+                                    style: const TextStyle(
+                                        color: Colors.red,
+                                        fontSize: 13.5,
+                                        fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                      const SizedBox(height: 20),
+
+                      // ── Indicateurs PIN Animés ────────────────────────────
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(4, (i) {
+                          final rempli = i < _pin.length;
+                          return AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            margin: const EdgeInsets.symmetric(horizontal: 10),
+                            width: rempli ? 22 : 18,
+                            height: rempli ? 22 : 18,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _erreurVisible
+                                  ? Colors.red.shade400
+                                  : rempli
+                                      ? AppColors.primaryGreen
+                                      : const Color(0xFFE5E7EB),
+                              border: Border.all(
+                                color: _erreurVisible
+                                    ? Colors.red.shade400
+                                    : rempli
+                                        ? AppColors.primaryGreen
+                                        : const Color(0xFFD1D5DB),
+                                width: 2,
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+
+                      const Spacer(),
+                      const SizedBox(height: 20),
+
+                      // ── Clavier Numérique (Numpad) ────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 36),
+                        child: Column(
+                          children: [
+                            _buildRangee(['1', '2', '3']),
+                            const SizedBox(height: 14),
+                            _buildRangee(['4', '5', '6']),
+                            const SizedBox(height: 14),
+                            _buildRangee(['7', '8', '9']),
+                            const SizedBox(height: 14),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                // PIN Oublié
+                                GestureDetector(
+                                  onTap: _isLoading
+                                      ? null
+                                      : () => Navigator.pushNamed(
+                                          context, '/reset_pin'),
+                                  child: Container(
+                                    width: 72,
+                                    height: 72,
+                                    decoration: BoxDecoration(
+                                      color: Colors.amber.shade50,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Center(
+                                      child: Icon(
+                                        Icons.help_outline_rounded,
+                                        color: Colors.amber.shade800,
+                                        size: 26,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                _buildTouche('0'),
+                                _buildToucheEffacer(),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // ── Zone Loader ───────────────────────────────────────
+                      SizedBox(
+                        height: 32,
+                        child: _isLoading
+                            ? const CircularProgressIndicator(
+                                color: AppColors.primaryGreen, strokeWidth: 2.5)
+                            : const SizedBox.shrink(),
+                      ),
+
+                      // ── Déconnexion / Changement d'utilisateur ───────────
+                      TextButton(
+                        onPressed: _isLoading ? null : _deconnecter,
+                        child: const Text(
+                          'Ce n\'est pas vous ? Se déconnecter',
+                          style: TextStyle(
+                            color: Color(0xFF6B7280),
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
               ),
-
-            const SizedBox(height: 24),
-
-            // Indicateurs avec AnimatedContainer
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(4, (i) {
-                final rempli = i < _pin.length;
-                return AnimatedContainer(
-                  duration: const Duration(milliseconds: 150),
-                  margin: const EdgeInsets.symmetric(horizontal: 10),
-                  width: rempli ? 24 : 20,
-                  height: rempli ? 24 : 20,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _erreurVisible
-                        ? Colors.red.shade300
-                        : rempli
-                            ? AppColors.primaryGreen
-                            : Colors.grey.shade300,
-                  ),
-                );
-              }),
-            ),
-
-            const Spacer(),
-
-            // Numpad
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              child: Column(
-                children: [
-                  _buildRangee(['1', '2', '3']),
-                  const SizedBox(height: 16),
-                  _buildRangee(['4', '5', '6']),
-                  const SizedBox(height: 16),
-                  _buildRangee(['7', '8', '9']),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                    children: [
-                      // PIN oublié
-                      GestureDetector(
-                        onTap: _isLoading
-                            ? null
-                            : () => Navigator.pushNamed(context, '/reset_pin'),
-                        child: Container(
-                          width: 80,
-                          height: 80,
-                          decoration: BoxDecoration(
-                            color: Colors.orange.shade50,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Center(
-                            child: Text(
-                              '?',
-                              style: TextStyle(
-                                color: Colors.orange,
-                                fontSize: 32,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      _buildTouche('0'),
-                      _buildToucheEffacer(),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Zone Loader
-            SizedBox(
-              height: 40,
-              child: _isLoading
-                  ? const CircularProgressIndicator(color: AppColors.primaryGreen)
-                  : const SizedBox.shrink(),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Déconnexion
-            TextButton(
-              onPressed: _isLoading ? null : _deconnecter,
-              child: const Text(
-                'Ce n\'est pas moi →',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -286,15 +347,16 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     return GestureDetector(
       onTap: () => _appuyerChiffre(chiffre),
       child: Container(
-        width: 80,
-        height: 80,
+        width: 72,
+        height: 72,
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: Colors.white,
           shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.shade300,
-              blurRadius: 4,
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -303,9 +365,9 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
           child: Text(
             chiffre,
             style: const TextStyle(
-              fontSize: 28,
+              fontSize: 26,
               fontWeight: FontWeight.w600,
-              color: Colors.black87,
+              color: Color(0xFF1F2937),
             ),
           ),
         ),
@@ -317,14 +379,14 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     return GestureDetector(
       onTap: _effacer,
       child: Container(
-        width: 80,
-        height: 80,
+        width: 72,
+        height: 72,
         decoration: BoxDecoration(
           color: Colors.red.shade50,
           shape: BoxShape.circle,
         ),
         child: const Center(
-          child: Icon(Icons.backspace_outlined, color: Colors.red, size: 28),
+          child: Icon(Icons.backspace_outlined, color: Colors.red, size: 24),
         ),
       ),
     );

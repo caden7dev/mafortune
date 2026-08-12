@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ✅ Enums en lowerCamelCase
 enum TypeTransaction { recette, depense }
 
 enum ModePaiement { especes, mobileMoney, carte, cheque }
@@ -49,19 +48,19 @@ class TransactionModel {
   // Convertir depuis Firestore
   factory TransactionModel.fromFirestore(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    
-    // Conversion ultra-sécurisée du montant en double (supporte int et double)
+
     double convertMontant(dynamic value) {
       if (value == null) return 0.0;
       if (value is num) return value.toDouble();
       return double.tryParse(value.toString()) ?? 0.0;
     }
 
-    // Helper de sécurité pour le type de transaction
     TypeTransaction convertType(dynamic value) {
       if (value == null) return TypeTransaction.recette;
       final typeStr = value.toString().toLowerCase().trim();
-      return typeStr == 'recette' ? TypeTransaction.recette : TypeTransaction.depense;
+      return typeStr == 'recette'
+          ? TypeTransaction.recette
+          : TypeTransaction.depense;
     }
 
     return TransactionModel(
@@ -72,13 +71,13 @@ class TransactionModel {
       categorie: data['categorie'] ?? '',
       categorieId: data['categorieId'] ?? '',
       description: data['description'],
-      date: data['date'] != null 
-          ? (data['date'] as Timestamp).toDate() 
+      date: data['date'] != null
+          ? (data['date'] as Timestamp).toDate()
           : DateTime.now(),
       photoRecu: data['photoRecu'],
       estSynchronise: data['estSynchronise'] ?? true,
-      dateCreation: data['dateCreation'] != null 
-          ? (data['dateCreation'] as Timestamp).toDate() 
+      dateCreation: data['dateCreation'] != null
+          ? (data['dateCreation'] as Timestamp).toDate()
           : DateTime.now(),
       dateModification: data['dateModification'] != null
           ? (data['dateModification'] as Timestamp).toDate()
@@ -96,7 +95,7 @@ class TransactionModel {
   Map<String, dynamic> toFirestore() {
     return {
       'commercantId': commercantId,
-      'type': type.name, // "recette" ou "depense"
+      'type': type.name,
       'montant': montant,
       'categorie': categorie,
       'categorieId': categorieId,
@@ -107,7 +106,7 @@ class TransactionModel {
       'dateCreation': Timestamp.fromDate(dateCreation),
       'dateModification': dateModification != null
           ? Timestamp.fromDate(dateModification!)
-          : null,
+          : FieldValue.serverTimestamp(),
       'modePaiement': modePaiement?.name,
       'client': client,
       'fournisseur': fournisseur,
@@ -115,7 +114,6 @@ class TransactionModel {
     };
   }
 
-  // Helper de secours robuste pour convertir string en enum ModePaiement
   static ModePaiement _modePaiementFromString(String mode) {
     final lowerMode = mode.toLowerCase().trim();
     switch (lowerMode) {
@@ -135,7 +133,7 @@ class TransactionModel {
     }
   }
 
-  // CopyWith pour modification
+  // CopyWith robuste supportant les valeurs nulles explicites
   TransactionModel copyWith({
     String? id,
     String? commercantId,
@@ -143,16 +141,16 @@ class TransactionModel {
     double? montant,
     String? categorie,
     String? categorieId,
-    String? description,
+    Object? description = _absent,
     DateTime? date,
-    String? photoRecu,
+    Object? photoRecu = _absent,
     bool? estSynchronise,
     DateTime? dateCreation,
-    DateTime? dateModification,
-    ModePaiement? modePaiement,
-    String? client,
-    String? fournisseur,
-    String? numeroFacture,
+    Object? dateModification = _absent,
+    Object? modePaiement = _absent,
+    Object? client = _absent,
+    Object? fournisseur = _absent,
+    Object? numeroFacture = _absent,
   }) {
     return TransactionModel(
       id: id ?? this.id,
@@ -161,33 +159,39 @@ class TransactionModel {
       montant: montant ?? this.montant,
       categorie: categorie ?? this.categorie,
       categorieId: categorieId ?? this.categorieId,
-      description: description ?? this.description,
+      description: description == _absent
+          ? this.description
+          : description as String?,
       date: date ?? this.date,
-      photoRecu: photoRecu ?? this.photoRecu,
+      photoRecu:
+          photoRecu == _absent ? this.photoRecu : photoRecu as String?,
       estSynchronise: estSynchronise ?? this.estSynchronise,
       dateCreation: dateCreation ?? this.dateCreation,
-      dateModification: dateModification ?? this.dateModification,
-      modePaiement: modePaiement ?? this.modePaiement,
-      client: client ?? this.client,
-      fournisseur: fournisseur ?? this.fournisseur,
-      numeroFacture: numeroFacture ?? this.numeroFacture,
+      dateModification: dateModification == _absent
+          ? this.dateModification
+          : dateModification as DateTime?,
+      modePaiement: modePaiement == _absent
+          ? this.modePaiement
+          : modePaiement as ModePaiement?,
+      client: client == _absent ? this.client : client as String?,
+      fournisseur:
+          fournisseur == _absent ? this.fournisseur : fournisseur as String?,
+      numeroFacture: numeroFacture == _absent
+          ? this.numeroFacture
+          : numeroFacture as String?,
     );
   }
 
-  // Getters utiles
   bool get estRecette => type == TypeTransaction.recette;
   bool get estDepense => type == TypeTransaction.depense;
-  
-  // Impact sur le solde (positif pour recette, négatif pour dépense)
+
   double get impactSolde => estRecette ? montant : -montant;
 
-  // Formater le montant avec le signe
   String get montantFormate {
     final signe = estRecette ? '+' : '-';
     return '$signe${montant.toStringAsFixed(0)} FCFA';
   }
 
-  // Nom du mode de paiement en français
   String? get modePaiementFr {
     if (modePaiement == null) return null;
     switch (modePaiement!) {
@@ -202,3 +206,6 @@ class TransactionModel {
     }
   }
 }
+
+// Sentinelle privée pour distinguer "paramètre non transmis" de "paramètre transmis à null"
+const Object _absent = Object();

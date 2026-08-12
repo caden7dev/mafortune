@@ -14,6 +14,7 @@ import 'modifier_profil_screen.dart';
 import 'changer_mot_de_passe_screen.dart';
 import 'gestion_categories_screen.dart';
 import 'budget_screen.dart';
+import '../auth/securiser_compte_screen.dart';
 
 class ProfilScreen extends StatefulWidget {
   // ✅ Reçoit le user déjà chargé par le dashboard — zéro appel Firestore supplémentaire
@@ -82,6 +83,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
     // ✅ Après modification, force le rechargement depuis Firestore
     if (result == true) await _loadProfile(forceRefresh: true);
+  }
+
+  Future<void> _securiserCompte() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const SecuriserCompteScreen(),
+      ),
+    );
+    // Recharger les données pour vérifier le statut de sécurité mis à jour
+    await _loadProfile(forceRefresh: true);
   }
 
   Future<void> _changerMotDePasse() async {
@@ -197,7 +209,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.07),
+                color: Colors.red.withValues(alpha: 0.07),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -443,6 +455,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
       );
     }
 
+    final bool estSecurise = _currentUser!.googleLie == true || 
+        (_currentUser!.emailSecours != null && _currentUser!.emailSecours!.isNotEmpty);
+
     return Scaffold(
       backgroundColor: AppColors.backgroundLight,
       body: SafeArea(
@@ -522,7 +537,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                     ),
                     borderRadius: BorderRadius.circular(20),
                     boxShadow: [
-                      BoxShadow(color: AppColors.primaryGreen.withOpacity(0.3),
+                      BoxShadow(color: AppColors.primaryGreen.withValues(alpha: 0.3),
                           blurRadius: 12, offset: const Offset(0, 6))
                     ],
                   ),
@@ -542,7 +557,66 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 ),
               ),
 
-              const SizedBox(height: 24),
+              const SizedBox(height: 20),
+
+              // ── Banner Avertissement Si non sécurisé ─────────────────────────
+              if (!estSecurise) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFBEB),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFFCD34D), width: 1.5),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('🛡️', style: TextStyle(fontSize: 30)),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Compte non sécurisé',
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF92400E),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Lie Google ou un email pour pouvoir récupérer ton compte.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.amber.shade900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        ElevatedButton(
+                          onPressed: _securiserCompte,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFD97706),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                          child: const Text('Sécuriser',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+              ],
 
               // ── Informations ─────────────────────────────────────────────────
               _buildSection('Mes informations', [
@@ -556,6 +630,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
               // ── Mon compte ───────────────────────────────────────────────────
               _buildSection('Mon compte', [
                 _buildMenuItem(emoji: '✏️', title: 'Modifier mon profil', onTap: _modifierProfil),
+                _buildMenuItem(
+                  emoji: '🛡️',
+                  title: 'Sécuriser mon compte',
+                  badge: estSecurise ? 'Sécurisé ✅' : 'À faire ⚠️',
+                  badgeColor: estSecurise ? AppColors.primaryGreen : Colors.orange,
+                  onTap: _securiserCompte,
+                ),
                 _buildMenuItem(emoji: '🔐', title: 'Changer le mot de passe', onTap: _changerMotDePasse),
                 _buildMenuItem(emoji: '🔢', title: 'Changer le code PIN', onTap: _changerPin),
               ]),
@@ -720,6 +801,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
     required String emoji,
     required String title,
     required VoidCallback onTap,
+    String? badge,
+    Color? badgeColor,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -746,6 +829,24 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   child: Text(title, style: const TextStyle(fontSize: 16,
                       fontWeight: FontWeight.w600, color: Colors.black87)),
                 ),
+                if (badge != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: (badgeColor ?? AppColors.primaryGreen).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: badgeColor ?? AppColors.primaryGreen,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
                 Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey[400]),
               ],
             ),

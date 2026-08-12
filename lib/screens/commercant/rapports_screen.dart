@@ -17,8 +17,10 @@ class RapportsScreen extends StatefulWidget {
   State<RapportsScreen> createState() => _RapportsScreenState();
 }
 
+// ⚡ AJOUT DU MIXIN POUR GARDER LA PAGE EN MÉMOIRE
 class _RapportsScreenState extends State<RapportsScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, AutomaticKeepAliveClientMixin {
+  
   final AuthService _authService = AuthService();
   final TransactionService _transactionService = TransactionService();
   final PdfExportService _pdfExportService = PdfExportService();
@@ -57,6 +59,10 @@ class _RapportsScreenState extends State<RapportsScreen>
     'téléphone': '📱',
   };
 
+  // ⚡ CONSERVE LA PAGE EN MÉMOIRE (0 ms de chargement)
+  @override
+  bool get wantKeepAlive => true;
+
   @override
   void initState() {
     super.initState();
@@ -79,7 +85,11 @@ class _RapportsScreenState extends State<RapportsScreen>
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    // ✅ Affiche le spinner seulement si la liste est complètement vide
+    if (_allTransactions.isEmpty) {
+      setState(() => _isLoading = true);
+    }
+    
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
@@ -445,6 +455,8 @@ class _RapportsScreenState extends State<RapportsScreen>
   // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    super.build(context); // ⚡ OBLIGATOIRE POUR AutomaticKeepAliveClientMixin
+
     final totalRecettes = _filteredTransactions
         .where((t) => t.estRecette)
         .fold(0.0, (s, t) => s + t.montant);

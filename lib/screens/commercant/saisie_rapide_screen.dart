@@ -84,7 +84,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
     }
 
     final transaction = TransactionModel(
-      id: '',
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
       commercantId: firebaseUser.uid,
       categorieId: _isVente ? 'ventes' : 'achats',
       montant: _montant,
@@ -97,18 +97,14 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
     );
 
     try {
-      // ✅ CORRECTION — await obligatoire pour attendre l'enregistrement Firestore
-      await _transactionService.addTransaction(transaction);
-
-      // ✅ Le cache est invalidé dans addTransaction — le dashboard verra les nouvelles données
+      final transactionEnregistree = await _transactionService.addTransaction(transaction);
 
       HapticFeedback.heavyImpact();
 
       if (mounted) {
-        // ✅ On retourne true APRÈS que la transaction est bien enregistrée
-        Navigator.pop(context, true);
+        // ✅ RENVOIE L'OBJET TRANSACTION CRÉÉ AU DASHBOARD
+        Navigator.pop(context, transactionEnregistree);
 
-        // Confirmation vocale
         final tts = TtsService();
         if (_isVente) {
           tts.confirmerVente(_montant);
@@ -158,7 +154,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
       ),
       child: Column(
         children: [
-          // Poignée
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 8),
             width: 40,
@@ -168,8 +163,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-
-          // Titre
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Text(
@@ -181,10 +174,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               ),
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // Sélecteur Vendu / Dépensé
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -265,10 +255,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 16),
-
-          // Affichage du montant
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 20),
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
@@ -306,10 +293,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // Touches rapides
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
@@ -346,10 +330,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               }).toList(),
             ),
           ),
-
           const SizedBox(height: 14),
-
-          // Numpad
           Expanded(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -366,8 +347,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen> {
               ),
             ),
           ),
-
-          // Bouton valider
           Padding(
             padding: EdgeInsets.fromLTRB(
               20, 8, 20,

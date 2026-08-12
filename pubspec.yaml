@@ -11,7 +11,12 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  
+  
+  # ✅ Google Sign-In - Version stable
+  google_sign_in: ^6.1.5
+  
+  # Notifications
   flutter_local_notifications: ^18.0.1
   timezone: ^0.9.4
 
@@ -53,8 +58,6 @@ dependencies:
   # State Management
   provider: ^6.1.2
   crypto: ^3.0.7
-
-
 
 dev_dependencies:
   flutter_test:

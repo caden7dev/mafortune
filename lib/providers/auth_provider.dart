@@ -40,6 +40,19 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  // ✅ NOUVEAU : Récupérer l'utilisateur courant
+  Future<UtilisateurModel?> getCurrentUser() async {
+    try {
+      if (_userModel == null) {
+        await refreshCurrentUser();
+      }
+      return _userModel;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return null;
+    }
+  }
+
   // ─── Connexion ────────────────────────────────────────────────────────────
   Future<bool> login(String email, String password) async {
     _setLoading(true);
@@ -48,6 +61,21 @@ class AuthProvider with ChangeNotifier {
       _userModel = await _authService.signIn(email: email, password: password);
       _setLoading(false);
       return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ─── Connexion avec Google ───────────────────────────────────────────────
+  Future<bool> loginWithGoogle() async {
+    _setLoading(true);
+    _clearErrors();
+    try {
+      _userModel = await _authService.signInWithGoogle();
+      _setLoading(false);
+      return _userModel != null;
     } catch (e) {
       _errorMessage = e.toString();
       _setLoading(false);
@@ -86,12 +114,86 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  // ─── Inscription avec numéro de téléphone ────────────────────────────────
+  Future<bool> registerWithPhone({
+    required String telephone,
+    required String nom,
+    required String prenom,
+    required String typeActivite,
+    String? adresse,
+  }) async {
+    _setLoading(true);
+    _clearErrors();
+    try {
+      _userModel = await _authService.signUpWithPhone(
+        telephone: telephone,
+        nom: nom,
+        prenom: prenom,
+        typeActivite: typeActivite,
+        adresse: adresse,
+      );
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ─── Connexion avec numéro de téléphone ──────────────────────────────────
+  Future<bool> loginWithPhone(String telephone) async {
+    _setLoading(true);
+    _clearErrors();
+    try {
+      _userModel = await _authService.signInWithPhone(telephone);
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
   // ─── Mise à jour profil ───────────────────────────────────────────────────
   Future<bool> updateProfile(UtilisateurModel updatedUser) async {
     _setLoading(true);
     _clearErrors();
     try {
       _userModel = await _authService.updateUserProfile(updatedUser);
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ─── Enregistrer email de secours ────────────────────────────────────────
+  Future<bool> saveEmailSecours(String email) async {
+    _setLoading(true);
+    _clearErrors();
+    try {
+      await _authService.enregistrerEmailSecours(email);
+      await refreshCurrentUser(forceRefresh: true);
+      _setLoading(false);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _setLoading(false);
+      return false;
+    }
+  }
+
+  // ─── Lier compte Google ───────────────────────────────────────────────────
+  Future<bool> linkGoogleAccount() async {
+    _setLoading(true);
+    _clearErrors();
+    try {
+      await _authService.lierCompteGoogle();
+      await refreshCurrentUser(forceRefresh: true);
       _setLoading(false);
       return true;
     } catch (e) {

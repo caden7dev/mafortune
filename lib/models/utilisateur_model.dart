@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-// ✅ Enums en lowerCamelCase
 enum TypeUtilisateur { commercant, administrateur, partenaire }
 
 class UtilisateurModel {
@@ -18,7 +17,7 @@ class UtilisateurModel {
   // Champs spécifiques aux commerçants
   final String? typeActivite;
   final String? adresse;
-  final double? soldeActuel;
+  final double soldeActuel;
 
   // Champs spécifiques aux administrateurs
   final String? niveau;
@@ -28,6 +27,13 @@ class UtilisateurModel {
   final String? organisation;
   final String? secteurActivite;
   final DateTime? dateExpiration;
+
+  // 🔐 Champs de sécurité et récupération
+  final String? emailSecours;  // Email de secours pour la récupération
+  final bool? googleLie;       // Si le compte Google est lié
+  final String? googleEmail;   // Email Google lié
+  final String? googleDisplayName; // Nom affiché Google
+  final String? googlePhotoUrl;    // Photo Google
 
   UtilisateurModel({
     required this.id,
@@ -48,17 +54,38 @@ class UtilisateurModel {
     this.organisation,
     this.secteurActivite,
     this.dateExpiration,
+    // Nouveaux champs de sécurité
+    this.emailSecours,
+    this.googleLie = false,
+    this.googleEmail,
+    this.googleDisplayName,
+    this.googlePhotoUrl,
   });
 
-  // Convertir depuis Firestore
+  // Convertir depuis Firestore avec gestion d'erreurs renforcée
   factory UtilisateurModel.fromFirestore(DocumentSnapshot doc) {
-    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-    
-    // Conversion sécurisée du solde en double (supporte les formats int et double de Firestore)
-    double convertSolde(dynamic value) {
+    final data = doc.data() as Map<String, dynamic>? ?? {};
+
+    // Helper conversion Timestamp -> DateTime sécurisée
+    DateTime? parseDateTime(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      return null;
+    }
+
+    // Helper conversion double sécurisée (num, String, int)
+    double parseDouble(dynamic value) {
       if (value == null) return 0.0;
       if (value is num) return value.toDouble();
       return double.tryParse(value.toString()) ?? 0.0;
+    }
+
+    // Helper extraction Liste de String sécurisée
+    List<String>? parseStringList(dynamic value) {
+      if (value is List) {
+        return value.map((item) => item.toString()).toList();
+      }
+      return null;
     }
 
     return UtilisateurModel(
@@ -67,27 +94,25 @@ class UtilisateurModel {
       prenom: data['prenom'] ?? '',
       email: data['email'] ?? '',
       telephone: data['telephone'] ?? '',
-      photo: data['photo'],
+      photo: data['photo'] as String?,
       typeUtilisateur: _typeUtilisateurFromString(data['typeUtilisateur']),
       estActif: data['estActif'] ?? true,
-      dateCreation: data['dateCreation'] != null 
-          ? (data['dateCreation'] as Timestamp).toDate() 
-          : DateTime.now(),
-      derniereSynchronisation: data['derniereSynchronisation'] != null
-          ? (data['derniereSynchronisation'] as Timestamp).toDate()
-          : null,
-      typeActivite: data['typeActivite'],
-      adresse: data['adresse'],
-      soldeActuel: convertSolde(data['soldeActuel']),
-      niveau: data['niveau'],
-      permissions: data['permissions'] != null
-          ? List<String>.from(data['permissions'].map((item) => item.toString()))
-          : null,
-      organisation: data['organisation'],
-      secteurActivite: data['secteurActivite'],
-      dateExpiration: data['dateExpiration'] != null
-          ? (data['dateExpiration'] as Timestamp).toDate()
-          : null,
+      dateCreation: parseDateTime(data['dateCreation']) ?? DateTime.now(),
+      derniereSynchronisation: parseDateTime(data['derniereSynchronisation']),
+      typeActivite: data['typeActivite'] as String?,
+      adresse: data['adresse'] as String?,
+      soldeActuel: parseDouble(data['soldeActuel']),
+      niveau: data['niveau'] as String?,
+      permissions: parseStringList(data['permissions']),
+      organisation: data['organisation'] as String?,
+      secteurActivite: data['secteurActivite'] as String?,
+      dateExpiration: parseDateTime(data['dateExpiration']),
+      // Nouveaux champs de sécurité
+      emailSecours: data['emailSecours'] as String?,
+      googleLie: data['googleLie'] as bool? ?? false,
+      googleEmail: data['googleEmail'] as String?,
+      googleDisplayName: data['googleDisplayName'] as String?,
+      googlePhotoUrl: data['googlePhotoUrl'] as String?,
     );
   }
 
@@ -99,7 +124,7 @@ class UtilisateurModel {
       'email': email,
       'telephone': telephone,
       'photo': photo,
-      'typeUtilisateur': typeUtilisateur.name, // "commercant", "administrateur", etc.
+      'typeUtilisateur': typeUtilisateur.name,
       'estActif': estActif,
       'dateCreation': Timestamp.fromDate(dateCreation),
       'derniereSynchronisation': derniereSynchronisation != null
@@ -115,26 +140,25 @@ class UtilisateurModel {
       'dateExpiration': dateExpiration != null
           ? Timestamp.fromDate(dateExpiration!)
           : null,
+      // Nouveaux champs de sécurité
+      'emailSecours': emailSecours,
+      'googleLie': googleLie,
+      'googleEmail': googleEmail,
+      'googleDisplayName': googleDisplayName,
+      'googlePhotoUrl': googlePhotoUrl,
     };
   }
 
-  // Helper pour convertir string en enum (rétrocompatible)
   static TypeUtilisateur _typeUtilisateurFromString(String? type) {
     if (type == null) return TypeUtilisateur.commercant;
-    
     final lowerType = type.toLowerCase();
     
-    switch (lowerType) {
-      case 'administrateur':
-        return TypeUtilisateur.administrateur;
-      case 'partenaire':
-        return TypeUtilisateur.partenaire;
-      default:
-        return TypeUtilisateur.commercant;
-    }
+    return TypeUtilisateur.values.firstWhere(
+      (e) => e.name.toLowerCase() == lowerType,
+      orElse: () => TypeUtilisateur.commercant,
+    );
   }
 
-  // CopyWith pour modification
   UtilisateurModel copyWith({
     String? id,
     String? nom,
@@ -154,6 +178,11 @@ class UtilisateurModel {
     String? organisation,
     String? secteurActivite,
     DateTime? dateExpiration,
+    String? emailSecours,
+    bool? googleLie,
+    String? googleEmail,
+    String? googleDisplayName,
+    String? googlePhotoUrl,
   }) {
     return UtilisateurModel(
       id: id ?? this.id,
@@ -174,18 +203,26 @@ class UtilisateurModel {
       organisation: organisation ?? this.organisation,
       secteurActivite: secteurActivite ?? this.secteurActivite,
       dateExpiration: dateExpiration ?? this.dateExpiration,
+      emailSecours: emailSecours ?? this.emailSecours,
+      googleLie: googleLie ?? this.googleLie,
+      googleEmail: googleEmail ?? this.googleEmail,
+      googleDisplayName: googleDisplayName ?? this.googleDisplayName,
+      googlePhotoUrl: googlePhotoUrl ?? this.googlePhotoUrl,
     );
   }
 
-  // Getter pour le nom complet
+  // ─── GETTERS UTILES ──────────────────────────────────────────────────────
+
   String get nomComplet => '$prenom $nom';
-
-  // Vérifier si c'est un commerçant
+  
   bool get estCommercant => typeUtilisateur == TypeUtilisateur.commercant;
-
-  // Vérifier si c'est un admin
   bool get estAdministrateur => typeUtilisateur == TypeUtilisateur.administrateur;
-
-  // Vérifier si c'est un partenaire
   bool get estPartenaire => typeUtilisateur == TypeUtilisateur.partenaire;
+  
+  // Nouveaux getters pour la sécurité
+  bool get aEmailSecours => emailSecours != null && emailSecours!.isNotEmpty;
+  bool get aGoogleLie => googleLie == true;
+  
+  // Méthode pour vérifier si le compte est sécurisé
+  bool get estSecurise => aEmailSecours || aGoogleLie;
 }

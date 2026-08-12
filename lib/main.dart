@@ -12,10 +12,11 @@ import 'services/local_auth_service.dart';
 import 'services/network_service.dart';
 import 'services/bilan_notification_service.dart';
 
-// ✅ AuthProvider
+// AuthProvider
 import 'providers/auth_provider.dart';
 
-// Screens
+// Screens Auth
+import 'screens/auth/securiser_compte_screen.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -23,13 +24,17 @@ import 'screens/auth/pin_setup_screen.dart';
 import 'screens/auth/pin_verify_screen.dart';
 import 'screens/auth/reset_pin_screen.dart';
 import 'screens/auth/onboarding_screen.dart';
-import 'screens/commercant/dashboard_screen.dart';
+
+// Screens Commerçant
+import 'screens/commercant/dashboard_screen.dart' as commercant_dashboard;
 import 'screens/commercant/bilans_screen.dart';
 import 'screens/commercant/rapports_screen.dart';
 import 'screens/commercant/profil_screen.dart';
 import 'screens/commercant/theme_screen.dart';
 import 'screens/commercant/budget_screen.dart';
-import 'screens/admin/dashboard_screen.dart';
+
+// ✅ Alias pour éviter le conflit entre les deux dashboard_screen.dart
+import 'screens/admin/dashboard_screen.dart' as admin_dashboard;
 import 'screens/admin/users_screen.dart';
 import 'screens/admin/stats_screen.dart';
 import 'screens/admin/settings_screen.dart';
@@ -51,6 +56,8 @@ void main() async {
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
+
+ 
 
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -78,7 +85,6 @@ void main() async {
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<LocalAuthService>(create: (_) => LocalAuthService()),
         Provider<ThemeService>.value(value: themeService),
-        // ✅ AuthProvider disponible dans toute l'app — résout l'erreur SignupScreen
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(),
         ),
@@ -112,33 +118,33 @@ class MyApp extends StatelessWidget {
                     maxScaleFactor: 1.1,
                   ),
             ),
-            child: ScreenshotWrapper(
-              child: child!,
-            ),
+            child: ScreenshotWrapper(child: child!),
           ),
           home: const AuthGate(),
           navigatorObservers: [
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ],
           routes: {
-            '/welcome':             (context) => const WelcomeScreen(),
-            '/login':               (context) => const LoginScreen(),
-            '/signup':              (context) => const SignupScreen(),
-            '/pin_setup':           (context) => const PinSetupScreen(),
-            '/pin_verify':          (context) => const PinVerifyScreen(),
-            '/dashboard':           (context) => const DashboardScreen(),
-            '/bilans':              (context) => const BilansScreen(),
-            '/rapports':            (context) => const RapportsScreen(),
-            '/profil':              (context) => const ProfilScreen(),
-            '/theme':               (context) => const ThemeScreen(),
-            '/budget':              (context) => const BudgetScreen(),
-            '/admin/dashboard':     (context) => const AdminDashboardScreen(),
-            '/admin/users':         (context) => const AdminUsersScreen(),
-            '/admin/stats':         (context) => const AdminStatsScreen(),
-            '/admin/settings':      (context) => const AdminSettingsScreen(),
-            '/admin/notifications': (context) => const AdminNotificationsScreen(),
-            '/reset_pin':           (context) => const ResetPinScreen(),
-            '/onboarding':          (context) => const OnboardingScreen(),
+            '/welcome':               (context) => const WelcomeScreen(),
+            '/login':                 (context) => const LoginScreen(),
+            '/signup':                (context) => const SignupScreen(),
+            '/pin_setup':             (context) => const PinSetupScreen(),
+            '/pin_verify':            (context) => const PinVerifyScreen(),
+            '/dashboard':             (context) => const commercant_dashboard.DashboardScreen(),
+            '/bilans':                (context) => const BilansScreen(),
+            '/rapports':              (context) => const RapportsScreen(),
+            '/profil':                (context) => const ProfilScreen(),
+            '/theme':                 (context) => const ThemeScreen(),
+            '/budget':                (context) => const BudgetScreen(),
+            // ✅ Dashboard et écrans administration
+            '/admin/dashboard':       (context) => const admin_dashboard.AdminDashboardScreen(),
+            '/admin/users':           (context) => const AdminUsersScreen(),
+            '/admin/stats':           (context) => const AdminStatsScreen(),
+            '/admin/settings':        (context) => const AdminSettingsScreen(),
+            '/admin/notifications':   (context) => const AdminNotificationsScreen(),
+            '/reset_pin':             (context) => const ResetPinScreen(),
+            '/onboarding':            (context) => const OnboardingScreen(),
+            '/securiser_compte':      (context) => const SecuriserCompteScreen(),
           },
         );
       },

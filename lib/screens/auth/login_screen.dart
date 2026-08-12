@@ -13,27 +13,74 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
-  final AuthService _authService = AuthService();
+class _LoginScreenState extends State<LoginScreen>
+    with TickerProviderStateMixin {
   final _telephoneController = TextEditingController();
+  final _passwordController = TextEditingController();
 
-  // ✅ Contrôleurs pour la connexion admin
-  final _adminEmailController = TextEditingController();
-  final _adminPasswordController = TextEditingController();
-  bool _showAdminLogin = false;
-  bool _showAdminPassword = false;
+  final _telephoneFocus = FocusNode();
+  final _passwordFocus = FocusNode();
 
-  // Compteur de taps sur le logo — 5 taps pour afficher le mode admin
-  int _logoTapCount = 0;
+  final _telephoneKey = GlobalKey();
+  final _passwordKey = GlobalKey();
 
-  String? _localErrorMessage;
+  bool _showPassword = false;
+  bool _isLoading = false;
+
+  String? _telephoneError;
+  String? _passwordError;
+  String? _globalErrorMessage;
+
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
+  late Animation<Offset> _slideAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _fadeAnim = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
+    );
+    _slideAnim = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
+    );
+    _animController.forward();
+  }
 
   @override
   void dispose() {
     _telephoneController.dispose();
-    _adminEmailController.dispose();
-    _adminPasswordController.dispose();
+    _passwordController.dispose();
+    _telephoneFocus.dispose();
+    _passwordFocus.dispose();
+    _animController.dispose();
     super.dispose();
+  }
+
+  void _scrollToKey(GlobalKey key) {
+    final contextKey = key.currentContext;
+    if (contextKey != null) {
+      Scrollable.ensureVisible(
+        contextKey,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _reinitialiserErreurs() {
+    setState(() {
+      _telephoneError = null;
+      _passwordError = null;
+      _globalErrorMessage = null;
+    });
   }
 
   String _genererEmail(String telephone) {
@@ -47,89 +94,97 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _connecter() async {
+    _reinitialiserErreurs();
+    setState(() => _isLoading = true);
+
     final telephone = _telephoneController.text.trim();
 
-    if (telephone.length < 8) {
-      setState(() => _localErrorMessage = 'Entre ton numéro de téléphone complet');
+    if (telephone.isEmpty) {
+      setState(() {
+        _telephoneError = 'Entrez votre numéro de téléphone';
+        _isLoading = false;
+      });
+      _scrollToKey(_telephoneKey);
+      _telephoneFocus.requestFocus();
       return;
     }
 
-    setState(() => _localErrorMessage = null);
+    if (telephone.length < 8) {
+      setState(() {
+        _telephoneError = 'Entrez un numéro valide à 8 chiffres';
+        _isLoading = false;
+      });
+      _scrollToKey(_telephoneKey);
+      _telephoneFocus.requestFocus();
+      return;
+    }
 
     final email = _genererEmail(telephone);
     final password = _genererPassword(telephone);
-    final authProvider = context.read<AuthProvider>();
 
-    final success = await authProvider.login(email, password);
+    try {
+      final authProvider = context.read<AuthProvider>();
+      final success = await authProvider.login(email, password);
 
-    if (success && mounted) {
-      final hasPin = await _authService.isLocalPinSet();
-      if (mounted) {
-        Navigator.pushReplacementNamed(
-          context,
-          hasPin ? '/pin_verify' : '/pin_setup',
-        );
-      }
-    } else if (mounted) {
-      String msg = authProvider.errorMessage ?? 'Une erreur est survenue';
-      if (msg.contains('user-not-found') ||
-          msg.contains('invalid-credential') ||
-          msg.contains('wrong-password')) {
-        msg = 'Numéro introuvable. Vérifie ou crée un compte.';
-      } else if (msg.contains('network')) {
-        msg = 'Pas de connexion Internet';
-      }
-      setState(() => _localErrorMessage = msg);
-    }
-  }
-
-  // ✅ Connexion admin — bypass PIN, vérification typeUtilisateur
-  Future<void> _connecterAdmin() async {
-    final email = _adminEmailController.text.trim();
-    final password = _adminPasswordController.text.trim();
-
-    if (email.isEmpty || password.isEmpty) {
-      setState(() => _localErrorMessage = 'Email et mot de passe requis');
-      return;
-    }
-
-    setState(() => _localErrorMessage = null);
-
-    final authProvider = context.read<AuthProvider>();
-    final success = await authProvider.login(email, password);
-
-    if (success && mounted) {
-      // ✅ Force le rechargement depuis Firestore pour avoir typeUtilisateur à jour
-      await authProvider.refreshCurrentUser(forceRefresh: true);
-      
       if (!mounted) return;
-      
-      final userModel = authProvider.userModel;
-      final typeStr = userModel?.typeUtilisateur.toString() ?? '';
-      
-      // Vérifie si admin (supporte les deux formats)
-      final isAdmin = typeStr.contains('administrateur') || 
-                      userModel?.typeUtilisateur == TypeUtilisateur.administrateur;
-      
-      if (isAdmin) {
+
+      if (!success) {
+        String msg = authProvider.errorMessage ?? 'Erreur de connexion';
+
+        if (msg.contains('user-not-found') ||
+            msg.contains('invalid-credential') ||
+            msg.contains('wrong-password')) {
+          setState(() {
+            _telephoneError = 'Numéro introuvable. Vérifiez ou créez un compte.';
+          });
+          _scrollToKey(_telephoneKey);
+          _telephoneFocus.requestFocus();
+        } else if (msg.contains('network')) {
+          setState(() {
+            _globalErrorMessage = 'Pas de connexion Internet';
+          });
+        } else {
+          setState(() {
+            _globalErrorMessage = msg;
+          });
+        }
+
+        setState(() => _isLoading = false);
+        return;
+      }
+
+      final userModel = await authProvider.getCurrentUser();
+
+      if (!mounted) return;
+
+      if (userModel == null) {
+        setState(() {
+          _globalErrorMessage = 'Impossible de charger le profil.';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // ✅ Détection automatique du type d'utilisateur
+      if (userModel.estAdministrateur) {
         Navigator.pushReplacementNamed(context, '/admin/dashboard');
       } else {
-        await authProvider.logout();
-        setState(() =>
-            _localErrorMessage = "Accès refusé. Compte non administrateur.");
+        final authService = AuthService();
+        final hasPin = await authService.isLocalPinSet();
+        if (mounted) {
+          Navigator.pushReplacementNamed(
+            context,
+            hasPin ? '/pin_verify' : '/pin_setup',
+          );
+        }
       }
-    } else if (mounted) {
-      String msg = authProvider.errorMessage ?? 'Connexion admin échouée';
-      setState(() => _localErrorMessage = msg);
-    }
-  }
-
-  // ✅ 5 taps sur l'emoji 👋 pour afficher le mode admin
-  void _onLogoTap() {
-    _logoTapCount++;
-    if (_logoTapCount >= 5) {
-      _logoTapCount = 0;
-      setState(() => _showAdminLogin = !_showAdminLogin);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _globalErrorMessage = 'Une erreur est survenue';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -138,382 +193,399 @@ class _LoginScreenState extends State<LoginScreen> {
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 36),
-              decoration: const BoxDecoration(
-                gradient: AppColors.primaryGradient,
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(28),
-                ),
-              ),
-              child: Column(
-                children: [
-                  Row(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              physics: const BouncingScrollPhysics(),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: IntrinsicHeight(
+                  child: Column(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  // ✅ 5 taps sur l'emoji pour débloquer le mode admin
-                  GestureDetector(
-                    onTap: _onLogoTap,
-                    child: const Text('👋', style: TextStyle(fontSize: 52)),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Content de te revoir !',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _showAdminLogin
-                        ? 'Mode administrateur'
-                        : 'Entre ton numéro pour te connecter',
-                    style: TextStyle(
-                      color: _showAdminLogin
-                          ? Colors.amber
-                          : Colors.white70,
-                      fontSize: 15,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(28),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 16),
-
-                    // Message d'erreur
-                    if (_localErrorMessage != null) ...[
+                      // ── Header ───────────────────────────────────────────────────────
                       Container(
-                        padding: const EdgeInsets.all(14),
-                        decoration: BoxDecoration(
-                          color: Colors.red.shade50,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.error_outline,
-                                color: Colors.red, size: 20),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Text(
-                                _localErrorMessage!,
-                                style: const TextStyle(
-                                    color: Colors.red, fontSize: 14),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // ── MODE ADMIN ───────────────────────────────────────────
-                    if (_showAdminLogin) ...[
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.amber.shade300),
+                        width: double.infinity,
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        decoration: const BoxDecoration(
+                          gradient: AppColors.primaryGradient,
+                          borderRadius: BorderRadius.vertical(
+                              bottom: Radius.circular(28)),
                         ),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Row(
-                              children: [
-                                Text('🛡️', style: TextStyle(fontSize: 22)),
-                                SizedBox(width: 8),
-                                Text(
-                                  'Connexion Administrateur',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.black87,
+                            // Bouton retour
+                            Align(
+                              alignment: Alignment.centerLeft,
+                              child: GestureDetector(
+                                onTap: () => Navigator.pop(context),
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withValues(alpha: 0.2),
+                                    shape: BoxShape.circle,
                                   ),
+                                  child: const Icon(Icons.arrow_back_ios_new,
+                                      color: Colors.white, size: 18),
                                 ),
-                              ],
+                              ),
                             ),
+
                             const SizedBox(height: 16),
 
-                            // Email admin
-                            TextField(
-                              controller: _adminEmailController,
-                              keyboardType: TextInputType.emailAddress,
-                              style: const TextStyle(fontSize: 16),
-                              decoration: InputDecoration(
-                                labelText: '📧 Email admin',
-                                border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.primaryGreen, width: 2),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
+                            // Icône
+                            Container(
+                              width: 76,
+                              height: 76,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.white.withValues(alpha: 0.3),
+                                    width: 2),
+                              ),
+                              child: const Center(
+                                child:
+                                    Text('👋', style: TextStyle(fontSize: 36)),
                               ),
                             ),
 
                             const SizedBox(height: 12),
 
-                            // Mot de passe admin
-                            TextField(
-                              controller: _adminPasswordController,
-                              obscureText: !_showAdminPassword,
-                              style: const TextStyle(fontSize: 16),
-                              decoration: InputDecoration(
-                                labelText: '🔐 Mot de passe',
-                                border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12)),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: const BorderSide(
-                                      color: AppColors.primaryGreen, width: 2),
-                                ),
-                                contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 14),
-                                suffixIcon: IconButton(
-                                  icon: Icon(_showAdminPassword
-                                      ? Icons.visibility_off
-                                      : Icons.visibility),
-                                  onPressed: () => setState(() =>
-                                      _showAdminPassword = !_showAdminPassword),
-                                ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 16),
-
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: ElevatedButton(
-                                onPressed: isLoading ? null : _connecterAdmin,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.amber.shade700,
-                                  foregroundColor: Colors.white,
-                                  shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12)),
-                                ),
-                                child: isLoading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                            color: Colors.white),
-                                      )
-                                    : const Text(
-                                        '🛡️ Connexion Admin',
-                                        style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold),
-                                      ),
-                              ),
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            // Masquer le mode admin
-                            Center(
-                              child: TextButton(
-                                onPressed: () => setState(() {
-                                  _showAdminLogin = false;
-                                  _logoTapCount = 0;
-                                }),
-                                child: Text(
-                                  'Retour connexion normale',
-                                  style: TextStyle(
-                                      color: Colors.grey[600], fontSize: 13),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ]
-
-                    // ── MODE COMMERÇANT (normal) ──────────────────────────────
-                    else ...[
-                      const Text(
-                        '📱   Ton numéro de téléphone',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-
-                      TextField(
-                        controller: _telephoneController,
-                        keyboardType: TextInputType.phone,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.allow(
-                              RegExp(r'[0-9+ ]')),
-                        ],
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
-                        ),
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          hintText: '+228 90 00 00 00',
-                          hintStyle: TextStyle(
-                            color: Colors.grey.shade400,
-                            fontSize: 20,
-                            fontWeight: FontWeight.normal,
-                          ),
-                          filled: true,
-                          fillColor: Colors.grey.shade50,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 20),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(
-                                color: Colors.grey.shade300, width: 2),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(
-                                color: Colors.grey.shade300, width: 2),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: const BorderSide(
-                                color: AppColors.primaryGreen, width: 2.5),
-                          ),
-                        ),
-                        onSubmitted: (_) => _connecter(),
-                      ),
-
-                      const SizedBox(height: 10),
-                      const Text(
-                        "🔒 C'est le numéro que tu as utilisé à l'inscription",
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                      const SizedBox(height: 40),
-
-                      // Bouton connexion
-                      SizedBox(
-                        width: double.infinity,
-                        height: 64,
-                        child: ElevatedButton(
-                          onPressed: isLoading ? null : _connecter,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                            elevation: 2,
-                          ),
-                          child: isLoading
-                              ? const SizedBox(
-                                  width: 26,
-                                  height: 26,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text(
-                                  '🔑   Me connecter',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 28),
-
-                      Row(
-                        children: [
-                          const Expanded(child: Divider()),
-                          Padding(
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 14),
-                            child: Text(
-                              'OU',
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                          const Expanded(child: Divider()),
-                        ],
-                      ),
-
-                      const SizedBox(height: 24),
-
-                      Center(
-                        child: Column(
-                          children: [
                             const Text(
-                              "Tu n'as pas encore de compte ?",
-                              style:
-                                  TextStyle(color: Colors.black54, fontSize: 15),
+                              'Content de te revoir !',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
+
                             const SizedBox(height: 6),
-                            SizedBox(
-                              width: double.infinity,
-                              height: 52,
-                              child: OutlinedButton(
-                                onPressed: () => Navigator.pushReplacementNamed(
-                                    context, '/signup'),
-                                style: OutlinedButton.styleFrom(
-                                  foregroundColor: AppColors.primaryGreen,
-                                  side: const BorderSide(
-                                      color: AppColors.primaryGreen, width: 2),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(14),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'Créer mon compte',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
+
+                            Text(
+                              'Connecte-toi avec ton numéro de téléphone',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.8),
+                                fontSize: 14,
                               ),
                             ),
                           ],
+                        ),
+                      ),
+
+                      // ── Contenu ──────────────────────────────────────────────────────
+                      Expanded(
+                        child: FadeTransition(
+                          opacity: _fadeAnim,
+                          child: SlideTransition(
+                            position: _slideAnim,
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  // Erreur globale
+                                  if (_globalErrorMessage != null) ...[
+                                    Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                            color: Colors.red.shade200),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          const Text('⚠️',
+                                              style: TextStyle(fontSize: 18)),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              _globalErrorMessage!,
+                                              style: const TextStyle(
+                                                  color: Colors.red,
+                                                  fontSize: 14,
+                                                  height: 1.4),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 20),
+                                  ],
+
+                                  // ── TÉLÉPHONE ────────────────────────────────────────
+                                  const Text(
+                                    '📱  Ton numéro de téléphone',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF1A1A2E),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 30),
+
+                                  Container(
+                                    key: _telephoneKey,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                                BorderRadius.circular(16),
+                                            border: Border.all(
+                                              color: _telephoneError != null
+                                                  ? Colors.red
+                                                  : const Color(0xFFE5E7EB),
+                                              width: _telephoneError != null
+                                                  ? 2.0
+                                                  : 1.5,
+                                            ),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: Colors.black
+                                                    .withValues(alpha: 0.04),
+                                                blurRadius: 8,
+                                                offset: const Offset(0, 2),
+                                              ),
+                                            ],
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 14,
+                                                        vertical: 18),
+                                                decoration:
+                                                    const BoxDecoration(
+                                                  color: Color(0xFFF8F9FA),
+                                                  borderRadius:
+                                                      BorderRadius.horizontal(
+                                                          left: Radius.circular(
+                                                              16)),
+                                                  border: Border(
+                                                    right: BorderSide(
+                                                        color: Color(
+                                                            0xFFE5E7EB)),
+                                                  ),
+                                                ),
+                                                child: const Row(
+                                                  children: [
+                                                    Text('🇹🇬',
+                                                        style: TextStyle(
+                                                            fontSize: 20)),
+                                                    SizedBox(width: 6),
+                                                    Text(
+                                                      '+228',
+                                                      style: TextStyle(
+                                                        fontSize: 16,
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                        color: Colors.black87,
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                              Expanded(
+                                                child: TextField(
+                                                  controller:
+                                                      _telephoneController,
+                                                  focusNode: _telephoneFocus,
+                                                  keyboardType:
+                                                      TextInputType.phone,
+                                                  inputFormatters: [
+                                                    FilteringTextInputFormatter
+                                                        .digitsOnly,
+                                                    LengthLimitingTextInputFormatter(
+                                                        8),
+                                                  ],
+                                                  style: const TextStyle(
+                                                    fontSize: 20,
+                                                    fontWeight:
+                                                        FontWeight.w600,
+                                                    letterSpacing: 2,
+                                                  ),
+                                                  decoration: InputDecoration(
+                                                    hintText: '90 00 00 00',
+                                                    hintStyle: TextStyle(
+                                                      color: Colors.grey[400],
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.normal,
+                                                      letterSpacing: 1,
+                                                    ),
+                                                    border: InputBorder.none,
+                                                    contentPadding:
+                                                        const EdgeInsets
+                                                            .symmetric(
+                                                            horizontal: 16,
+                                                            vertical: 18),
+                                                  ),
+                                                  onChanged: (_) {
+                                                    if (_telephoneError !=
+                                                        null) {
+                                                      setState(() =>
+                                                          _telephoneError =
+                                                              null);
+                                                    }
+                                                  },
+                                                  onSubmitted: (_) =>
+                                                      _connecter(),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (_telephoneError != null) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            _telephoneError!,
+                                            style: const TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 13,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 10),
+
+                                  Row(
+                                    children: [
+                                      Icon(Icons.lock_outline,
+                                          size: 14, color: Colors.grey[500]),
+                                      const SizedBox(width: 6),
+                                      Expanded(
+                                        child: Text(
+                                          'Ton numéro sert à te connecter — personne ne le verra',
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              color: Colors.grey[500]),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+
+                                  const Spacer(),
+                                  const SizedBox(height: 24),
+
+                                  // ── BOUTON CONNEXION ──────────────────────────────────
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 60,
+                                    child: ElevatedButton(
+                                      onPressed: isLoading ? null : _connecter,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor:
+                                            AppColors.primaryGreen,
+                                        foregroundColor: Colors.white,
+                                        disabledBackgroundColor:
+                                            Colors.grey[300],
+                                        elevation: 0,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      child: isLoading
+                                          ? const SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2.5,
+                                                color: Colors.white,
+                                              ),
+                                            )
+                                          : const Text(
+                                              '🔑  Me connecter',
+                                              style: TextStyle(
+                                                fontSize: 19,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 24),
+
+                                  // ── INSCRIPTION ────────────────────────────────────────
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                          child: Divider(
+                                              color: Colors.grey[300])),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14),
+                                        child: Text(
+                                          'OU',
+                                          style: TextStyle(
+                                            color: Colors.grey[500],
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ),
+                                      Expanded(
+                                          child: Divider(
+                                              color: Colors.grey[300])),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 56,
+                                    child: OutlinedButton(
+                                      onPressed: () =>
+                                          Navigator.pushReplacementNamed(
+                                              context, '/signup'),
+                                      style: OutlinedButton.styleFrom(
+                                        foregroundColor:
+                                            AppColors.primaryGreen,
+                                        side: const BorderSide(
+                                            color: AppColors.primaryGreen,
+                                            width: 2),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(16),
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'Créer mon compte',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 16),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ],
-
-                    const SizedBox(height: 32),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            );
+          },
         ),
       ),
     );

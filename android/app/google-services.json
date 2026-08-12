@@ -12,7 +12,20 @@
           "package_name": "com.example.mafortune"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "119765972991-e5guapt2ssmaqaat6sdkneqh8hac0isq.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mafortune",
+            "certificate_hash": "e252741ac4d4c523003c412aac59c2a1e3fd4514"
+          }
+        },
+        {
+          "client_id": "119765972991-nt25r387jjed3uqg9ac3v74v7ngplq4c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyBFEjeb82CjSzqKlFs-MBp3CswwvfXnuLM"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "119765972991-nt25r387jjed3uqg9ac3v74v7ngplq4c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "119765972991-ulpacqho08vchua82sr2gvbvoode8kad.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.mafortune"
+              }
+            }
+          ]
         }
       }
     }

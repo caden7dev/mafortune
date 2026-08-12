@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart'; // Import indispensable pour utiliser AuthProvider
+import 'package:provider/provider.dart';
 import '../../core/constants/app_colors.dart';
-import '../../providers/auth_provider.dart'; // Import de ton nouveau provider
+import '../../providers/auth_provider.dart';
 import '../../widgets/screenshot_wrapper.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -17,11 +17,23 @@ class _SignupScreenState extends State<SignupScreen> {
   final _nomController = TextEditingController();
   final _telephoneController = TextEditingController();
 
-  String? _selectedActivity;
-  String? _localErrorMessage;
-  int _etape = 1; // 1 = nom, 2 = téléphone, 3 = activité
+  final _prenomFocus = FocusNode();
+  final _telephoneFocus = FocusNode();
 
-  // Activités avec emoji — reconnaissables sans lire
+  final _prenomKey = GlobalKey();
+  final _telephoneKey = GlobalKey();
+  final _activiteKey = GlobalKey();
+
+  String? _selectedActivity;
+
+  // Messages d'erreur ciblés par champ
+  String? _prenomError;
+  String? _telephoneError;
+  String? _activiteError;
+  String? _globalError;
+
+  int _etape = 1;
+
   final List<Map<String, String>> _activites = [
     {'emoji': '🛒', 'label': 'Vente de produits'},
     {'emoji': '🍲', 'label': 'Restauration'},
@@ -36,52 +48,101 @@ class _SignupScreenState extends State<SignupScreen> {
     _prenomController.dispose();
     _nomController.dispose();
     _telephoneController.dispose();
+    _prenomFocus.dispose();
+    _telephoneFocus.dispose();
     super.dispose();
   }
 
-  // Génère un email automatiquement à partir du téléphone
+  void _scrollToKey(GlobalKey key) {
+    final contextKey = key.currentContext;
+    if (contextKey != null) {
+      Scrollable.ensureVisible(
+        contextKey,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
+  }
+
+  void _reinitialiserErreurs() {
+    setState(() {
+      _prenomError = null;
+      _telephoneError = null;
+      _activiteError = null;
+      _globalError = null;
+    });
+  }
+
   String _genererEmail(String telephone) {
     final tel = telephone.replaceAll(RegExp(r'[^\d]'), '');
     return '$tel@mafortune.tg';
   }
 
-  // Génère un mot de passe fort automatiquement
   String _genererPassword(String telephone) {
     final tel = telephone.replaceAll(RegExp(r'[^\d]'), '');
     return 'MF_${tel}_Fortune2024!';
   }
 
   Future<void> _creerCompte() async {
-    if (_prenomController.text.trim().isEmpty) {
-      setState(() => _localErrorMessage = 'Entre ton prénom');
+    _reinitialiserErreurs();
+
+    final prenom = _prenomController.text.trim();
+    final telephoneBrut = _telephoneController.text.trim();
+    final telephone = telephoneBrut.replaceAll(RegExp(r'[^\d]'), '');
+
+    // 1. Validation du Prénom
+    if (prenom.isEmpty) {
+      setState(() {
+        _prenomError = 'Entre ton prénom';
+        _etape = 1;
+      });
+      _scrollToKey(_prenomKey);
+      _prenomFocus.requestFocus();
       return;
     }
-    if (_telephoneController.text.trim().length < 8) {
-      setState(() => _localErrorMessage = 'Numéro de téléphone invalide');
+
+    // 2. Validation du Téléphone
+    if (telephone.isEmpty) {
+      setState(() {
+        _telephoneError = 'Entre ton numéro de téléphone';
+        _etape = 2;
+      });
+      _scrollToKey(_telephoneKey);
+      _telephoneFocus.requestFocus();
       return;
     }
+
+    if (telephone.length != 8) {
+      setState(() {
+        _telephoneError = 'Le numéro doit contenir exactement 8 chiffres';
+        _etape = 2;
+      });
+      _scrollToKey(_telephoneKey);
+      _telephoneFocus.requestFocus();
+      return;
+    }
+
+    // 3. Validation de l'Activité
     if (_selectedActivity == null) {
-      setState(() => _localErrorMessage = 'Choisis ton activité');
+      setState(() {
+        _activiteError = 'Choisis ton activité';
+        _etape = 3;
+      });
+      _scrollToKey(_activiteKey);
       return;
     }
 
-    setState(() {
-      _localErrorMessage = null;
-    });
-
-    final telephone = _telephoneController.text.trim();
     final email = _genererEmail(telephone);
     final password = _genererPassword(telephone);
     final authProvider = context.read<AuthProvider>();
 
-    // Appel à l'action d'inscription via notre AuthProvider
     final success = await authProvider.registerCommercant(
       email: email,
       password: password,
       nom: _nomController.text.trim().isEmpty
-          ? _prenomController.text.trim()
+          ? prenom
           : _nomController.text.trim(),
-      prenom: _prenomController.text.trim(),
+      prenom: prenom,
       telephone: telephone,
       typeActivite: _selectedActivity!,
     );
@@ -91,19 +152,25 @@ class _SignupScreenState extends State<SignupScreen> {
     } else if (mounted) {
       String msg = authProvider.errorMessage ?? 'Une erreur est survenue';
       if (msg.contains('email-already-in-use')) {
-        msg = 'Ce numéro est déjà utilisé. Connecte-toi.';
+        setState(() {
+          _telephoneError = 'Ce numéro est déjà utilisé. Connecte-toi.';
+        });
+        _scrollToKey(_telephoneKey);
+        _telephoneFocus.requestFocus();
       } else if (msg.contains('network')) {
-        msg = 'Pas de connexion Internet';
+        setState(() {
+          _globalError = 'Pas de connexion Internet';
+        });
+      } else {
+        setState(() {
+          _globalError = msg;
+        });
       }
-      setState(() {
-        _localErrorMessage = msg;
-      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Écoute de l'état de chargement global de notre AuthProvider
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return ScreenshotWrapper(
@@ -150,7 +217,6 @@ class _SignupScreenState extends State<SignupScreen> {
                       ),
                     ),
                     const SizedBox(height: 20),
-                    // Indicateur d'étapes
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [1, 2, 3].map((i) {
@@ -174,8 +240,8 @@ class _SignupScreenState extends State<SignupScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Message d'erreur
-                      if (_localErrorMessage != null) ...[
+                      // Erreur globale (ex: Pas de connexion)
+                      if (_globalError != null) ...[
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
@@ -189,7 +255,7 @@ class _SignupScreenState extends State<SignupScreen> {
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
-                                  _localErrorMessage!,
+                                  _globalError!,
                                   style: const TextStyle(color: Colors.red, fontSize: 14),
                                 ),
                               ),
@@ -200,94 +266,152 @@ class _SignupScreenState extends State<SignupScreen> {
                       ],
 
                       // ÉTAPE 1 — Nom et prénom
-                      _buildSectionTitle('👤', 'Comment tu t\'appelles ?'),
-                      const SizedBox(height: 16),
-                      _buildChamp(
-                        controller: _prenomController,
-                        label: 'Ton prénom *',
-                        hint: 'Ex: Ama',
-                        onChanged: (_) => setState(() => _etape = 1),
+                      Container(
+                        key: _prenomKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionTitle('👤', 'Comment tu t\'appelles ?'),
+                            const SizedBox(height: 16),
+                            _buildChamp(
+                              controller: _prenomController,
+                              focusNode: _prenomFocus,
+                              label: 'Ton prénom *',
+                              hint: 'Ex: Ama',
+                              errorText: _prenomError,
+                              onChanged: (_) {
+                                if (_prenomError != null) {
+                                  setState(() => _prenomError = null);
+                                }
+                                setState(() => _etape = 1);
+                              },
+                            ),
+                            const SizedBox(height: 14),
+                            _buildChamp(
+                              controller: _nomController,
+                              label: 'Ton nom (optionnel)',
+                              hint: 'Ex: Koffi',
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 14),
-                      _buildChamp(
-                        controller: _nomController,
-                        label: 'Ton nom (optionnel)',
-                        hint: 'Ex: Koffi',
-                      ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
                       // ÉTAPE 2 — Téléphone
-                      _buildSectionTitle('📱', 'Ton numéro de téléphone'),
-                      const SizedBox(height: 16),
-                      _buildChamp(
-                        controller: _telephoneController,
-                        label: 'Numéro *',
-                        hint: '+228 90 00 00 00',
-                        clavier: TextInputType.phone,
-                        onChanged: (_) => setState(() => _etape = 2),
-                        formatters: [
-                          FilteringTextInputFormatter.allow(RegExp(r'[0-9+ ]')),
-                        ],
+                      Container(
+                        key: _telephoneKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionTitle('📱', 'Ton numéro de téléphone'),
+                            const SizedBox(height: 16),
+                            _buildChamp(
+                              controller: _telephoneController,
+                              focusNode: _telephoneFocus,
+                              label: 'Numéro *',
+                              hint: '90000000',
+                              clavier: TextInputType.phone,
+                              errorText: _telephoneError,
+                              onChanged: (_) {
+                                if (_telephoneError != null) {
+                                  setState(() => _telephoneError = null);
+                                }
+                                setState(() => _etape = 2);
+                              },
+                              formatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                                LengthLimitingTextInputFormatter(8),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            const Text(
+                              '🔒 Ton numéro sert à te connecter — personne ne le verra',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                            ),
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '🔒 Ton numéro sert à te connecter — personne ne le verra',
-                        style: TextStyle(color: Colors.grey, fontSize: 13),
-                      ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: 24),
 
                       // ÉTAPE 3 — Activité
-                      _buildSectionTitle('🏪', 'Qu\'est-ce que tu fais comme travail ?'),
-                      const SizedBox(height: 16),
-                      GridView.count(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        crossAxisCount: 2,
-                        childAspectRatio: 1.4,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                        children: _activites.map((activite) {
-                          final isSelected = _selectedActivity == activite['label'];
-                          return GestureDetector(
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              setState(() {
-                                _selectedActivity = activite['label'];
-                                _etape = 3;
-                              });
-                            },
-                            child: AnimatedContainer(
-                              duration: const Duration(milliseconds: 180),
-                              decoration: BoxDecoration(
-                                color: isSelected ? AppColors.primaryGreen : Colors.grey.shade100,
-                                borderRadius: BorderRadius.circular(16),
-                                border: Border.all(
-                                  color: isSelected ? AppColors.primaryGreen : Colors.grey.shade300,
-                                  width: 2,
+                      Container(
+                        key: _activiteKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildSectionTitle('🏪', 'Qu\'est-ce que tu fais comme travail ?'),
+                            const SizedBox(height: 16),
+
+                            // Erreur spécifique pour la sélection d'activité
+                            if (_activiteError != null) ...[
+                              Text(
+                                '⚠️ ${_activiteError!}',
+                                style: const TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Text(
-                                    activite['emoji']!,
-                                    style: const TextStyle(fontSize: 32),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    activite['label']!,
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w600,
-                                      color: isSelected ? Colors.white : Colors.black87,
+                              const SizedBox(height: 10),
+                            ],
+
+                            GridView.count(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisCount: 2,
+                              childAspectRatio: 1.4,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                              children: _activites.map((activite) {
+                                final isSelected = _selectedActivity == activite['label'];
+                                return GestureDetector(
+                                  onTap: () {
+                                    HapticFeedback.selectionClick();
+                                    setState(() {
+                                      _selectedActivity = activite['label'];
+                                      _activiteError = null;
+                                      _etape = 3;
+                                    });
+                                  },
+                                  child: AnimatedContainer(
+                                    duration: const Duration(milliseconds: 180),
+                                    decoration: BoxDecoration(
+                                      color: isSelected ? AppColors.primaryGreen : Colors.grey.shade100,
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? AppColors.primaryGreen
+                                            : _activiteError != null
+                                                ? Colors.red.shade300
+                                                : Colors.grey.shade300,
+                                        width: 2,
+                                      ),
                                     ),
-                                    textAlign: TextAlign.center,
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Text(
+                                          activite['emoji']!,
+                                          style: const TextStyle(fontSize: 32),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          activite['label']!,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600,
+                                            color: isSelected ? Colors.white : Colors.black87,
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ],
-                              ),
+                                );
+                              }).toList(),
                             ),
-                          );
-                        }).toList(),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 36),
 
@@ -371,6 +495,8 @@ class _SignupScreenState extends State<SignupScreen> {
     required TextEditingController controller,
     required String label,
     required String hint,
+    FocusNode? focusNode,
+    String? errorText,
     TextInputType clavier = TextInputType.text,
     List<TextInputFormatter>? formatters,
     void Function(String)? onChanged,
@@ -389,6 +515,7 @@ class _SignupScreenState extends State<SignupScreen> {
         const SizedBox(height: 8),
         TextField(
           controller: controller,
+          focusNode: focusNode,
           keyboardType: clavier,
           inputFormatters: formatters,
           onChanged: onChanged,
@@ -396,6 +523,12 @@ class _SignupScreenState extends State<SignupScreen> {
           decoration: InputDecoration(
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.grey),
+            errorText: errorText, // Affiche le message d'erreur directement SOUS le champ
+            errorStyle: const TextStyle(
+              color: Colors.red,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
             filled: true,
             fillColor: Colors.grey.shade50,
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -410,6 +543,14 @@ class _SignupScreenState extends State<SignupScreen> {
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: Colors.red, width: 2),
             ),
           ),
         ),

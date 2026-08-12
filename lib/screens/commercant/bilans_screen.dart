@@ -6,7 +6,6 @@ import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
-import '../../widgets/screenshot_wrapper.dart';
 
 class BilansScreen extends StatefulWidget {
   const BilansScreen({super.key});
@@ -15,7 +14,12 @@ class BilansScreen extends StatefulWidget {
   State<BilansScreen> createState() => _BilansScreenState();
 }
 
-class _BilansScreenState extends State<BilansScreen> {
+class _BilansScreenState extends State<BilansScreen>
+    with AutomaticKeepAliveClientMixin {
+  // ⚡ Conserve la page en mémoire pour une navigation instantanée
+  @override
+  bool get wantKeepAlive => true;
+
   final AuthService _authService = AuthService();
   final TransactionService _transactionService = TransactionService();
 
@@ -24,8 +28,9 @@ class _BilansScreenState extends State<BilansScreen> {
   bool _isLoading = true;
   int _touchedPieIndex = -1;
 
-  String _selectedPeriod = 'mois';
+  String _selectedPeriod = 'mois'; // 'mois', 'trimestre', 'annee', 'custom'
   DateTime _selectedDate = DateTime.now();
+  DateTimeRange? _customDateRange;
 
   double _totalRecettes = 0;
   double _totalDepenses = 0;
@@ -41,7 +46,6 @@ class _BilansScreenState extends State<BilansScreen> {
     const Color(0xFFFFA726),
   ];
 
-  // Emojis pour les catégories de dépenses
   final Map<String, String> _categoryEmojis = {
     'Alimentation': '🍽️',
     'Transport': '🚗',
@@ -60,7 +64,9 @@ class _BilansScreenState extends State<BilansScreen> {
   }
 
   Future<void> _loadData() async {
-    setState(() => _isLoading = true);
+    if (_transactions.isEmpty) {
+      setState(() => _isLoading = true);
+    }
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
@@ -76,31 +82,47 @@ class _BilansScreenState extends State<BilansScreen> {
 
   void _calculateStats() {
     DateTime startDate;
-    DateTime endDate = DateTime.now();
+    DateTime endDate;
 
-    switch (_selectedPeriod) {
-      case 'mois':
-        startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
-        endDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 0);
-        break;
-      case 'trimestre':
-        final q = ((_selectedDate.month - 1) ~/ 3) + 1;
-        final startMonth = (q - 1) * 3 + 1;
-        startDate = DateTime(_selectedDate.year, startMonth, 1);
-        endDate = DateTime(_selectedDate.year, startMonth + 3, 0);
-        break;
-      case 'annee':
-        startDate = DateTime(_selectedDate.year, 1, 1);
-        endDate = DateTime(_selectedDate.year, 12, 31);
-        break;
-      default:
-        startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+    if (_selectedPeriod == 'custom' && _customDateRange != null) {
+      startDate = DateTime(
+        _customDateRange!.start.year,
+        _customDateRange!.start.month,
+        _customDateRange!.start.day,
+        0, 0, 0,
+      );
+      endDate = DateTime(
+        _customDateRange!.end.year,
+        _customDateRange!.end.month,
+        _customDateRange!.end.day,
+        23, 59, 59,
+      );
+    } else {
+      switch (_selectedPeriod) {
+        case 'mois':
+          startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+          endDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 0, 23, 59, 59);
+          break;
+        case 'trimestre':
+          final q = ((_selectedDate.month - 1) ~/ 3) + 1;
+          final startMonth = (q - 1) * 3 + 1;
+          startDate = DateTime(_selectedDate.year, startMonth, 1);
+          endDate = DateTime(_selectedDate.year, startMonth + 3, 0, 23, 59, 59);
+          break;
+        case 'annee':
+          startDate = DateTime(_selectedDate.year, 1, 1);
+          endDate = DateTime(_selectedDate.year, 12, 31, 23, 59, 59);
+          break;
+        default:
+          startDate = DateTime(_selectedDate.year, _selectedDate.month, 1);
+          endDate = DateTime(_selectedDate.year, _selectedDate.month + 1, 0, 23, 59, 59);
+      }
     }
 
     final periodTx = _transactions
         .where((t) =>
-            t.date.isAfter(startDate) &&
-            t.date.isBefore(endDate.add(const Duration(days: 1))))
+            !t.date.isBefore(startDate) &&
+            !t.date.isAfter(endDate))
         .toList();
 
     _totalRecettes =
@@ -112,11 +134,11 @@ class _BilansScreenState extends State<BilansScreen> {
     _monthlyDepenses.clear();
     for (int i = 1; i <= 12; i++) {
       final ms = DateTime(_selectedDate.year, i, 1);
-      final me = DateTime(_selectedDate.year, i + 1, 0);
+      final me = DateTime(_selectedDate.year, i + 1, 0, 23, 59, 59);
       final mtx = _transactions
           .where((t) =>
-              t.date.isAfter(ms) &&
-              t.date.isBefore(me.add(const Duration(days: 1))))
+              !t.date.isBefore(ms) &&
+              !t.date.isAfter(me))
           .toList();
       final key = DateFormat('MMM', 'fr_FR').format(ms);
       _monthlyRecettes[key] =
@@ -139,13 +161,50 @@ class _BilansScreenState extends State<BilansScreen> {
   }
 
   void _changePeriod(String p) {
-    setState(() {
-      _selectedPeriod = p;
-      _calculateStats();
-    });
+    if (p == 'custom') {
+      _selectCustomDateRange();
+    } else {
+      setState(() {
+        _selectedPeriod = p;
+        _calculateStats();
+      });
+    }
+  }
+
+  Future<void> _selectCustomDateRange() async {
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+      initialDateRange: _customDateRange ??
+          DateTimeRange(
+            start: DateTime.now().subtract(const Duration(days: 7)),
+            end: DateTime.now(),
+          ),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.light().copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryGreen,
+              onPrimary: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      setState(() {
+        _selectedPeriod = 'custom';
+        _customDateRange = picked;
+        _calculateStats();
+      });
+    }
   }
 
   void _changeDate(int offset) {
+    if (_selectedPeriod == 'custom') return;
     setState(() {
       if (_selectedPeriod == 'mois') {
         var m = _selectedDate.month + offset;
@@ -185,6 +244,9 @@ class _BilansScreenState extends State<BilansScreen> {
         return 'Trimestre $q — ${_selectedDate.year}';
       case 'annee':
         return 'Année ${_selectedDate.year}';
+      case 'custom':
+        if (_customDateRange == null) return 'Période sur mesure';
+        return '${DateFormat('dd/MM').format(_customDateRange!.start)} au ${DateFormat('dd/MM/yyyy').format(_customDateRange!.end)}';
       default:
         return '';
     }
@@ -202,15 +264,16 @@ class _BilansScreenState extends State<BilansScreen> {
     return '📌';
   }
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
+    super.build(context); // Obligatoire pour AutomaticKeepAliveClientMixin
+
     final solde = _totalRecettes - _totalDepenses;
     final hasData = _totalRecettes > 0 || _totalDepenses > 0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: _isLoading
+      body: _isLoading && _transactions.isEmpty
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primaryGreen),
             )
@@ -221,34 +284,22 @@ class _BilansScreenState extends State<BilansScreen> {
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   children: [
-                    // Sélecteur de période
                     _buildPeriodSelector(),
-
                     const SizedBox(height: 16),
-
-                    // 3 grandes cartes de résumé
                     _buildSummarySection(solde),
-
+                    const SizedBox(height: 14),
+                    _buildConseilCard(solde),
                     const SizedBox(height: 20),
-
-                    // Message si pas de données
                     if (!hasData) _buildEmptyState(),
-
-                    // Graphique camembert
                     if (hasData) ...[
                       _buildPieChartCard(),
                       const SizedBox(height: 16),
                     ],
-
-                    // Graphique barres mensuel
                     _buildBarChartCard(),
-
-                    // Top catégories dépenses
                     if (_categoryExpenses.isNotEmpty) ...[
                       const SizedBox(height: 16),
                       _buildCategoryCard(),
                     ],
-
                     const SizedBox(height: 100),
                   ],
                 ),
@@ -257,70 +308,65 @@ class _BilansScreenState extends State<BilansScreen> {
     );
   }
 
-  // ─── SÉLECTEUR PÉRIODE ──────────────────────────────────────────────────────
   Widget _buildPeriodSelector() {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(
         children: [
-          // Navigation date
           Row(
             children: [
-              // Bouton précédent — grand
               GestureDetector(
-                onTap: () => _changeDate(-1),
+                onTap: _selectedPeriod == 'custom' ? null : () => _changeDate(-1),
                 child: Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F0F0),
+                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF0F0F0),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.chevron_left, size: 28, color: Colors.black87),
+                  child: Icon(Icons.chevron_left, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : Colors.black87),
                 ),
               ),
-
-              // Titre période — centré
               Expanded(
                 child: Text(
                   _getPeriodTitle(),
                   style: const TextStyle(
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-
-              // Bouton suivant — grand
               GestureDetector(
-                onTap: () => _changeDate(1),
+                onTap: _selectedPeriod == 'custom' ? null : () => _changeDate(1),
                 child: Container(
-                  width: 48,
-                  height: 48,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF0F0F0),
+                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF0F0F0),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Icon(Icons.chevron_right, size: 28, color: Colors.black87),
+                  child: Icon(Icons.chevron_right, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : Colors.black87),
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 14),
-
-          // Chips de période — grands et clairs
-          Row(
-            children: [
-              Expanded(child: _buildPeriodChip('📅 Mois', 'mois')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildPeriodChip('📆 Trimestre', 'trimestre')),
-              const SizedBox(width: 8),
-              Expanded(child: _buildPeriodChip('🗓️ Année', 'annee')),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _buildPeriodChip('📅 Mois', 'mois'),
+                const SizedBox(width: 8),
+                _buildPeriodChip('📆 Trimestre', 'trimestre'),
+                const SizedBox(width: 8),
+                _buildPeriodChip('🗓️ Année', 'annee'),
+                const SizedBox(width: 8),
+                _buildPeriodChip('📐 Sur mesure', 'custom'),
+              ],
+            ),
           ),
         ],
       ),
@@ -333,7 +379,7 @@ class _BilansScreenState extends State<BilansScreen> {
       onTap: () => _changePeriod(value),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        height: 48,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: selected ? AppColors.primaryGreen : Colors.grey[100],
           borderRadius: BorderRadius.circular(12),
@@ -347,7 +393,7 @@ class _BilansScreenState extends State<BilansScreen> {
             style: TextStyle(
               color: selected ? Colors.white : Colors.grey[700],
               fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-              fontSize: 14,
+              fontSize: 13,
             ),
           ),
         ),
@@ -355,16 +401,60 @@ class _BilansScreenState extends State<BilansScreen> {
     );
   }
 
-  // ─── RÉSUMÉ — 3 GRANDS CHIFFRES ─────────────────────────────────────────────
+  Widget _buildConseilCard(double solde) {
+    String message = "";
+    IconData icon = Icons.lightbulb_outline;
+    Color color = Colors.amber.shade800;
+
+    if (_totalRecettes == 0 && _totalDepenses == 0) {
+      message = "Aucune opération enregistrée pour cette période.";
+      icon = Icons.info_outline;
+      color = Colors.blue;
+    } else if (solde >= 0) {
+      double ratio = _totalRecettes > 0 ? (_totalDepenses / _totalRecettes) * 100 : 0;
+      if (ratio < 50) {
+        message = "Excellente gestion ! Vos dépenses ne représentent que ${ratio.toStringAsFixed(0)}% de vos recettes.";
+        icon = Icons.sentiment_very_satisfied;
+        color = Colors.green.shade700;
+      } else {
+        message = "Vous êtes bénéficiaire, mais vos dépenses absorbent ${ratio.toStringAsFixed(0)}% de vos revenus.";
+      }
+    } else {
+      message = "Attention : Vos dépenses dépassent vos ventes sur cette période.";
+      icon = Icons.warning_amber_rounded;
+      color = Colors.red.shade700;
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 26),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade800, height: 1.3),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildSummarySection(double solde) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          // Solde — le chiffre le plus important, en grand
           _buildBigSoldeCard(solde),
           const SizedBox(height: 12),
-          // Recettes et Dépenses côte à côte
           Row(
             children: [
               Expanded(
@@ -436,13 +526,16 @@ class _BilansScreenState extends State<BilansScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          Text(
-            '${solde < 0 ? '-' : ''}${_fmt(solde.abs())} FCFA',
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 36,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${solde < 0 ? '-' : ''}${_fmt(solde.abs())} FCFA',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 34,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -476,27 +569,27 @@ class _BilansScreenState extends State<BilansScreen> {
         children: [
           Text(emoji, style: const TextStyle(fontSize: 28)),
           const SizedBox(height: 10),
-          Text(
-            '${_fmt(amount)} F',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: color,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              '${_fmt(amount)} F',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: color.withOpacity(0.8)),
+            style: TextStyle(fontSize: 12, color: color.withOpacity(0.8)),
           ),
         ],
       ),
     );
   }
 
-  // ─── ÉTAT VIDE ───────────────────────────────────────────────────────────────
   Widget _buildEmptyState() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -521,7 +614,7 @@ class _BilansScreenState extends State<BilansScreen> {
           const SizedBox(height: 8),
           Text(
             'Ajoutez des recettes et dépenses\npour voir vos bilans ici.',
-            style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],
@@ -529,7 +622,6 @@ class _BilansScreenState extends State<BilansScreen> {
     );
   }
 
-  // ─── GRAPHIQUE CAMEMBERT ────────────────────────────────────────────────────
   Widget _buildPieChartCard() {
     final total = _totalRecettes + _totalDepenses;
     if (total == 0) return const SizedBox.shrink();
@@ -566,10 +658,9 @@ class _BilansScreenState extends State<BilansScreen> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 200,
+            height: 180,
             child: Row(
               children: [
-                // Camembert
                 Expanded(
                   child: PieChart(
                     PieChartData(
@@ -586,42 +677,39 @@ class _BilansScreenState extends State<BilansScreen> {
                           value: _totalRecettes,
                           color: const Color(0xFF2E7D32),
                           title: '${pctRecettes.toStringAsFixed(0)}%',
-                          radius: _touchedPieIndex == 0 ? 75 : 62,
+                          radius: _touchedPieIndex == 0 ? 70 : 58,
                           titleStyle: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            fontSize: 13,
                           ),
                         ),
                         PieChartSectionData(
                           value: _totalDepenses,
                           color: const Color(0xFFC62828),
                           title: '${pctDepenses.toStringAsFixed(0)}%',
-                          radius: _touchedPieIndex == 1 ? 75 : 62,
+                          radius: _touchedPieIndex == 1 ? 70 : 58,
                           titleStyle: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                            fontSize: 13,
                           ),
                         ),
                       ],
-                      centerSpaceRadius: 40,
+                      centerSpaceRadius: 36,
                       sectionsSpace: 3,
                     ),
                   ),
                 ),
-
-                const SizedBox(width: 20),
-
-                // Légende
+                const SizedBox(width: 16),
                 Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildPieLegend('📈', 'Reçu', _totalRecettes, const Color(0xFF2E7D32)),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     _buildPieLegend('📉', 'Dépensé', _totalDepenses, const Color(0xFFC62828)),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     _buildPieLegend('📊', 'Total', total, Colors.grey[700]!),
                   ],
                 ),
@@ -636,16 +724,16 @@ class _BilansScreenState extends State<BilansScreen> {
   Widget _buildPieLegend(String emoji, String label, double amount, Color color) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 18)),
-        const SizedBox(width: 8),
+        Text(emoji, style: const TextStyle(fontSize: 16)),
+        const SizedBox(width: 6),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
             Text(
               '${_fmt(amount)} F',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 13,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
@@ -656,7 +744,6 @@ class _BilansScreenState extends State<BilansScreen> {
     );
   }
 
-  // ─── GRAPHIQUE BARRES ────────────────────────────────────────────────────────
   Widget _buildBarChartCard() {
     final months = _monthlyRecettes.keys.toList();
     final maxVal = [
@@ -692,7 +779,6 @@ class _BilansScreenState extends State<BilansScreen> {
             ],
           ),
           const SizedBox(height: 10),
-          // Légende
           Row(
             children: [
               _buildLegendDot(const Color(0xFF2E7D32), '📈 Reçu'),
@@ -702,22 +788,13 @@ class _BilansScreenState extends State<BilansScreen> {
           ),
           const SizedBox(height: 20),
           SizedBox(
-            height: 200,
+            height: 180,
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
                 maxY: maxVal > 0 ? maxVal * 1.2 : 100,
                 barTouchData: BarTouchData(
-                  touchTooltipData: BarTouchTooltipData(
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      final month = months[groupIndex];
-                      final label = rodIndex == 0 ? '📈 Reçu' : '📉 Dépensé';
-                      return BarTooltipItem(
-                        '$month\n$label\n${_fmt(rod.toY)} F',
-                        const TextStyle(color: Colors.white, fontSize: 12),
-                      );
-                    },
-                  ),
+                  enabled: true,
                 ),
                 titlesData: FlTitlesData(
                   leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -754,19 +831,19 @@ class _BilansScreenState extends State<BilansScreen> {
                   final month = months[i];
                   return BarChartGroupData(
                     x: i,
-                    barsSpace: 4,
+                    barsSpace: 3,
                     barRods: [
                       BarChartRodData(
                         toY: _monthlyRecettes[month] ?? 0,
                         color: const Color(0xFF2E7D32),
-                        width: 9,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                        width: 7,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                       ),
                       BarChartRodData(
                         toY: _monthlyDepenses[month] ?? 0,
                         color: const Color(0xFFC62828),
-                        width: 9,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(5)),
+                        width: 7,
+                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                       ),
                     ],
                   );
@@ -783,16 +860,15 @@ class _BilansScreenState extends State<BilansScreen> {
     return Row(
       children: [
         Container(
-          width: 12, height: 12,
+          width: 10, height: 10,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle),
         ),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
       ],
     );
   }
 
-  // ─── TOP CATÉGORIES DÉPENSES ────────────────────────────────────────────────
   Widget _buildCategoryCard() {
     final total = _categoryExpenses.values.fold(0.0, (s, v) => s + v);
     final entries = _categoryExpenses.entries.toList();
@@ -832,20 +908,19 @@ class _BilansScreenState extends State<BilansScreen> {
             final emoji = _getCategoryEmoji(entry.key);
 
             return Padding(
-              padding: const EdgeInsets.only(bottom: 18),
+              padding: const EdgeInsets.only(bottom: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Nom + montant
                   Row(
                     children: [
-                      Text(emoji, style: const TextStyle(fontSize: 24)),
+                      Text(emoji, style: const TextStyle(fontSize: 22)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           entry.key,
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.w600,
                             color: Colors.black87,
                           ),
@@ -857,26 +932,25 @@ class _BilansScreenState extends State<BilansScreen> {
                           Text(
                             '${_fmt(entry.value)} F',
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                               color: color,
                             ),
                           ),
                           Text(
                             '${(pct * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  // Barre de progression — plus épaisse
+                  const SizedBox(height: 6),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(
                       value: pct,
-                      minHeight: 10,
+                      minHeight: 8,
                       backgroundColor: color.withOpacity(0.15),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                     ),
