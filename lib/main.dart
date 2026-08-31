@@ -32,6 +32,7 @@ import 'screens/commercant/rapports_screen.dart';
 import 'screens/commercant/profil_screen.dart';
 import 'screens/commercant/theme_screen.dart';
 import 'screens/commercant/budget_screen.dart';
+import 'screens/commercant/mes_produits_screen.dart';
 
 // ✅ Alias pour éviter le conflit entre les deux dashboard_screen.dart
 import 'screens/admin/dashboard_screen.dart' as admin_dashboard;
@@ -145,6 +146,9 @@ class MyApp extends StatelessWidget {
             '/reset_pin':             (context) => const ResetPinScreen(),
             '/onboarding':            (context) => const OnboardingScreen(),
             '/securiser_compte':      (context) => const SecuriserCompteScreen(),
+            
+            '/mes_produits':           (context) => const MesProduitsScreen(isOnboarding: true),
+            '/mes_produits_gestion':   (context) => const MesProduitsScreen(isOnboarding: false),
           },
         );
       },

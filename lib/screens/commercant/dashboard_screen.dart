@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
@@ -10,7 +9,6 @@ import '../../widgets/custom_bottom_nav.dart';
 import '../../widgets/offline_banner.dart';
 import 'saisie_rapide_screen.dart';
 import 'modifier_transaction_screen.dart';
-import 'historique_complet_screen.dart';
 import 'bilans_screen.dart';
 import 'rapports_screen.dart';
 import 'notifications_screen.dart';
@@ -35,6 +33,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _quickStats = {};
   List<Map<String, dynamic>> _weekData = [];
   bool _isLoading = true;
+  String? _selectedTransactionId; // ✅ ID de la transaction dont les actions sont visibles
   int _currentIndex = 0;
 
   String _getTitle() {
@@ -68,20 +67,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
-    // Ne pas afficher de spinner de chargement si des données existent déjà (fluidité)
-    if (_currentUser == null) {
-      setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+        _recentTransactions = [];
+        _weekData = [];
+        _quickStats = {};
+      });
     }
 
     try {
+      // ✅ forceRefresh=true après une transaction pour recharger le solde depuis Firestore
       _currentUser = await _authService.getCurrentUserData(
         forceRefresh: forceRefresh,
       );
       if (_currentUser == null) return;
 
+      // ✅ Appels parallèles
       final results = await Future.wait([
-        _transactionService.getQuickStats(_currentUser!.id, forceRefresh: forceRefresh),
-        _transactionService.getTransactionsByCommercant(_currentUser!.id, forceRefresh: forceRefresh),
+        _transactionService.getQuickStats(_currentUser!.id),
+        _transactionService.getTransactionsByCommercant(_currentUser!.id),
       ]);
 
       final stats = results[0] as Map<String, dynamic>;
@@ -92,7 +97,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _quickStats = stats;
-          _recentTransactions = List<TransactionModel>.from(allTransactions.take(10));
+          _recentTransactions = allTransactions.take(10).toList();
         });
       }
 
@@ -156,80 +161,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _ouvrirSaisie({required bool isVente}) async {
-    HapticFeedback.mediumImpact();
-    final result = await showModalBottomSheet<dynamic>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SaisieRapideScreen(isVenteInitial: isVente),
     );
-
-    if (result != null) {
-      _loadData(forceRefresh: true);
+    // ✅ forceRefresh=true + invalide cache + reloadKey
+    if (result == true) {
+      _transactionService.invalidateCache(_currentUser!.id);
+      setState(() => _reloadKey++);
+      await _loadData(forceRefresh: true);
     }
   }
 
-  void _afficherOptionsTransaction(TransactionModel transaction) {
-    HapticFeedback.selectionClick();
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              transaction.description ?? transaction.categorie,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            Text(
-              '${_formatAmount(transaction.montant)} FCFA • ${DateFormat('dd/MM/yyyy HH:mm').format(transaction.date)}',
-              style: TextStyle(color: Colors.grey[600], fontSize: 13),
-            ),
-            const SizedBox(height: 20),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Colors.blue,
-                child: Icon(Icons.edit, color: Colors.white, size: 20),
-              ),
-              title: const Text('Modifier l\'opération'),
-              onTap: () {
-                Navigator.pop(context);
-                _modifierTransaction(transaction);
-              },
-            ),
-            ListTile(
-              leading: const CircleAvatar(
-                backgroundColor: Colors.red,
-                child: Icon(Icons.delete, color: Colors.white, size: 20),
-              ),
-              title: const Text('Supprimer l\'opération', style: TextStyle(color: Colors.red)),
-              onTap: () {
-                Navigator.pop(context);
-                _supprimerTransaction(transaction);
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Future<void> _modifierTransaction(TransactionModel transaction) async {
-    final result = await showModalBottomSheet<dynamic>(
+    final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => ModifierTransactionSheet(transaction: transaction),
     );
-
-    if (result != null) {
-      await _loadData(forceRefresh: true);
-    }
+    if (result == true) await _loadData(forceRefresh: true);
   }
 
   Future<void> _supprimerTransaction(TransactionModel transaction) async {
@@ -258,6 +211,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     if (confirm == true) {
+      setState(() => _isLoading = true);
       try {
         await _transactionService.deleteTransaction(
             transaction.id, transaction.commercantId);
@@ -265,12 +219,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('✅ Transaction supprimée'),
               backgroundColor: AppColors.success));
+          // ✅ forceRefresh après suppression aussi
           await _loadData(forceRefresh: true);
         }
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text('❌ Erreur: $e'), backgroundColor: Colors.red));
+          setState(() => _isLoading = false);
         }
       }
     }
@@ -301,27 +257,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
         children: [
           const OfflineBanner(),
           Expanded(
-            // ⚡ IndexedStack préserve le contenu de chaque onglet sans rechargement
-            child: IndexedStack(
-              index: _currentIndex,
-              children: [
-                _buildDashboardContent(),
-                const BilansScreen(),
-                const RapportsScreen(),
-                const NotificationsScreen(),
-                ProfilScreen(preloadedUser: _currentUser),
-              ],
-            ),
+            child: _buildCurrentTab(),
           ),
         ],
       ),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
-          // Navigation fluide et instantanée
-          setState(() => _currentIndex = index);
+          setState(() {
+            _currentIndex = index;
+            // ✅ Incrémente la clé pour forcer le rechargement de l'onglet
+            _reloadKey++;
+          });
+          if (index == 0) {
+            Future.delayed(
+                const Duration(milliseconds: 100),
+                () => _loadData(forceRefresh: true));
+          }
         },
       ),
+      // ✅ "Saisie simple" au lieu de "Saisie rapide"
       floatingActionButton: _currentIndex == 0
           ? FloatingActionButton.extended(
               onPressed: () => _ouvrirSaisie(isVente: true),
@@ -340,8 +295,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  int _reloadKey = 0;
+
+  Widget _buildCurrentTab() {
+    switch (_currentIndex) {
+      case 0: return _buildDashboardContent();
+      case 1: return BilansScreen(key: ValueKey('bilans_$_reloadKey'));
+      case 2: return RapportsScreen(key: ValueKey('rapports_$_reloadKey'));
+      case 3: return const NotificationsScreen();
+      case 4: return ProfilScreen(
+        key: ValueKey('profil_$_reloadKey'),
+        preloadedUser: _currentUser,
+      );
+      default: return _buildDashboardContent();
+    }
+  }
+
   Widget _buildDashboardContent() {
-    if (_isLoading && _currentUser == null) {
+    if (_isLoading) {
       return const Center(
           child: CircularProgressIndicator(color: AppColors.primaryGreen));
     }
@@ -361,32 +332,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return RefreshIndicator(
+      // ✅ Pull to refresh force aussi un rechargement complet
       onRefresh: () => _loadData(forceRefresh: true),
       color: AppColors.primaryGreen,
       child: CustomScrollView(
         slivers: [
-          // Header
+          // ─── HEADER ──────────────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Container(
               decoration: const BoxDecoration(gradient: AppColors.primaryGradient),
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
                       Container(
-                        width: 48, height: 48,
+                        width: 52, height: 52,
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.25),
                           shape: BoxShape.circle,
                         ),
                         child: Center(
                           child: Text(_getInitial(),
-                              style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold)),
+                              style: const TextStyle(fontSize: 26, color: Colors.white)),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -394,13 +366,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             Text(
                               'Bonjour ${_getPrenom()} 👋',
                               style: const TextStyle(
-                                  color: Colors.white, fontSize: 19,
+                                  color: Colors.white, fontSize: 20,
                                   fontWeight: FontWeight.bold),
                             ),
                             Text(
-                              _currentUser!.typeActivite ?? 'Commerçant(e)',
+                              _currentUser!.typeActivite ?? 'Commerçante',
                               style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.85),
+                                  color: Colors.white.withValues(alpha: 0.8),
                                   fontSize: 13),
                             ),
                           ],
@@ -409,48 +381,50 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ],
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 20),
 
-                  // Carte Solde
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.20),
+                      color: Colors.white.withValues(alpha: 0.18),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.35), width: 1.2),
+                          color: Colors.white.withValues(alpha: 0.3), width: 1.5),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('💵 ARGENT EN CAISSE',
-                            style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-                        const SizedBox(height: 6),
+                        const Text('Mon argent aujourd\'hui',
+                            style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const SizedBox(height: 8),
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: Text(
                             '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
                             style: const TextStyle(
-                                color: Colors.white, fontSize: 32,
+                                color: Colors.white, fontSize: 34,
                                 fontWeight: FontWeight.bold),
                           ),
                         ),
-                        const SizedBox(height: 14),
+                        const SizedBox(height: 16),
                         Row(
                           children: [
                             Expanded(
-                              child: _buildBadgeStat(
-                                'Entrées',
+                              child: _buildMiniStat(
+                                '📈', 'Gagné',
                                 '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F',
                                 Colors.greenAccent,
                               ),
                             ),
-                            const SizedBox(width: 8),
+                            Container(
+                                width: 1, height: 40,
+                                color: Colors.white30,
+                                margin: const EdgeInsets.symmetric(horizontal: 12)),
                             Expanded(
-                              child: _buildBadgeStat(
-                                'Sorties',
+                              child: _buildMiniStat(
+                                '📉', 'Dépensé',
                                 '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F',
                                 Colors.redAccent.shade100,
                               ),
@@ -465,62 +439,62 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Boutons d'action
+          // ─── 2 GROS BOUTONS ──────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 12),
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
               child: Row(
                 children: [
                   Expanded(
                     child: GestureDetector(
                       onTap: () => _ouvrirSaisie(isVente: true),
                       child: Container(
-                        height: 105,
+                        height: 110,
                         decoration: BoxDecoration(
                           color: AppColors.primaryGreen,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
                                 color: AppColors.primaryGreen.withValues(alpha: 0.35),
-                                blurRadius: 10, offset: const Offset(0, 4))
+                                blurRadius: 12, offset: const Offset(0, 4))
                           ],
                         ),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('💰', style: TextStyle(fontSize: 34)),
-                            SizedBox(height: 6),
+                            Text('💰', style: TextStyle(fontSize: 38)),
+                            SizedBox(height: 8),
                             Text("J'AI VENDU",
                                 style: TextStyle(color: Colors.white,
-                                    fontSize: 15, fontWeight: FontWeight.bold)),
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: GestureDetector(
                       onTap: () => _ouvrirSaisie(isVente: false),
                       child: Container(
-                        height: 105,
+                        height: 110,
                         decoration: BoxDecoration(
                           color: AppColors.expenseRed,
-                          borderRadius: BorderRadius.circular(18),
+                          borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
                                 color: AppColors.expenseRed.withValues(alpha: 0.35),
-                                blurRadius: 10, offset: const Offset(0, 4))
+                                blurRadius: 12, offset: const Offset(0, 4))
                           ],
                         ),
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('🛒', style: TextStyle(fontSize: 34)),
-                            SizedBox(height: 6),
+                            Text('🛒', style: TextStyle(fontSize: 38)),
+                            SizedBox(height: 8),
                             Text("J'AI DÉPENSÉ",
                                 style: TextStyle(color: Colors.white,
-                                    fontSize: 15, fontWeight: FontWeight.bold)),
+                                    fontSize: 16, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -531,66 +505,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          // Graphique Semaine
+          // ─── GRAPHIQUE SEMAINE ────────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Activité de la semaine',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
+                  const Text('Cette semaine',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
                   _buildWeekChart(),
                 ],
               ),
             ),
           ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 18)),
+          const SliverToBoxAdapter(child: SizedBox(height: 20)),
 
-          // En-tête avec bouton Voir tout
+          // ─── TRANSACTIONS RÉCENTES ────────────────────────────────────────
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Dernières opérations (${_recentTransactions.length})',
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      if (_currentUser != null) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => HistoriqueCompletScreen(
-                              commercantId: _currentUser!.id,
-                            ),
-                          ),
-                        ).then((_) => _loadData(forceRefresh: true));
-                      }
-                    },
-                    icon: const Icon(Icons.history, size: 16, color: AppColors.primaryGreen),
-                    label: const Text(
-                      'Voir tout >',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryGreen,
-                      ),
-                    ),
-                  ),
-                ],
+              child: Text(
+                'Dernières opérations (${_recentTransactions.length})',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ),
           ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 4)),
+          const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-          // Liste dynamique des dernières opérations
           _recentTransactions.isEmpty
               ? const SliverToBoxAdapter(
                   child: Padding(
@@ -598,10 +543,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Center(
                       child: Column(
                         children: [
-                          Text('📭', style: TextStyle(fontSize: 48)),
+                          Text('📭', style: TextStyle(fontSize: 52)),
                           SizedBox(height: 12),
-                          Text('Aucune opération enregistrée aujourd\'hui',
-                              style: TextStyle(color: Colors.grey, fontSize: 14),
+                          Text('Aucune opération pour l\'instant',
+                              style: TextStyle(color: Colors.grey, fontSize: 15),
+                              textAlign: TextAlign.center),
+                          SizedBox(height: 8),
+                          Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ',
+                              style: TextStyle(color: Colors.grey, fontSize: 13),
                               textAlign: TextAlign.center),
                         ],
                       ),
@@ -610,43 +559,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 )
               : SliverList(
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final t = _recentTransactions[index];
-                      return KeyedSubtree(
-                        key: ValueKey('${t.id}_${t.montant}_${t.type.name}_${t.dateCreation.millisecondsSinceEpoch}'),
-                        child: _buildCleanTransactionCard(t),
-                      );
-                    },
+                    (context, index) =>
+                        _buildTransactionCard(_recentTransactions[index]),
                     childCount: _recentTransactions.length,
                   ),
                 ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+          const SliverToBoxAdapter(child: SizedBox(height: 110)),
         ],
       ),
     );
   }
 
-  Widget _buildBadgeStat(String label, String valeur, Color couleur) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 10)),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              valeur,
-              style: TextStyle(color: couleur, fontSize: 14, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
+  Widget _buildMiniStat(String emoji, String label, String valeur, Color couleur) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Text(valeur,
+              style: TextStyle(
+                  color: couleur, fontSize: 17, fontWeight: FontWeight.bold)),
+        ),
+      ],
     );
   }
 
@@ -655,12 +599,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     if (_weekData.isEmpty) {
       return Container(
-        height: 120,
+        height: 140,
         decoration: BoxDecoration(
-            color: theme.cardColor, borderRadius: BorderRadius.circular(14)),
+            color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
         child: const Center(
           child: Text('📊 Aucune donnée cette semaine',
-              style: TextStyle(color: Colors.grey, fontSize: 13)),
+              style: TextStyle(color: Colors.grey)),
         ),
       );
     }
@@ -672,18 +616,18 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
 
     return Container(
-      height: 140,
-      padding: const EdgeInsets.all(12),
+      height: 160,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-          color: theme.cardColor, borderRadius: BorderRadius.circular(14)),
+          color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: _weekData.map((day) {
           final recettes = day['recettes'] as double;
           final depenses = day['depenses'] as double;
-          final hR = maxValue > 0 ? (recettes / maxValue) * 80 : 0.0;
-          final hD = maxValue > 0 ? (depenses / maxValue) * 80 : 0.0;
+          final hR = maxValue > 0 ? (recettes / maxValue) * 100 : 0.0;
+          final hD = maxValue > 0 ? (depenses / maxValue) * 100 : 0.0;
 
           return Column(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -692,17 +636,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    width: 12, height: hR.clamp(3.0, 80.0),
+                    width: 14, height: hR.clamp(3.0, 100.0),
                     decoration: BoxDecoration(
                         color: AppColors.primaryGreen,
-                        borderRadius: BorderRadius.circular(3)),
+                        borderRadius: BorderRadius.circular(4)),
                   ),
-                  const SizedBox(width: 2),
+                  const SizedBox(width: 3),
                   Container(
-                    width: 12, height: hD.clamp(3.0, 80.0),
+                    width: 14, height: hD.clamp(3.0, 100.0),
                     decoration: BoxDecoration(
                         color: AppColors.expenseRed,
-                        borderRadius: BorderRadius.circular(3)),
+                        borderRadius: BorderRadius.circular(4)),
                   ),
                 ],
               ),
@@ -718,7 +662,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _buildCleanTransactionCard(TransactionModel transaction) {
+  Widget _buildTransactionCard(TransactionModel transaction) {
     final theme = Theme.of(context);
     final timeStr = DateFormat('HH:mm').format(transaction.dateCreation);
     final dateStr = DateFormat('dd/MM/yyyy').format(transaction.date);
@@ -734,75 +678,115 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ? 'Aujourd\'hui, $timeStr'
         : isYesterday ? 'Hier, $timeStr' : dateStr;
 
+    // ✅ "Vente rapide" → "Vente" / "Dépense rapide" → "Dépense"
     String displayDescription = transaction.description ?? transaction.categorie;
     if (displayDescription == 'Vente rapide') displayDescription = 'Vente';
     if (displayDescription == 'Dépense rapide') displayDescription = 'Dépense';
 
-    return InkWell(
-      onTap: () => _afficherOptionsTransaction(transaction),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: theme.cardColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border(
-            left: BorderSide(
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border(
+          left: BorderSide(
+            color: transaction.estRecette
+                ? AppColors.primaryGreen : AppColors.expenseRed,
+            width: 4,
+          ),
+        ),
+        boxShadow: [
+          BoxShadow(
+              color: theme.colorScheme.shadow.withValues(alpha: 0.05),
+              blurRadius: 6, offset: const Offset(0, 2))
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 48, height: 48,
+            decoration: BoxDecoration(
               color: transaction.estRecette
-                  ? AppColors.primaryGreen : AppColors.expenseRed,
-              width: 4,
+                  ? Colors.green.shade50 : Colors.red.shade50,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: Text(_getCategoryIcon(transaction.categorie),
+                  style: const TextStyle(fontSize: 24)),
             ),
           ),
-          boxShadow: [
-            BoxShadow(
-                color: theme.colorScheme.shadow.withValues(alpha: 0.04),
-                blurRadius: 5, offset: const Offset(0, 2))
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42, height: 42,
-              decoration: BoxDecoration(
-                color: transaction.estRecette
-                    ? Colors.green.shade50 : Colors.red.shade50,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Center(
-                child: Text(_getCategoryIcon(transaction.categorie),
-                    style: const TextStyle(fontSize: 20)),
-              ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  displayDescription,
+                  style: const TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600,
+                      color: Color(0xFF1F2937)),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 3),
+                Text(displayDate,
+                    style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
+              ],
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    displayDescription,
-                    style: const TextStyle(
-                        fontSize: 14, fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F2937)),
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
+                  style: TextStyle(
+                    fontSize: 16, fontWeight: FontWeight.bold,
+                    color: transaction.estRecette
+                        ? Colors.green.shade600 : Colors.red.shade600,
                   ),
-                  const SizedBox(height: 2),
-                  Text(displayDate,
-                      style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280))),
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Bouton modifier
+                  GestureDetector(
+                    onTap: () => _modifierTransaction(transaction),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: Colors.blue.shade50,
+                          borderRadius: BorderRadius.circular(6)),
+                      child: const Text('✏️ Modifier',
+                          style: TextStyle(
+                              color: Colors.blue, fontSize: 11,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  // Bouton supprimer
+                  GestureDetector(
+                    onTap: () => _supprimerTransaction(transaction),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(6)),
+                      child: const Text('🗑 Supprimer',
+                          style: TextStyle(
+                              color: Colors.red, fontSize: 11,
+                              fontWeight: FontWeight.w500)),
+                    ),
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
-              style: TextStyle(
-                fontSize: 15, fontWeight: FontWeight.bold,
-                color: transaction.estRecette
-                    ? Colors.green.shade700 : Colors.red.shade700,
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -5,10 +5,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import '../../core/constants/app_colors.dart';
 
 class SecuriserCompteScreen extends StatefulWidget {
-  const SecuriserCompteScreen({super.key});
+  // ✅ isOnboarding: true → vient de l'inscription → redirige vers /mes_produits
+  // ✅ isOnboarding: false → vient du profil → Navigator.pop()
+  final bool isOnboarding;
+  const SecuriserCompteScreen({super.key, this.isOnboarding = true});
 
   @override
-  State<SecuriserCompteScreen> createState() => _SecuriserCompteScreenState();
+  State<SecuriserCompteScreen> createState() =>
+      _SecuriserCompteScreenState();
 }
 
 class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
@@ -40,8 +44,8 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     _slideAnim = Tween<Offset>(
       begin: const Offset(0, 0.15),
       end: Offset.zero,
-    ).animate(
-        CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic));
+    ).animate(CurvedAnimation(
+        parent: _animController, curve: Curves.easeOutCubic));
     _animController.forward();
     _loadSecurityStatus();
   }
@@ -53,7 +57,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     super.dispose();
   }
 
-  // ─── Vérifie si déjà sécurisé ────────────────────────────────────────────
+  // ─── Vérifie l'état de sécurité actuel ──────────────────────────────────
   Future<void> _loadSecurityStatus() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -90,7 +94,18 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
 
   bool get _estSecurise => _googleLie || _emailSecours != null;
 
-  // ─── Lier Google ──────────────────────────────────────────────────────────
+  // ─── Navigation ──────────────────────────────────────────────────────────
+  void _naviguerSuite() {
+    if (widget.isOnboarding) {
+      // Après inscription → aller configurer les produits
+      Navigator.pushReplacementNamed(context, '/mes_produits');
+    } else {
+      // Depuis le profil → retour arrière
+      Navigator.pop(context);
+    }
+  }
+
+  // ─── Lier Google ─────────────────────────────────────────────────────────
   Future<void> _lierGoogle() async {
     setState(() {
       _isLoadingGoogle = true;
@@ -130,7 +145,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
         _isLoadingGoogle = false;
       });
 
-      _showSuccess('Compte Google lié avec succès !');
+      _showSuccessAndNavigate('Compte Google lié avec succès !');
     } on FirebaseAuthException catch (e) {
       String msg;
       if (e.code == 'credential-already-in-use') {
@@ -148,12 +163,12 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
       setState(() {
         _isLoadingGoogle = false;
         _errorMessage =
-            'Connexion Google échouée.\nAssure-toi d\'avoir une connexion internet stable.\nSi le problème persiste, utilise l\'option "Ajouter un email".';
+            'Connexion Google échouée.\nVérifie ta connexion internet\nou utilise l\'option email.';
       });
     }
   }
 
-  // ─── Lier Email ───────────────────────────────────────────────────────────
+  // ─── Lier Email ──────────────────────────────────────────────────────────
   Future<void> _lierEmail() async {
     final email = _emailController.text.trim();
 
@@ -190,7 +205,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
       });
 
       _emailController.clear();
-      _showSuccess('Email de secours enregistré !');
+      _showSuccessAndNavigate('Email de secours enregistré !');
     } catch (e) {
       setState(() {
         _isLoadingEmail = false;
@@ -199,7 +214,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     }
   }
 
-  // ─── Supprimer email de secours ───────────────────────────────────────────
+  // ─── Supprimer email ─────────────────────────────────────────────────────
   Future<void> _supprimerEmail() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -219,7 +234,14 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     }
   }
 
+  void _showSuccessAndNavigate(String message) {
+    _showSuccess(message);
+    Future.delayed(
+        const Duration(milliseconds: 1000), _naviguerSuite);
+  }
+
   void _showSuccess(String message) {
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -231,21 +253,40 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
         ),
         backgroundColor: AppColors.primaryGreen,
         behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
         margin: const EdgeInsets.all(16),
       ),
     );
-  }
-
-  void _allerDashboard() {
-    Navigator.pushReplacementNamed(context, '/dashboard');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
+      appBar: !widget.isOnboarding
+          ? AppBar(
+              backgroundColor: Colors.transparent,
+              elevation: 0,
+              leading: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  margin: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.arrow_back_ios_new,
+                      color: Colors.black87, size: 18),
+                ),
+              ),
+              title: const Text('Sécuriser mon compte',
+                  style: TextStyle(
+                      color: Color(0xFF1A1A2E),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold)),
+            )
+          : null,
       body: SafeArea(
         child: _isLoadingStatus
             ? const Center(
@@ -256,21 +297,23 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                 child: SlideTransition(
                   position: _slideAnim,
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
                     child: Column(
                       children: [
-                        // ── Icône ───────────────────────────────────────────
+                        // ── Icône ──────────────────────────────────────
                         Container(
                           width: 110,
                           height: 110,
                           decoration: BoxDecoration(
                             color: _estSecurise
-                                ? AppColors.primaryGreen.withOpacity(0.1)
+                                ? AppColors.primaryGreen
+                                    .withOpacity(0.1)
                                 : Colors.orange.withOpacity(0.1),
                             shape: BoxShape.circle,
                             border: Border.all(
                               color: _estSecurise
-                                  ? AppColors.primaryGreen.withOpacity(0.3)
+                                  ? AppColors.primaryGreen
+                                      .withOpacity(0.3)
                                   : Colors.orange.withOpacity(0.3),
                               width: 2.5,
                             ),
@@ -285,7 +328,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
 
                         const SizedBox(height: 20),
 
-                        // ── Titre ────────────────────────────────────────────
+                        // ── Titre ──────────────────────────────────────
                         Text(
                           _estSecurise
                               ? 'Compte sécurisé !'
@@ -320,15 +363,18 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
                               color: Colors.red.shade50,
-                              borderRadius: BorderRadius.circular(12),
-                              border:
-                                  Border.all(color: Colors.red.shade200),
+                              borderRadius:
+                                  BorderRadius.circular(12),
+                              border: Border.all(
+                                  color: Colors.red.shade200),
                             ),
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 const Text('⚠️',
-                                    style: TextStyle(fontSize: 18)),
+                                    style:
+                                        TextStyle(fontSize: 18)),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -340,8 +386,8 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                                   ),
                                 ),
                                 GestureDetector(
-                                  onTap: () =>
-                                      setState(() => _errorMessage = null),
+                                  onTap: () => setState(
+                                      () => _errorMessage = null),
                                   child: const Icon(Icons.close,
                                       color: Colors.red, size: 18),
                                 ),
@@ -351,36 +397,39 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                           const SizedBox(height: 20),
                         ],
 
-                        // ── Option Google ─────────────────────────────────────
+                        // ── Option Google ─────────────────────────────
                         _buildOptionCard(
                           leading: Container(
                             width: 52,
                             height: 52,
                             decoration: BoxDecoration(
                               color: const Color(0xFFE8F0FE),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius:
+                                  BorderRadius.circular(14),
                             ),
                             child: Center(
                               child: _googleLie
-                                  ? const Icon(Icons.check_circle,
-                                      color: AppColors.primaryGreen,
+                                  ? const Icon(
+                                      Icons.check_circle,
+                                      color:
+                                          AppColors.primaryGreen,
                                       size: 28)
-                                  : const Text(
-                                      'G',
+                                  : const Text('G',
                                       style: TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFF4285F4),
-                                        fontFamily: 'serif',
-                                      ),
-                                    ),
+                                          fontSize: 24,
+                                          fontWeight:
+                                              FontWeight.bold,
+                                          color:
+                                              Color(0xFF4285F4),
+                                          fontFamily: 'serif')),
                             ),
                           ),
                           title: _googleLie
                               ? 'Google lié ✅'
                               : 'Lier avec Google',
                           subtitle: _googleLie
-                              ? _emailSecours ?? 'Compte Google connecté'
+                              ? _emailSecours ??
+                                  'Compte Google connecté'
                               : 'Recommandé ⭐ — rapide et sécurisé',
                           isLoading: _isLoadingGoogle,
                           isDone: _googleLie,
@@ -389,55 +438,66 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
 
                         const SizedBox(height: 12),
 
-                        // ── Option Email ──────────────────────────────────────
+                        // ── Option Email ──────────────────────────────
                         if (!_showEmailForm)
                           _buildOptionCard(
                             leading: Container(
                               width: 52,
                               height: 52,
                               decoration: BoxDecoration(
-                                color: _emailSecours != null && !_googleLie
+                                color: _emailSecours != null &&
+                                        !_googleLie
                                     ? AppColors.primaryGreen
                                         .withOpacity(0.1)
                                     : Colors.grey[100],
-                                borderRadius: BorderRadius.circular(14),
+                                borderRadius:
+                                    BorderRadius.circular(14),
                               ),
                               child: Center(
-                                child: _emailSecours != null && !_googleLie
-                                    ? const Icon(Icons.check_circle,
-                                        color: AppColors.primaryGreen,
+                                child: _emailSecours != null &&
+                                        !_googleLie
+                                    ? const Icon(
+                                        Icons.check_circle,
+                                        color:
+                                            AppColors.primaryGreen,
                                         size: 28)
                                     : const Text('📧',
-                                        style: TextStyle(fontSize: 24)),
+                                        style: TextStyle(
+                                            fontSize: 24)),
                               ),
                             ),
-                            title: _emailSecours != null && !_googleLie
+                            title: _emailSecours != null &&
+                                    !_googleLie
                                 ? 'Email enregistré ✅'
                                 : 'Email de secours',
-                            subtitle: _emailSecours != null && !_googleLie
+                            subtitle: _emailSecours != null &&
+                                    !_googleLie
                                 ? _emailSecours!
                                 : 'Pour récupérer ton compte par email',
                             isLoading: false,
-                            isDone: _emailSecours != null && !_googleLie,
-                            trailing: _emailSecours != null && !_googleLie
+                            isDone: _emailSecours != null &&
+                                !_googleLie,
+                            trailing: _emailSecours != null &&
+                                    !_googleLie
                                 ? GestureDetector(
                                     onTap: _supprimerEmail,
                                     child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6),
+                                      padding:
+                                          const EdgeInsets.symmetric(
+                                              horizontal: 12,
+                                              vertical: 6),
                                       decoration: BoxDecoration(
                                         color: Colors.red.shade50,
                                         borderRadius:
-                                            BorderRadius.circular(8),
+                                            BorderRadius.circular(
+                                                8),
                                       ),
-                                      child: const Text(
-                                        'Supprimer',
-                                        style: TextStyle(
-                                          color: Colors.red,
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w600,
-                                        ),
-                                      ),
+                                      child: const Text('Supprimer',
+                                          style: TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 12,
+                                              fontWeight:
+                                                  FontWeight.w600)),
                                     ),
                                   )
                                 : null,
@@ -455,32 +515,31 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                         Row(
                           children: [
                             Expanded(
-                                child: Divider(color: Colors.grey[300])),
+                                child:
+                                    Divider(color: Colors.grey[300])),
                             Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14),
-                              child: Text(
-                                'OU',
-                                style: TextStyle(
-                                  color: Colors.grey[500],
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                              child: Text('OU',
+                                  style: TextStyle(
+                                      color: Colors.grey[500],
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600)),
                             ),
                             Expanded(
-                                child: Divider(color: Colors.grey[300])),
+                                child:
+                                    Divider(color: Colors.grey[300])),
                           ],
                         ),
 
                         const SizedBox(height: 20),
 
-                        // Bouton dashboard
+                        // ── Bouton principal ──────────────────────────
                         SizedBox(
                           width: double.infinity,
                           height: 58,
                           child: ElevatedButton(
-                            onPressed: _allerDashboard,
+                            onPressed: _naviguerSuite,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: _estSecurise
                                   ? AppColors.primaryGreen
@@ -488,11 +547,14 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                               foregroundColor: Colors.white,
                               elevation: 0,
                               shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16)),
+                                  borderRadius:
+                                      BorderRadius.circular(16)),
                             ),
                             child: Text(
                               _estSecurise
-                                  ? '🚀  Aller au tableau de bord'
+                                  ? (widget.isOnboarding
+                                      ? '🚀  Continuer'
+                                      : '✅  Terminé')
                                   : 'Plus tard',
                               style: const TextStyle(
                                   fontSize: 17,
@@ -504,9 +566,12 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                         if (!_estSecurise) ...[
                           const SizedBox(height: 10),
                           Text(
-                            'Tu pourras le faire plus tard dans\nProfil → Sécurité',
+                            widget.isOnboarding
+                                ? 'Tu pourras le faire plus tard dans\nProfil → Sécuriser mon compte'
+                                : 'Tu pourras le faire à tout moment depuis ton profil',
                             style: TextStyle(
-                                fontSize: 12, color: Colors.grey[500]),
+                                fontSize: 12,
+                                color: Colors.grey[500]),
                             textAlign: TextAlign.center,
                           ),
                         ],
@@ -519,7 +584,6 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     );
   }
 
-  // ─── Card option ─────────────────────────────────────────────────────────
   Widget _buildOptionCard({
     required Widget leading,
     required String title,
@@ -541,7 +605,7 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
             color: isDone
                 ? AppColors.primaryGreen.withOpacity(0.4)
                 : const Color(0xFFE5E7EB),
-            width: isDone ? 1.5 : 1.5,
+            width: 1.5,
           ),
           boxShadow: [
             BoxShadow(
@@ -559,32 +623,26 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      color: isDone
-                          ? AppColors.primaryGreen
-                          : const Color(0xFF1A1A2E),
-                    ),
-                  ),
+                  Text(title,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: isDone
+                            ? AppColors.primaryGreen
+                            : const Color(0xFF1A1A2E),
+                      )),
                   const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[500],
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  Text(subtitle,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey[500]),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
                 ],
               ),
             ),
             const SizedBox(width: 8),
             if (isLoading)
-              const SizedBox(
+              SizedBox(
                 width: 20,
                 height: 20,
                 child: CircularProgressIndicator(
@@ -602,7 +660,6 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
     );
   }
 
-  // ─── Formulaire email ────────────────────────────────────────────────────
   Widget _buildEmailForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -610,7 +667,8 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-            color: AppColors.primaryGreen.withOpacity(0.3), width: 1.5),
+            color: AppColors.primaryGreen.withOpacity(0.3),
+            width: 1.5),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.04),
@@ -626,21 +684,16 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
             children: [
               Text('📧', style: TextStyle(fontSize: 22)),
               SizedBox(width: 10),
-              Text(
-                'Ton adresse email',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A2E),
-                ),
-              ),
+              Text('Ton adresse email',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1A1A2E))),
             ],
           ),
           const SizedBox(height: 6),
-          Text(
-            'Entre ton Gmail, Yahoo ou autre email',
-            style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-          ),
+          Text('Entre ton Gmail, Yahoo ou autre email',
+              style: TextStyle(fontSize: 12, color: Colors.grey[500])),
           const SizedBox(height: 14),
           TextField(
             controller: _emailController,
@@ -685,7 +738,8 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                     side: BorderSide(color: Colors.grey[300]!),
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: const Text('Annuler',
                       style: TextStyle(fontSize: 15)),
@@ -701,15 +755,16 @@ class _SecuriserCompteScreenState extends State<SecuriserCompteScreen>
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    padding:
+                        const EdgeInsets.symmetric(vertical: 14),
                   ),
                   child: _isLoadingEmail
                       ? const SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
+                              strokeWidth: 2,
+                              color: Colors.white))
                       : const Text('Enregistrer',
                           style: TextStyle(
                               fontSize: 15,
