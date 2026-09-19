@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../widgets/custom_bottom_nav.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Actions destructives)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class ConfidentialiteScreen extends StatefulWidget {
   const ConfidentialiteScreen({super.key});
@@ -19,52 +24,63 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
   int _currentIndex = 4;
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair et doux
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '🔒 Confidentialité',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.shield_outlined, size: 22, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Confidentialité',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────────────────
+            // ── HEADER ──────────────────────────────────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.08),
+                color: emeraldDark.withOpacity(0.08), // ✅ Règle des 10%
               ),
               child: Column(
                 children: [
-                  const Text('🛡️', style: TextStyle(fontSize: 60)),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: emeraldDark.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.security_rounded, size: 48, color: emeraldDark),
+                  ),
                   const SizedBox(height: 14),
                   const Text(
                     'Vos données sont protégées',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: textDark,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 8),
                   Text(
                     'Gérez comment vos informations sont utilisées.',
-                    style: TextStyle(
-                        fontSize: 15, color: Colors.grey[600], height: 1.4),
+                    style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -73,63 +89,44 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
             const SizedBox(height: 20),
 
-            // ── Options vie privée ───────────────────────────────────────────
+            // ── OPTIONS VIE PRIVÉE ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle('⚙️', 'Mes préférences'),
+                  _buildSectionTitle(Icons.tune_rounded, 'Mes préférences'),
                   const SizedBox(height: 14),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
                     ),
                     child: Column(
                       children: [
                         _buildToggleOption(
-                          emoji: '📊',
+                          icon: Icons.analytics_outlined,
                           title: 'Partager des statistiques anonymes',
-                          description:
-                              'Aidez-nous à améliorer MaFortune en partageant des données d\'utilisation sans nom.',
+                          description: 'Aidez-nous à améliorer MaFortune en partageant des données d\'utilisation sans nom.',
                           value: _partagerStats,
-                          onChanged: (v) =>
-                              setState(() => _partagerStats = v),
+                          onChanged: (v) => setState(() => _partagerStats = v),
                         ),
-                        Divider(
-                            height: 1,
-                            color: Colors.grey[100],
-                            indent: 20,
-                            endIndent: 20),
+                        Divider(height: 1, color: Colors.grey[100], indent: 20, endIndent: 20),
                         _buildToggleOption(
-                          emoji: '📈',
+                          icon: Icons.data_usage_outlined,
                           title: 'Collecte des données d\'utilisation',
-                          description:
-                              'Nous utilisons ces données pour améliorer vos recommandations.',
+                          description: 'Nous utilisons ces données pour améliorer vos recommandations.',
                           value: _collecterDonnees,
-                          onChanged: (v) =>
-                              setState(() => _collecterDonnees = v),
+                          onChanged: (v) => setState(() => _collecterDonnees = v),
                         ),
-                        Divider(
-                            height: 1,
-                            color: Colors.grey[100],
-                            indent: 20,
-                            endIndent: 20),
+                        Divider(height: 1, color: Colors.grey[100], indent: 20, endIndent: 20),
                         _buildToggleOption(
-                          emoji: '🔔',
+                          icon: Icons.lock_rounded,
                           title: 'Notifications sur écran verrouillé',
-                          description:
-                              'Afficher le contenu de vos notifications quand le téléphone est verrouillé.',
+                          description: 'Afficher le contenu de vos notifications quand le téléphone est verrouillé.',
                           value: _notificationsSecrets,
-                          onChanged: (v) =>
-                              setState(() => _notificationsSecrets = v),
+                          onChanged: (v) => setState(() => _notificationsSecrets = v),
                           isLast: true,
                         ),
                       ],
@@ -141,47 +138,39 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Protection des données ────────────────────────────────────────
+            // ── PROTECTION DES DONNÉES ────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle('🛡️', 'Protection des données'),
+                  _buildSectionTitle(Icons.shield_outlined, 'Protection des données'),
                   const SizedBox(height: 14),
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
                     ),
                     child: Column(
                       children: [
                         _buildProtectionItem(
-                          emoji: '🔐',
+                          icon: Icons.vpn_key_outlined,
                           title: 'Chiffrement des données',
-                          description:
-                              'Vos données sont chiffrées de bout en bout.',
+                          description: 'Vos données sont chiffrées de bout en bout.',
                         ),
                         const SizedBox(height: 14),
                         _buildProtectionItem(
-                          emoji: '👆',
+                          icon: Icons.fingerprint_rounded,
                           title: 'Authentification biométrique',
-                          description:
-                              'Utilisez votre empreinte digitale pour vous connecter.',
+                          description: 'Utilisez votre empreinte digitale pour vous connecter.',
                         ),
                         const SizedBox(height: 14),
                         _buildProtectionItem(
-                          emoji: '☁️',
+                          icon: Icons.cloud_done_outlined,
                           title: 'Sauvegarde automatique',
-                          description:
-                              'Vos données sont sauvegardées chaque jour.',
+                          description: 'Vos données sont sauvegardées chaque jour.',
                         ),
                       ],
                     ),
@@ -192,56 +181,44 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Gestion des données ───────────────────────────────────────────
+            // ── GESTION DES DONNÉES ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSectionTitle('🗂️', 'Gestion de mes données'),
+                  _buildSectionTitle(Icons.folder_open_outlined, 'Gestion de mes données'),
                   const SizedBox(height: 14),
                   Container(
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                        ),
-                      ],
+                      boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
                     ),
                     child: Column(
                       children: [
                         // Exporter
                         _buildActionItem(
-                          emoji: '📥',
+                          icon: Icons.download_rounded,
                           title: 'Exporter mes données',
                           subtitle: 'Télécharger toutes mes transactions en JSON',
-                          color: AppColors.primaryGreen,
+                          color: emeraldDark,
                           onTap: () {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
-                                content: Text(
-                                  '📥 Export en cours...',
-                                  style: TextStyle(fontSize: 16),
-                                ),
-                                backgroundColor: AppColors.primaryGreen,
+                                content: Text('📥 Export en cours...', style: TextStyle(fontSize: 16)),
+                                backgroundColor: emeraldDark,
                               ),
                             );
                           },
                         ),
-                        Divider(
-                            height: 1,
-                            color: Colors.grey[100],
-                            indent: 20,
-                            endIndent: 20),
+                        Divider(height: 1, color: Colors.grey[100], indent: 20, endIndent: 20),
                         // Supprimer
                         _buildActionItem(
-                          emoji: '🗑️',
+                          icon: Icons.delete_outline_rounded,
                           title: 'Supprimer toutes mes données',
                           subtitle: 'Cette action est irréversible',
-                          color: Colors.red,
+                          color: brickRed, // ✅ Rouge Brique pour les actions destructives
                           onTap: _showDeleteConfirmation,
                           isDestructive: true,
                         ),
@@ -261,20 +238,11 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
         onTap: (index) {
           setState(() => _currentIndex = index);
           switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, '/dashboard');
-              break;
-            case 1:
-              Navigator.pushReplacementNamed(context, '/bilans');
-              break;
-            case 2:
-              Navigator.pushReplacementNamed(context, '/rapports');
-              break;
-            case 3:
-              Navigator.pushReplacementNamed(context, '/alertes');
-              break;
-            case 4:
-              break;
+            case 0: Navigator.pushReplacementNamed(context, '/dashboard'); break;
+            case 1: Navigator.pushReplacementNamed(context, '/bilans'); break;
+            case 2: Navigator.pushReplacementNamed(context, '/rapports'); break;
+            case 3: Navigator.pushReplacementNamed(context, '/alertes'); break;
+            case 4: break;
           }
         },
       ),
@@ -282,18 +250,21 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
   }
 
   // ─── TITRE SECTION ───────────────────────────────────────────────────────────
-  Widget _buildSectionTitle(String emoji, String title) {
+  Widget _buildSectionTitle(IconData icon, String title) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: emeraldDark.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: emeraldDark, size: 20),
+        ),
+        const SizedBox(width: 12),
         Text(
           title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Colors.black87,
-          ),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
         ),
       ],
     );
@@ -301,7 +272,7 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
   // ─── OPTION TOGGLE ────────────────────────────────────────────────────────────
   Widget _buildToggleOption({
-    required String emoji,
+    required IconData icon,
     required String title,
     required String description,
     required bool value,
@@ -313,54 +284,42 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Emoji dans cercle
+          // ✅ Icône dans cercle à 10% d'opacité
           Container(
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppColors.primaryGreen.withOpacity(0.1),
+              color: emeraldDark.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(emoji, style: const TextStyle(fontSize: 22)),
-            ),
+            child: Center(child: Icon(icon, color: emeraldDark, size: 22)),
           ),
-
           const SizedBox(width: 14),
-
-          // Texte
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   description,
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey[600],
-                    height: 1.4,
-                  ),
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.4),
                 ),
               ],
             ),
           ),
-
           const SizedBox(width: 10),
-
-          // Switch
+          // ✅ Switch harmonisé avec la charte
           Switch(
             value: value,
             onChanged: onChanged,
-            activeColor: AppColors.primaryGreen,
+            activeColor: Colors.white,
+            activeTrackColor: emeraldDark,
+            inactiveThumbColor: Colors.grey[400],
+            inactiveTrackColor: Colors.grey[300],
           ),
         ],
       ),
@@ -369,14 +328,21 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
   // ─── ITEM PROTECTION ─────────────────────────────────────────────────────────
   Widget _buildProtectionItem({
-    required String emoji,
+    required IconData icon,
     required String title,
     required String description,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 26)),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: emeraldDark.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: emeraldDark, size: 22),
+        ),
         const SizedBox(width: 14),
         Expanded(
           child: Column(
@@ -384,39 +350,33 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
             children: [
               Text(
                 title,
-                style: const TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
               ),
               const SizedBox(height: 4),
               Text(
                 description,
-                style: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey[600],
-                  height: 1.4,
-                ),
+                style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.4),
               ),
             ],
           ),
         ),
-        // Badge vert "Actif"
+        // ✅ Badge "Actif" harmonisé
         Container(
-          padding:
-              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.primaryGreen.withOpacity(0.1),
+            color: emeraldDark.withOpacity(0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: const Text(
-            '✅ Actif',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: AppColors.primaryGreen,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_rounded, size: 14, color: emeraldDark),
+              const SizedBox(width: 4),
+              const Text(
+                'Actif',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: emeraldDark),
+              ),
+            ],
           ),
         ),
       ],
@@ -425,7 +385,7 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
 
   // ─── ITEM ACTION ─────────────────────────────────────────────────────────────
   Widget _buildActionItem({
-    required String emoji,
+    required IconData icon,
     required String title,
     required String subtitle,
     required Color color,
@@ -442,12 +402,10 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: color.withOpacity(0.1), // ✅ Règle des 10%
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 22)),
-              ),
+              child: Center(child: Icon(icon, color: color, size: 22)),
             ),
             const SizedBox(width: 14),
             Expanded(
@@ -459,7 +417,7 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: isDestructive ? Colors.red : Colors.black87,
+                      color: isDestructive ? brickRed : textDark,
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -467,17 +425,13 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 13,
-                      color: isDestructive
-                          ? Colors.red.withOpacity(0.7)
-                          : Colors.grey[600],
+                      color: isDestructive ? brickRed.withOpacity(0.7) : Colors.grey[600],
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios,
-                size: 16,
-                color: isDestructive ? Colors.red[200] : Colors.grey[400]),
+            Icon(Icons.arrow_forward_ios_rounded, size: 16, color: isDestructive ? brickRed.withOpacity(0.4) : Colors.grey[400]),
           ],
         ),
       ),
@@ -494,31 +448,31 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('⚠️', style: TextStyle(fontSize: 52)),
+            // ✅ Icône d'avertissement dans un cercle à 10% d'opacité
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: brickRed.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.warning_amber_rounded, size: 48, color: brickRed),
+            ),
             const SizedBox(height: 16),
             const Text(
               'Supprimer toutes\nles données ?',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.07),
+                color: brickRed.withOpacity(0.07),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 'Toutes vos transactions et données personnelles seront supprimées définitivement. Cette action est irréversible.',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.red[800],
-                  height: 1.5,
-                ),
+                style: TextStyle(fontSize: 14, color: brickRed.withOpacity(0.9), height: 1.5),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -531,25 +485,17 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text(
-                        '🗑️ Suppression en cours...',
-                        style: TextStyle(fontSize: 16),
-                      ),
-                      backgroundColor: Colors.red,
+                      content: Text('🗑️ Suppression en cours...', style: TextStyle(fontSize: 16)),
+                      backgroundColor: brickRed,
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: brickRed, // ✅ Rouge Brique
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text(
-                  'Supprimer définitivement',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text('Supprimer définitivement', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 10),
@@ -559,13 +505,11 @@ class _ConfidentialiteScreenState extends State<ConfidentialiteScreen> {
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
+                  foregroundColor: textDark,
                   side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Annuler',
-                    style: TextStyle(fontSize: 16)),
+                child: const Text('Annuler', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],

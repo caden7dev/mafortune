@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../widgets/custom_bottom_nav.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class ConditionsScreen extends StatefulWidget {
   const ConditionsScreen({super.key});
@@ -12,95 +17,100 @@ class ConditionsScreen extends StatefulWidget {
 class _ConditionsScreenState extends State<ConditionsScreen> {
   int _currentIndex = 4;
 
+  // ✅ Remplacement des émojis par des icônes Material Design épurées
   final List<Map<String, dynamic>> _sections = [
     {
-      'emoji': '📋',
+      'icon': Icons.assignment_outlined,
       'titre': 'Acceptation des conditions',
-      'texte':
-          'En utilisant MaFortune, vous acceptez les présentes conditions d\'utilisation. Si vous n\'acceptez pas ces conditions, veuillez ne pas utiliser l\'application.',
+      'texte': 'En utilisant MaFortune, vous acceptez les présentes conditions d\'utilisation. Si vous n\'acceptez pas ces conditions, veuillez ne pas utiliser l\'application.',
     },
     {
-      'emoji': '📱',
+      'icon': Icons.smartphone_outlined,
       'titre': 'Utilisation de l\'application',
-      'texte':
-          'MaFortune est destinée aux commerçants du secteur informel au Togo pour gérer leurs finances. Vous vous engagez à utiliser l\'application de manière légale et honnête.',
+      'texte': 'MaFortune est destinée aux commerçants du secteur informel au Togo pour gérer leurs finances. Vous vous engagez à utiliser l\'application de manière légale et honnête.',
     },
     {
-      'emoji': '👤',
+      'icon': Icons.person_outline,
       'titre': 'Votre compte',
-      'texte':
-          'Vous êtes responsable de la confidentialité de votre code PIN et de votre mot de passe. Ne partagez jamais vos identifiants avec une autre personne.',
+      'texte': 'Vous êtes responsable de la confidentialité de votre code PIN et de votre mot de passe. Ne partagez jamais vos identifiants avec une autre personne.',
     },
     {
-      'emoji': '💰',
+      'icon': Icons.account_balance_wallet_outlined,
       'titre': 'Vos données financières',
-      'texte':
-          'Les données financières que vous saisissez dans MaFortune vous appartiennent. Nous ne les partageons pas avec des tiers sans votre consentement.',
+      'texte': 'Les données financières que vous saisissez dans MaFortune vous appartiennent. Nous ne les partageons pas avec des tiers sans votre consentement.',
     },
     {
-      'emoji': '🔒',
+      'icon': Icons.security_outlined,
       'titre': 'Sécurité',
-      'texte':
-          'Nous faisons tout notre possible pour protéger vos données. Cependant, aucun système n\'est infaillible. Utilisez un mot de passe fort et ne partagez pas votre téléphone.',
+      'texte': 'Nous faisons tout notre possible pour protéger vos données. Cependant, aucun système n\'est infaillible. Utilisez un mot de passe fort et ne partagez pas votre téléphone.',
     },
     {
-      'emoji': '🚫',
+      'icon': Icons.block_outlined,
       'titre': 'Utilisations interdites',
-      'texte':
-          'Il est interdit d\'utiliser MaFortune pour des activités illégales, de tenter de pirater l\'application, ou d\'usurper l\'identité d\'un autre utilisateur.',
+      'texte': 'Il est interdit d\'utiliser MaFortune pour des activités illégales, de tenter de pirater l\'application, ou d\'usurper l\'identité d\'un autre utilisateur.',
     },
     {
-      'emoji': '🔄',
+      'icon': Icons.update_outlined,
       'titre': 'Modifications',
-      'texte':
-          'Nous pouvons modifier ces conditions à tout moment. Nous vous informerons des changements importants via une notification dans l\'application.',
+      'texte': 'Nous pouvons modifier ces conditions à tout moment. Nous vous informerons des changements importants via une notification dans l\'application.',
     },
     {
-      'emoji': '📞',
+      'icon': Icons.contact_support_outlined,
       'titre': 'Nous contacter',
-      'texte':
-          'Pour toute question sur ces conditions, contactez-nous à : contact@mafortune.tg ou au +228 90 00 00 00.',
+      'texte': 'Pour toute question sur ces conditions, contactez-nous à : contact@mafortune.tg ou au +228 90 00 00 00.',
     },
   ];
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair et doux
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '📄 Conditions d\'utilisation',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.description_outlined, size: 22, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Conditions d\'utilisation',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────────────────
+            // ── HEADER ──────────────────────────────────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 28, 24, 28),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.08),
+                color: emeraldDark.withOpacity(0.08), // ✅ Règle des 10%
               ),
               child: Column(
                 children: [
-                  const Text('📄', style: TextStyle(fontSize: 60)),
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: emeraldDark.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.description_outlined, size: 48, color: emeraldDark),
+                  ),
                   const SizedBox(height: 14),
                   const Text(
                     'Conditions d\'utilisation',
                     style: TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                      color: textDark,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -110,24 +120,23 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
                     style: TextStyle(fontSize: 13, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 12),
+                  
+                  // ✅ Boîte d'info harmonisée
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.08),
+                      color: emeraldDark.withOpacity(0.08),
                       borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: emeraldDark.withOpacity(0.15)),
                     ),
-                    child: const Row(
+                    child: Row(
                       children: [
-                        Text('💡', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 10),
+                        const Icon(Icons.lightbulb_outline, size: 20, color: emeraldDark),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             'En utilisant MaFortune, vous acceptez ces conditions.',
-                            style: TextStyle(
-                                fontSize: 14,
-                                color: Colors.black87,
-                                height: 1.4),
+                            style: TextStyle(fontSize: 14, color: textDark, height: 1.4, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
@@ -139,14 +148,14 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
 
             const SizedBox(height: 20),
 
-            // ── Sections ─────────────────────────────────────────────────────
+            // ── SECTIONS ─────────────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 children: List.generate(_sections.length, (i) {
                   final s = _sections[i];
                   return _buildSection(
-                    emoji: s['emoji'] as String,
+                    icon: s['icon'] as IconData,
                     numero: '${i + 1}',
                     titre: s['titre'] as String,
                     texte: s['texte'] as String,
@@ -157,7 +166,7 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Footer acceptation ───────────────────────────────────────────
+            // ── FOOTER ACCEPTATION ───────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Container(
@@ -165,44 +174,39 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                    ),
-                  ],
+                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10)],
                 ),
                 child: Column(
                   children: [
-                    const Text('✅', style: TextStyle(fontSize: 40)),
+                    // ✅ Icône système au lieu de l'émoji
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: emeraldDark.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.check_circle_outline, size: 40, color: emeraldDark),
+                    ),
                     const SizedBox(height: 12),
                     const Text(
                       'Vous avez accepté ces conditions',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: textDark,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 6),
                     Text(
                       'En continuant à utiliser MaFortune, vous confirmez avoir lu et accepté ces conditions d\'utilisation.',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.grey[600],
-                        height: 1.5,
-                      ),
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.5),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 16),
                     Text(
                       '© 2024 MaFortune — Tous droits réservés',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[400],
-                        fontStyle: FontStyle.italic,
-                      ),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400], fontStyle: FontStyle.italic),
                     ),
                   ],
                 ),
@@ -218,29 +222,20 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
         onTap: (index) {
           setState(() => _currentIndex = index);
           switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, '/dashboard');
-              break;
-            case 1:
-              Navigator.pushReplacementNamed(context, '/bilans');
-              break;
-            case 2:
-              Navigator.pushReplacementNamed(context, '/rapports');
-              break;
-            case 3:
-              Navigator.pushReplacementNamed(context, '/alertes');
-              break;
-            case 4:
-              break;
+            case 0: Navigator.pushReplacementNamed(context, '/dashboard'); break;
+            case 1: Navigator.pushReplacementNamed(context, '/bilans'); break;
+            case 2: Navigator.pushReplacementNamed(context, '/rapports'); break;
+            case 3: Navigator.pushReplacementNamed(context, '/alertes'); break;
+            case 4: break;
           }
         },
       ),
     );
   }
 
-  // ─── SECTION ────────────────────────────────────────────────────────────────
+  // ─── SECTION EXPANDABLE ─────────────────────────────────────────────────────
   Widget _buildSection({
-    required String emoji,
+    required IconData icon,
     required String numero,
     required String titre,
     required String texte,
@@ -250,29 +245,22 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
-          tilePadding:
-              const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
           childrenPadding: EdgeInsets.zero,
           leading: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Numéro
+              // ✅ Numéro dans un cercle Émeraude
               Container(
                 width: 28,
                 height: 28,
                 decoration: const BoxDecoration(
-                  color: AppColors.primaryGreen,
+                  color: emeraldDark,
                   shape: BoxShape.circle,
                 ),
                 child: Center(
@@ -286,19 +274,23 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              Text(emoji, style: const TextStyle(fontSize: 22)),
+              const SizedBox(width: 12),
+              // ✅ Icône dans un cercle à 10% d'opacité
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: emeraldDark.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: emeraldDark, size: 20),
+              ),
             ],
           ),
           title: Text(
             titre,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
           ),
-          iconColor: AppColors.primaryGreen,
+          iconColor: emeraldDark,
           collapsedIconColor: Colors.grey,
           children: [
             Container(
@@ -306,16 +298,13 @@ class _ConditionsScreenState extends State<ConditionsScreen> {
               margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.05),
+                color: emeraldDark.withOpacity(0.05), // ✅ Règle des 10% (ou 5% pour le texte)
                 borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: emeraldDark.withOpacity(0.1)),
               ),
               child: Text(
                 texte,
-                style: const TextStyle(
-                  fontSize: 15,
-                  color: Colors.black87,
-                  height: 1.6,
-                ),
+                style: const TextStyle(fontSize: 15, color: textDark, height: 1.6),
               ),
             ),
           ],

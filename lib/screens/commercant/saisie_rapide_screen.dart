@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../services/tts_service.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color terracotta = Color(0xFFD96B43);    // Vente / Action chaleureuse
+const Color brickRed = Color(0xFFB91C1C);      // Dépense / Alerte douce
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (lisibilité maximale)
 
 class SaisieRapideScreen extends StatefulWidget {
   final bool? isVenteInitial;
@@ -25,17 +29,9 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
   bool _isLoading = false;
   bool _isLoadingProduits = false;
 
-  // Produits
   List<Map<String, dynamic>> _produits = [];
-
-  // Panier — liste d'articles sélectionnés avec quantité
-  // { produit: {...}, quantite: 1, prixUnit: 0.0 }
   List<Map<String, dynamic>> _panier = [];
-
-  // Mode : 'produits' ou 'montant_libre'
   String _mode = 'produits';
-
-  // Montant libre
   String _montantStr = '0';
 
   late AnimationController _fadeController;
@@ -85,7 +81,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     }
   }
 
-  // ─── Panier ──────────────────────────────────────────────────────────────
   double get _totalPanier {
     return _panier.fold(0.0, (sum, item) {
       return sum + (item['prixUnit'] as double) * (item['quantite'] as int);
@@ -97,10 +92,8 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     final idx = _panier.indexWhere((i) => i['produit']['id'] == produit['id']);
     setState(() {
       if (idx >= 0) {
-        // ✅ Si déjà dans le panier → augmente la quantité
         _panier[idx]['quantite']++;
       } else {
-        // Pas encore dans le panier → ajoute
         _panier.add({
           'produit': produit,
           'quantite': 1,
@@ -115,10 +108,8 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     final idx = _panier.indexWhere((i) => i['produit']['id'] == produit['id']);
     setState(() {
       if (idx >= 0) {
-        // ✅ Déjà dans le panier → TAP sur la carte = désélectionne complètement
         _panier.removeAt(idx);
       } else {
-        // Pas encore → ajoute avec quantité 1
         _panier.add({
           'produit': produit,
           'quantite': 1,
@@ -150,7 +141,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     setState(() => _panier[idx]['prixUnit'] = nouveauPrix);
   }
 
-  // ─── Numpad ───────────────────────────────────────────────────────────────
   void _appuyerTouche(String t) {
     HapticFeedback.lightImpact();
     setState(() {
@@ -178,7 +168,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     });
   }
 
-  // ─── Valider ──────────────────────────────────────────────────────────────
   Future<void> _valider() async {
     final user = _authService.currentUser;
     if (user == null) return;
@@ -186,7 +175,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     if (_mode == 'produits' && _panier.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Sélectionne au moins un produit'),
-        backgroundColor: Colors.orange,
+        backgroundColor: terracotta,
         duration: Duration(seconds: 2),
       ));
       return;
@@ -197,7 +186,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       if (montant <= 0) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
           content: Text('Entrez un montant valide'),
-          backgroundColor: Colors.orange,
+          backgroundColor: terracotta,
           duration: Duration(seconds: 2),
         ));
         return;
@@ -208,7 +197,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
 
     try {
       if (_mode == 'produits') {
-        // ✅ Une transaction par article du panier
         for (final item in _panier) {
           final produit = item['produit'] as Map<String, dynamic>;
           final quantite = item['quantite'] as int;
@@ -224,9 +212,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             commercantId: user.uid,
             categorieId: _isVente ? 'ventes' : 'achats',
             montant: total > 0 ? total : prixUnit,
-            type: _isVente
-                ? TypeTransaction.recette
-                : TypeTransaction.depense,
+            type: _isVente ? TypeTransaction.recette : TypeTransaction.depense,
             description: description,
             date: DateTime.now(),
             dateCreation: DateTime.now(),
@@ -238,16 +224,13 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           await _transactionService.addTransaction(tx);
         }
       } else {
-        // Mode montant libre
         final montant = double.parse(_montantStr);
         final tx = TransactionModel(
           id: '',
           commercantId: user.uid,
           categorieId: _isVente ? 'ventes' : 'achats',
           montant: montant,
-          type: _isVente
-              ? TypeTransaction.recette
-              : TypeTransaction.depense,
+          type: _isVente ? TypeTransaction.recette : TypeTransaction.depense,
           description: _isVente ? 'Vente' : 'Dépense',
           date: DateTime.now(),
           dateCreation: DateTime.now(),
@@ -260,9 +243,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       HapticFeedback.heavyImpact();
       if (mounted) {
         Navigator.pop(context, true);
-        final total = _mode == 'produits'
-            ? _totalPanier
-            : double.parse(_montantStr);
+        final total = _mode == 'produits' ? _totalPanier : double.parse(_montantStr);
         final tts = TtsService();
         if (_isVente) tts.confirmerVente(total);
         else tts.confirmerDepense(total);
@@ -272,7 +253,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('❌ Erreur : $e'),
-          backgroundColor: Colors.red,
+          backgroundColor: brickRed,
         ));
       }
     }
@@ -289,7 +270,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
 
   @override
   Widget build(BuildContext context) {
-    final couleur = _isVente ? AppColors.primaryGreen : AppColors.expenseRed;
+    final couleur = _isVente ? terracotta : brickRed;
     final screenHeight = MediaQuery.of(context).size.height;
 
     return Container(
@@ -300,7 +281,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       ),
       child: Column(
         children: [
-          // Handle
           Container(
             margin: const EdgeInsets.only(top: 12, bottom: 4),
             width: 40, height: 4,
@@ -310,7 +290,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             ),
           ),
 
-          // Header
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
             child: Row(
@@ -319,7 +298,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                     style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        color: Color(0xFF1A1A2E))),
+                        color: textDark)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -327,14 +306,13 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                     width: 32, height: 32,
                     decoration: BoxDecoration(
                         color: Colors.grey[100], shape: BoxShape.circle),
-                    child: const Icon(Icons.close, size: 18, color: Colors.grey),
+                    child: const Icon(Icons.close, size: 18, color: textDark),
                   ),
                 ),
               ],
             ),
           ),
 
-          // Toggle Vente / Dépense
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
             child: Row(
@@ -346,7 +324,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             ),
           ),
 
-          // Tabs Produits / Montant libre
           if (_produits.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
@@ -364,7 +341,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           color: _mode == 'produits'
-                              ? couleur.withOpacity(0.1)
+                              ? couleur.withOpacity(0.08)
                               : Colors.grey[100],
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
@@ -380,9 +357,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: _mode == 'produits'
-                                  ? couleur
-                                  : Colors.grey[600],
+                              color: _mode == 'produits' ? couleur : Colors.grey[600],
                             ),
                           ),
                         ),
@@ -402,7 +377,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         decoration: BoxDecoration(
                           color: _mode == 'montant_libre'
-                              ? couleur.withOpacity(0.1)
+                              ? couleur.withOpacity(0.08)
                               : Colors.grey[100],
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
@@ -418,9 +393,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
-                              color: _mode == 'montant_libre'
-                                  ? couleur
-                                  : Colors.grey[600],
+                              color: _mode == 'montant_libre' ? couleur : Colors.grey[600],
                             ),
                           ),
                         ),
@@ -431,12 +404,9 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
               ),
             ),
 
-          // Contenu
           Expanded(
             child: _isLoadingProduits
-                ? const Center(
-                    child: CircularProgressIndicator(
-                        color: AppColors.primaryGreen))
+                ? const Center(child: CircularProgressIndicator(color: terracotta))
                 : FadeTransition(
                     opacity: _fadeAnim,
                     child: _mode == 'produits'
@@ -449,19 +419,22 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-  // ─── MODE PRODUITS (caisse) ───────────────────────────────────────────────
   Widget _buildModeProduits(Color couleur) {
+    // ✅ Logique conditionnelle pour les cadres (Neutre pour Vente, Coloré pour Dépense)
+    final bool isVente = _isVente;
+    final Color frameBg = isVente ? const Color(0xFFF8F9FA) : couleur.withOpacity(0.08);
+    final Color frameBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.2);
+
     return Column(
       children: [
-        // Total panier
         if (_panier.isNotEmpty)
           Container(
             margin: const EdgeInsets.fromLTRB(20, 8, 20, 4),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: couleur.withOpacity(0.08),
+              color: frameBg,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: couleur.withOpacity(0.3)),
+              border: Border.all(color: frameBorder),
             ),
             child: Column(
               children: [
@@ -475,14 +448,13 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                     const Spacer(),
                     Text(
                       '${_fmt(_totalPanier)} FCFA',
-                      style: TextStyle(
+                      style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
-                          color: couleur),
+                          color: textDark),
                     ),
                   ],
                 ),
-                // Détail panier
                 if (_panier.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   ..._panier.map((item) {
@@ -494,57 +466,42 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                       padding: const EdgeInsets.only(top: 4),
                       child: Row(
                         children: [
-                          Text(p['emoji'] ?? '📦',
-                              style: const TextStyle(fontSize: 14)),
+                          Text(p['emoji'] ?? '📦', style: const TextStyle(fontSize: 14)),
                           const SizedBox(width: 6),
                           Expanded(
                             child: Text(
                               '${p['nom']} × $q',
-                              style: TextStyle(
-                                  fontSize: 12, color: Colors.grey[700]),
+                              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                             ),
                           ),
-                          // Champ prix unitaire modifiable
                           SizedBox(
                             width: 80,
                             child: TextField(
                               keyboardType: TextInputType.number,
                               controller: TextEditingController(
-                                  text: prix > 0
-                                      ? prix.toInt().toString()
-                                      : ''),
+                                  text: prix > 0 ? prix.toInt().toString() : ''),
                               style: const TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600),
+                                  fontSize: 12, fontWeight: FontWeight.w600, color: textDark),
                               textAlign: TextAlign.center,
                               decoration: InputDecoration(
                                 hintText: 'Prix',
-                                hintStyle: TextStyle(
-                                    color: Colors.grey[400],
-                                    fontSize: 11),
+                                hintStyle: TextStyle(color: Colors.grey[400], fontSize: 11),
                                 suffixText: 'F',
+                                suffixStyle: TextStyle(color: Colors.grey[500], fontSize: 11),
                                 filled: true,
                                 fillColor: Colors.white,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 6, vertical: 6),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
                                 border: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                      color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
                                 ),
                                 enabledBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                      color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: Colors.grey[300]!),
                                 ),
                                 focusedBorder: OutlineInputBorder(
-                                  borderRadius:
-                                      BorderRadius.circular(8),
-                                  borderSide: BorderSide(
-                                      color: couleur, width: 1.5),
+                                  borderRadius: BorderRadius.circular(8),
+                                  borderSide: BorderSide(color: couleur, width: 1.5),
                                 ),
                               ),
                               onChanged: (val) {
@@ -570,7 +527,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             ),
           ),
 
-        // Grille produits
         Expanded(
           child: GridView.builder(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -587,19 +543,14 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
               final hasQte = qte > 0;
 
               return GestureDetector(
-                // ✅ Tap sur la carte = toggle (ajouter ou désélectionner)
                 onTap: () => _toggleProduit(p),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
                   decoration: BoxDecoration(
-                    color: hasQte
-                        ? couleur.withOpacity(0.08)
-                        : Colors.white,
+                    color: hasQte ? couleur.withOpacity(0.08) : Colors.white,
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
-                      color: hasQte
-                          ? couleur
-                          : const Color(0xFFE5E7EB),
+                      color: hasQte ? couleur : const Color(0xFFE5E7EB),
                       width: hasQte ? 2 : 1.5,
                     ),
                     boxShadow: [
@@ -610,17 +561,14 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                       ),
                     ],
                   ),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   child: Row(
                     children: [
-                      Text(p['emoji'] ?? '📦',
-                          style: const TextStyle(fontSize: 24)),
+                      Text(p['emoji'] ?? '📦', style: const TextStyle(fontSize: 24)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
@@ -628,9 +576,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
-                                color: hasQte
-                                    ? couleur
-                                    : const Color(0xFF1A1A2E),
+                                color: hasQte ? couleur : textDark,
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -647,7 +593,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                           ],
                         ),
                       ),
-                      // Contrôles quantité
                       if (hasQte)
                         Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -660,13 +605,11 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                                   color: couleur,
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Icon(Icons.add,
-                                    color: Colors.white, size: 16),
+                                child: const Icon(Icons.add, color: Colors.white, size: 16),
                               ),
                             ),
                             Container(
-                              margin: const EdgeInsets.symmetric(
-                                  vertical: 2),
+                              margin: const EdgeInsets.symmetric(vertical: 2),
                               child: Text(
                                 '$qte',
                                 style: TextStyle(
@@ -684,8 +627,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                                   color: couleur.withOpacity(0.15),
                                   shape: BoxShape.circle,
                                 ),
-                                child: Icon(Icons.remove,
-                                    color: couleur, size: 16),
+                                child: Icon(Icons.remove, color: couleur, size: 16),
                               ),
                             ),
                           ],
@@ -698,7 +640,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           ),
         ),
 
-        // Bouton valider
         _buildBoutonValider(couleur,
             label: _panier.isEmpty
                 ? '✅  VALIDER'
@@ -707,19 +648,26 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-  // ─── MODE MONTANT LIBRE ───────────────────────────────────────────────────
   Widget _buildModeMontantLibre(Color couleur) {
+    // ✅ 1. Ajustement dynamique des couleurs selon le mode actif
+    final bool isVente = _isVente;
+    
+    // Pour la Vente : fond neutre très clair (#F8F9FA) et bordure grise douce
+    // Pour la Dépense : fond rosé/rouge adouci et bordure rouge brique (validé comme parfait)
+    final Color frameBg = isVente ? const Color(0xFFF8F9FA) : couleur.withOpacity(0.08);
+    final Color frameBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.2);
+    final Color shortcutBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.3);
+
     return Column(
       children: [
-        // Affichage montant
+        // ✅ 2. CADRE DU MONTANT
         Container(
           margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
-          padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
           decoration: BoxDecoration(
-            color: couleur.withOpacity(0.08),
+            color: frameBg,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: couleur.withOpacity(0.3)),
+            border: Border.all(color: frameBorder),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -729,10 +677,10 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                   fit: BoxFit.scaleDown,
                   child: Text(
                     _fmtStr(_montantStr),
-                    style: TextStyle(
-                        fontSize: 38,
+                    style: const TextStyle(
+                        fontSize: 42,
                         fontWeight: FontWeight.bold,
-                        color: couleur,
+                        color: textDark,
                         letterSpacing: 1),
                   ),
                 ),
@@ -741,13 +689,13 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
               Text('FCFA',
                   style: TextStyle(
                       fontSize: 16,
-                      color: couleur.withOpacity(0.7),
+                      color: textDark.withOpacity(0.6),
                       fontWeight: FontWeight.w500)),
             ],
           ),
         ),
 
-        // Touches rapides
+        // ✅ 3. TOUCHES RAPIDES
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -758,12 +706,11 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                   child: GestureDetector(
                     onTap: () => _ajouterRapide(v),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
                       decoration: BoxDecoration(
-                        color: couleur.withOpacity(0.1),
+                        color: Colors.white,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                            color: couleur.withOpacity(0.25)),
+                        border: Border.all(color: shortcutBorder, width: 1.5),
                       ),
                       child: Center(
                         child: FittedBox(
@@ -771,9 +718,9 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                           child: Text(
                             v >= 1000 ? '${v ~/ 1000}k' : '$v',
                             style: TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: couleur),
+                                color: textDark),
                           ),
                         ),
                       ),
@@ -785,20 +732,20 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           ),
         ),
 
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
 
-        // Numpad
+        // ✅ 4. PAVÉ NUMÉRIQUE
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               children: [
                 _buildNumRow(['7', '8', '9'], couleur),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _buildNumRow(['4', '5', '6'], couleur),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _buildNumRow(['1', '2', '3'], couleur),
-                const SizedBox(height: 6),
+                const SizedBox(height: 8),
                 _buildNumRow(['C', '0', '⌫'], couleur),
               ],
             ),
@@ -810,7 +757,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-  // ─── Helpers widgets ──────────────────────────────────────────────────────
   Widget _buildToggle(String label, bool isVente, Color couleur) {
     final active = _isVente == isVente;
     return GestureDetector(
@@ -828,15 +774,13 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
         duration: const Duration(milliseconds: 180),
         padding: const EdgeInsets.symmetric(vertical: 11),
         decoration: BoxDecoration(
-          color: active
-              ? (isVente ? AppColors.primaryGreen : AppColors.expenseRed)
-              : Colors.grey[100],
+          color: active ? couleur : Colors.grey[100],
           borderRadius: BorderRadius.circular(14),
         ),
         child: Column(
           children: [
             Icon(
-                isVente ? Icons.trending_up : Icons.trending_down,
+                isVente ? Icons.trending_up_rounded : Icons.trending_down_rounded,
                 color: active ? Colors.white : Colors.grey[500],
                 size: 22),
             const SizedBox(height: 3),
@@ -844,8 +788,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color:
-                        active ? Colors.white : Colors.grey[600])),
+                    color: active ? Colors.white : Colors.grey[600])),
           ],
         ),
       ),
@@ -865,23 +808,18 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                 onTap: () => _appuyerTouche(t),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isBack || isClear
-                        ? Colors.grey[100]
-                        : Colors.grey[50],
+                    color: isBack || isClear ? Colors.grey[100] : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey[200]!),
                   ),
                   child: Center(
                     child: isBack
-                        ? Icon(Icons.backspace_outlined,
-                            size: 20, color: Colors.grey[700])
+                        ? const Icon(Icons.backspace_outlined, size: 22, color: textDark)
                         : Text(t,
                             style: TextStyle(
-                                fontSize: isClear ? 15 : 22,
+                                fontSize: isClear ? 16 : 24,
                                 fontWeight: FontWeight.w600,
-                                color: isClear
-                                    ? Colors.red[400]
-                                    : Colors.black87)),
+                                color: textDark)),
                   ),
                 ),
               ),
@@ -904,19 +842,16 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           style: ElevatedButton.styleFrom(
             backgroundColor: couleur,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             elevation: 0,
           ),
           child: _isLoading
               ? const SizedBox(
                   width: 24,
                   height: 24,
-                  child: CircularProgressIndicator(
-                      strokeWidth: 2.5, color: Colors.white))
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
               : Text(label,
-                  style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         ),
       ),
     );

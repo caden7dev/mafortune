@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../core/constants/app_colors.dart';
 import '../screens/commercant/notifications_screen.dart';
 
 class CustomBottomNav extends StatelessWidget {
@@ -58,25 +57,29 @@ class CustomBottomNav extends StatelessWidget {
               }
             },
             type: BottomNavigationBarType.fixed,
-            selectedItemColor: AppColors.primaryGreen,
+            
+            // ✅ MODIFICATION : Force la couleur de l'item actif en Vert Émeraude Sombre
+            selectedItemColor: const Color(0xFF0B4F36), 
+            
             unselectedItemColor: Colors.grey.shade600,
             selectedFontSize: 12,
             unselectedFontSize: 12,
+            
             // ✅ Supprime le padding interne par défaut du BottomNavigationBar
             // pour éviter le double espacement
             elevation: 0,
             backgroundColor: Colors.transparent,
             items: [
               const BottomNavigationBarItem(
-                icon: Icon(Icons.home),
+                icon: Icon(Icons.home_rounded), // J'ai ajouté _rounded pour un look plus moderne
                 label: 'Accueil',
               ),
               const BottomNavigationBarItem(
-                icon: Icon(Icons.bar_chart),
+                icon: Icon(Icons.bar_chart_rounded),
                 label: 'Bilans',
               ),
               const BottomNavigationBarItem(
-                icon: Icon(Icons.description),
+                icon: Icon(Icons.description_rounded),
                 label: 'Rapports',
               ),
               BottomNavigationBarItem(
@@ -85,16 +88,16 @@ class CustomBottomNav extends StatelessWidget {
                         label: Text(
                           '$unreadCount',
                           style: const TextStyle(
-                              fontSize: 10, color: Colors.white),
+                              fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        backgroundColor: Colors.red,
-                        child: const Icon(Icons.notifications),
+                        backgroundColor: const Color(0xFFD96B43), // ✅ Badge en Terre Cuite pour l'harmonie
+                        child: const Icon(Icons.notifications_rounded),
                       )
-                    : const Icon(Icons.notifications),
+                    : const Icon(Icons.notifications_rounded),
                 label: 'Alertes',
               ),
               const BottomNavigationBarItem(
-                icon: Icon(Icons.person),
+                icon: Icon(Icons.person_rounded),
                 label: 'Profil',
               ),
             ],

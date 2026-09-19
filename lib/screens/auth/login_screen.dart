@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../services/auth_service.dart';
-import '../../models/utilisateur_model.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,27 +11,27 @@ class LoginScreen extends StatefulWidget {
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen>
-    with TickerProviderStateMixin {
+class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin {
   final _telephoneController = TextEditingController();
-  final _passwordController = TextEditingController();
+  final _passwordController = TextEditingController(); // Conservé pour la structure, bien que généré automatiquement
 
   final _telephoneFocus = FocusNode();
-  final _passwordFocus = FocusNode();
-
   final _telephoneKey = GlobalKey();
-  final _passwordKey = GlobalKey();
 
-  bool _showPassword = false;
   bool _isLoading = false;
-
   String? _telephoneError;
-  String? _passwordError;
   String? _globalErrorMessage;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
+
+  // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+  static const Color emeraldGreen = Color(0xFF0B4F36);
+  static const Color terracotta = Color(0xFFD96B43);
+  static const Color textDark = Color(0xFF333333);
+  static const Color textMedium = Color(0xFF555555);
+  static const Color errorRed = Color(0xFF9B2C2C);
 
   @override
   void initState() {
@@ -59,7 +57,6 @@ class _LoginScreenState extends State<LoginScreen>
     _telephoneController.dispose();
     _passwordController.dispose();
     _telephoneFocus.dispose();
-    _passwordFocus.dispose();
     _animController.dispose();
     super.dispose();
   }
@@ -78,7 +75,6 @@ class _LoginScreenState extends State<LoginScreen>
   void _reinitialiserErreurs() {
     setState(() {
       _telephoneError = null;
-      _passwordError = null;
       _globalErrorMessage = null;
     });
   }
@@ -190,10 +186,8 @@ class _LoginScreenState extends State<LoginScreen>
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<AuthProvider>().isLoading;
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
@@ -204,18 +198,18 @@ class _LoginScreenState extends State<LoginScreen>
                 child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      // ── Header ───────────────────────────────────────────────────────
+                      // ── 1. BANNIÈRE SUPÉRIEURE : Vert Émeraude Sombre uni ──────────
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+                        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
                         decoration: const BoxDecoration(
-                          gradient: AppColors.primaryGradient,
+                          color: emeraldGreen,
                           borderRadius: BorderRadius.vertical(
-                              bottom: Radius.circular(28)),
+                            bottom: Radius.circular(28),
+                          ),
                         ),
                         child: Column(
                           children: [
-                            // Bouton retour
                             Align(
                               alignment: Alignment.centerLeft,
                               child: GestureDetector(
@@ -224,172 +218,149 @@ class _LoginScreenState extends State<LoginScreen>
                                   width: 40,
                                   height: 40,
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                                    color: Colors.white.withOpacity(0.15),
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.arrow_back_ios_new,
-                                      color: Colors.white, size: 18),
+                                  child: const Icon(
+                                    Icons.arrow_back_ios_new_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
                                 ),
                               ),
                             ),
-
                             const SizedBox(height: 16),
-
-                            // Icône
                             Container(
                               width: 76,
                               height: 76,
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.15),
+                                color: Colors.white.withOpacity(0.15),
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.3),
-                                    width: 2),
+                                  color: Colors.white.withOpacity(0.3),
+                                  width: 2,
+                                ),
                               ),
                               child: const Center(
-                                child:
-                                    Text('👋', style: TextStyle(fontSize: 36)),
+                                child: Text('👋', style: TextStyle(fontSize: 36)),
                               ),
                             ),
-
                             const SizedBox(height: 12),
-
                             const Text(
                               'Content de te revoir !',
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.5,
                               ),
                             ),
-
                             const SizedBox(height: 6),
-
                             Text(
                               'Connecte-toi avec ton numéro de téléphone',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.8),
+                                color: Colors.white.withOpacity(0.85),
                                 fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
                         ),
                       ),
 
-                      // ── Contenu ──────────────────────────────────────────────────────
+                      // ── CONTENU ──────────────────────────────────────────────────
                       Expanded(
                         child: FadeTransition(
                           opacity: _fadeAnim,
                           child: SlideTransition(
                             position: _slideAnim,
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                              padding: const EdgeInsets.fromLTRB(24, 32, 24, 24),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  // Erreur globale
+                                  // Erreur globale harmonisée
                                   if (_globalErrorMessage != null) ...[
                                     Container(
                                       padding: const EdgeInsets.all(14),
                                       decoration: BoxDecoration(
-                                        color: Colors.red.shade50,
+                                        color: errorRed.withOpacity(0.08),
                                         borderRadius: BorderRadius.circular(12),
-                                        border: Border.all(
-                                            color: Colors.red.shade200),
+                                        border: Border.all(color: errorRed.withOpacity(0.2)),
                                       ),
                                       child: Row(
                                         children: [
-                                          const Text('⚠️',
-                                              style: TextStyle(fontSize: 18)),
+                                          const Icon(Icons.error_outline, color: errorRed, size: 20),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Text(
                                               _globalErrorMessage!,
                                               style: const TextStyle(
-                                                  color: Colors.red,
-                                                  fontSize: 14,
-                                                  height: 1.4),
+                                                color: errorRed,
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                height: 1.4,
+                                              ),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    const SizedBox(height: 20),
+                                    const SizedBox(height: 24),
                                   ],
 
-                                  // ── TÉLÉPHONE ────────────────────────────────────────
-                                  const Text(
-                                    '📱  Ton numéro de téléphone',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1A1A2E),
-                                    ),
+                                  // ── 4. TITRE DE CHAMP : Icône discrète Vert Émeraude ──
+                                  Row(
+                                    children: [
+                                      const Icon(Icons.phone_rounded, color: emeraldGreen, size: 20),
+                                      const SizedBox(width: 8),
+                                      const Text(
+                                        'Ton numéro de téléphone',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w700,
+                                          color: textDark,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 30),
+                                  const SizedBox(height: 16),
 
                                   Container(
                                     key: _telephoneKey,
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Container(
                                           decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius:
-                                                BorderRadius.circular(16),
+                                            color: const Color(0xFFF8F9FA),
+                                            borderRadius: BorderRadius.circular(16),
                                             border: Border.all(
-                                              color: _telephoneError != null
-                                                  ? Colors.red
-                                                  : const Color(0xFFE5E7EB),
-                                              width: _telephoneError != null
-                                                  ? 2.0
-                                                  : 1.5,
+                                              color: _telephoneError != null ? errorRed : Colors.grey.shade300,
+                                              width: 1.5,
                                             ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black
-                                                    .withValues(alpha: 0.04),
-                                                blurRadius: 8,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
                                           ),
                                           child: Row(
                                             children: [
                                               Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 14,
-                                                        vertical: 18),
-                                                decoration:
-                                                    const BoxDecoration(
-                                                  color: Color(0xFFF8F9FA),
-                                                  borderRadius:
-                                                      BorderRadius.horizontal(
-                                                          left: Radius.circular(
-                                                              16)),
+                                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 18),
+                                                decoration: BoxDecoration(
+                                                  color: Colors.white,
+                                                  borderRadius: const BorderRadius.horizontal(left: Radius.circular(15)),
                                                   border: Border(
-                                                    right: BorderSide(
-                                                        color: Color(
-                                                            0xFFE5E7EB)),
+                                                    right: BorderSide(color: Colors.grey.shade300),
                                                   ),
                                                 ),
                                                 child: const Row(
                                                   children: [
-                                                    Text('🇹🇬',
-                                                        style: TextStyle(
-                                                            fontSize: 20)),
+                                                    Text('🇹🇬', style: TextStyle(fontSize: 20)),
                                                     SizedBox(width: 6),
                                                     Text(
                                                       '+228',
                                                       style: TextStyle(
                                                         fontSize: 16,
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                        color: Colors.black87,
+                                                        fontWeight: FontWeight.w700,
+                                                        color: textDark,
                                                       ),
                                                     ),
                                                   ],
@@ -397,49 +368,36 @@ class _LoginScreenState extends State<LoginScreen>
                                               ),
                                               Expanded(
                                                 child: TextField(
-                                                  controller:
-                                                      _telephoneController,
+                                                  controller: _telephoneController,
                                                   focusNode: _telephoneFocus,
-                                                  keyboardType:
-                                                      TextInputType.phone,
+                                                  keyboardType: TextInputType.phone,
                                                   inputFormatters: [
-                                                    FilteringTextInputFormatter
-                                                        .digitsOnly,
-                                                    LengthLimitingTextInputFormatter(
-                                                        8),
+                                                    FilteringTextInputFormatter.digitsOnly,
+                                                    LengthLimitingTextInputFormatter(8),
                                                   ],
                                                   style: const TextStyle(
-                                                    fontSize: 20,
-                                                    fontWeight:
-                                                        FontWeight.w600,
-                                                    letterSpacing: 2,
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: textDark,
+                                                    letterSpacing: 1.5,
                                                   ),
                                                   decoration: InputDecoration(
                                                     hintText: '90 00 00 00',
                                                     hintStyle: TextStyle(
-                                                      color: Colors.grey[400],
+                                                      color: Colors.grey.shade400,
                                                       fontSize: 18,
-                                                      fontWeight:
-                                                          FontWeight.normal,
+                                                      fontWeight: FontWeight.normal,
                                                       letterSpacing: 1,
                                                     ),
                                                     border: InputBorder.none,
-                                                    contentPadding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                            horizontal: 16,
-                                                            vertical: 18),
+                                                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
                                                   ),
                                                   onChanged: (_) {
-                                                    if (_telephoneError !=
-                                                        null) {
-                                                      setState(() =>
-                                                          _telephoneError =
-                                                              null);
+                                                    if (_telephoneError != null) {
+                                                      setState(() => _telephoneError = null);
                                                     }
                                                   },
-                                                  onSubmitted: (_) =>
-                                                      _connecter(),
+                                                  onSubmitted: (_) => _connecter(),
                                                 ),
                                               ),
                                             ],
@@ -450,7 +408,7 @@ class _LoginScreenState extends State<LoginScreen>
                                           Text(
                                             _telephoneError!,
                                             style: const TextStyle(
-                                              color: Colors.red,
+                                              color: errorRed,
                                               fontSize: 13,
                                               fontWeight: FontWeight.w500,
                                             ),
@@ -460,19 +418,16 @@ class _LoginScreenState extends State<LoginScreen>
                                     ),
                                   ),
 
-                                  const SizedBox(height: 10),
+                                  const SizedBox(height: 12),
 
                                   Row(
                                     children: [
-                                      Icon(Icons.lock_outline,
-                                          size: 14, color: Colors.grey[500]),
+                                      const Icon(Icons.lock_outline_rounded, size: 14, color: textMedium),
                                       const SizedBox(width: 6),
                                       Expanded(
                                         child: Text(
                                           'Ton numéro sert à te connecter — personne ne le verra',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: Colors.grey[500]),
+                                          style: TextStyle(fontSize: 12, color: textMedium, fontWeight: FontWeight.w500),
                                         ),
                                       ),
                                     ],
@@ -481,25 +436,22 @@ class _LoginScreenState extends State<LoginScreen>
                                   const Spacer(),
                                   const SizedBox(height: 24),
 
-                                  // ── BOUTON CONNEXION ──────────────────────────────────
+                                  // ── 2. BOUTON PRINCIPAL : Terre Cuite, icône blanche ──
                                   SizedBox(
                                     width: double.infinity,
                                     height: 60,
                                     child: ElevatedButton(
-                                      onPressed: isLoading ? null : _connecter,
+                                      onPressed: _isLoading ? null : _connecter,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                            AppColors.primaryGreen,
+                                        backgroundColor: terracotta,
                                         foregroundColor: Colors.white,
-                                        disabledBackgroundColor:
-                                            Colors.grey[300],
+                                        disabledBackgroundColor: Colors.grey.shade300,
                                         elevation: 0,
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(16),
                                         ),
                                       ),
-                                      child: isLoading
+                                      child: _isLoading
                                           ? const SizedBox(
                                               width: 24,
                                               height: 24,
@@ -508,66 +460,63 @@ class _LoginScreenState extends State<LoginScreen>
                                                 color: Colors.white,
                                               ),
                                             )
-                                          : const Text(
-                                              '🔑  Me connecter',
-                                              style: TextStyle(
-                                                fontSize: 19,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                          : const Row(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(Icons.login_rounded, color: Colors.white, size: 22),
+                                                SizedBox(width: 8),
+                                                Text(
+                                                  'Me connecter',
+                                                  style: TextStyle(
+                                                    fontSize: 18,
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                     ),
                                   ),
 
                                   const SizedBox(height: 24),
 
-                                  // ── INSCRIPTION ────────────────────────────────────────
+                                  // ── SÉPARATEUR ─────────────────────────────────────
                                   Row(
                                     children: [
-                                      Expanded(
-                                          child: Divider(
-                                              color: Colors.grey[300])),
+                                      Expanded(child: Divider(color: Colors.grey.shade300)),
                                       Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 14),
+                                        padding: const EdgeInsets.symmetric(horizontal: 14),
                                         child: Text(
                                           'OU',
                                           style: TextStyle(
-                                            color: Colors.grey[500],
+                                            color: textMedium,
                                             fontWeight: FontWeight.w600,
                                             fontSize: 12,
                                           ),
                                         ),
                                       ),
-                                      Expanded(
-                                          child: Divider(
-                                              color: Colors.grey[300])),
+                                      Expanded(child: Divider(color: Colors.grey.shade300)),
                                     ],
                                   ),
                                   const SizedBox(height: 20),
 
+                                  // ── 3. BOUTON SECONDAIRE : Vert Émeraude, bordure fine ──
                                   SizedBox(
                                     width: double.infinity,
                                     height: 56,
                                     child: OutlinedButton(
-                                      onPressed: () =>
-                                          Navigator.pushReplacementNamed(
-                                              context, '/signup'),
+                                      onPressed: () => Navigator.pushReplacementNamed(context, '/signup'),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor:
-                                            AppColors.primaryGreen,
-                                        side: const BorderSide(
-                                            color: AppColors.primaryGreen,
-                                            width: 2),
+                                        foregroundColor: emeraldGreen,
+                                        side: const BorderSide(color: emeraldGreen, width: 1.5),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(16),
+                                          borderRadius: BorderRadius.circular(16),
                                         ),
                                       ),
                                       child: const Text(
                                         'Créer mon compte',
                                         style: TextStyle(
                                           fontSize: 16,
-                                          fontWeight: FontWeight.bold,
+                                          fontWeight: FontWeight.w600,
                                         ),
                                       ),
                                     ),

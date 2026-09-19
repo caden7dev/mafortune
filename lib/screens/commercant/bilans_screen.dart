@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure, Recettes)
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Chaleur, Action, Conseils)
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Alertes)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (lisibilité)
 
 class BilansScreen extends StatefulWidget {
   const BilansScreen({super.key});
@@ -14,9 +19,7 @@ class BilansScreen extends StatefulWidget {
   State<BilansScreen> createState() => _BilansScreenState();
 }
 
-class _BilansScreenState extends State<BilansScreen>
-    with AutomaticKeepAliveClientMixin {
-  // ⚡ Conserve la page en mémoire pour une navigation instantanée
+class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
@@ -39,11 +42,11 @@ class _BilansScreenState extends State<BilansScreen>
   Map<String, double> _categoryExpenses = {};
 
   final List<Color> _categoryColors = [
-    const Color(0xFFEF5350),
-    const Color(0xFFAB47BC),
-    const Color(0xFF42A5F5),
-    const Color(0xFF26A69A),
-    const Color(0xFFFFA726),
+    terracotta,
+    const Color(0xFF6B7280),
+    const Color(0xFF3B82F6),
+    emeraldDark,
+    const Color(0xFFD97706),
   ];
 
   final Map<String, String> _categoryEmojis = {
@@ -52,7 +55,8 @@ class _BilansScreenState extends State<BilansScreen>
     'Stock': '📦',
     'Loyer': '🏠',
     'Santé': '💊',
-    'Eau/Électricité': '💡',
+    'Eau': '💧',
+    'Électricité': '💡',
     'Téléphone': '📱',
     'Autre': '📌',
   };
@@ -70,8 +74,7 @@ class _BilansScreenState extends State<BilansScreen>
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
-      _transactions = await _transactionService
-          .getTransactionsByCommercant(_currentUser!.id);
+      _transactions = await _transactionService.getTransactionsByCommercant(_currentUser!.id);
       _calculateStats();
     } catch (e) {
       debugPrint('Erreur bilans: $e');
@@ -85,18 +88,8 @@ class _BilansScreenState extends State<BilansScreen>
     DateTime endDate;
 
     if (_selectedPeriod == 'custom' && _customDateRange != null) {
-      startDate = DateTime(
-        _customDateRange!.start.year,
-        _customDateRange!.start.month,
-        _customDateRange!.start.day,
-        0, 0, 0,
-      );
-      endDate = DateTime(
-        _customDateRange!.end.year,
-        _customDateRange!.end.month,
-        _customDateRange!.end.day,
-        23, 59, 59,
-      );
+      startDate = DateTime(_customDateRange!.start.year, _customDateRange!.start.month, _customDateRange!.start.day, 0, 0, 0);
+      endDate = DateTime(_customDateRange!.end.year, _customDateRange!.end.month, _customDateRange!.end.day, 23, 59, 59);
     } else {
       switch (_selectedPeriod) {
         case 'mois':
@@ -119,43 +112,28 @@ class _BilansScreenState extends State<BilansScreen>
       }
     }
 
-    final periodTx = _transactions
-        .where((t) =>
-            !t.date.isBefore(startDate) &&
-            !t.date.isAfter(endDate))
-        .toList();
+    final periodTx = _transactions.where((t) => !t.date.isBefore(startDate) && !t.date.isAfter(endDate)).toList();
 
-    _totalRecettes =
-        periodTx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
-    _totalDepenses =
-        periodTx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
+    _totalRecettes = periodTx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
+    _totalDepenses = periodTx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
 
     _monthlyRecettes.clear();
     _monthlyDepenses.clear();
     for (int i = 1; i <= 12; i++) {
       final ms = DateTime(_selectedDate.year, i, 1);
       final me = DateTime(_selectedDate.year, i + 1, 0, 23, 59, 59);
-      final mtx = _transactions
-          .where((t) =>
-              !t.date.isBefore(ms) &&
-              !t.date.isAfter(me))
-          .toList();
+      final mtx = _transactions.where((t) => !t.date.isBefore(ms) && !t.date.isAfter(me)).toList();
       final key = DateFormat('MMM', 'fr_FR').format(ms);
-      _monthlyRecettes[key] =
-          mtx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
-      _monthlyDepenses[key] =
-          mtx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
+      _monthlyRecettes[key] = mtx.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
+      _monthlyDepenses[key] = mtx.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
     }
 
     final expCat = <String, double>{};
     for (var t in periodTx.where((t) => !t.estRecette)) {
       expCat[t.categorie] = (expCat[t.categorie] ?? 0) + t.montant;
     }
-    final sorted = expCat.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    _categoryExpenses = {
-      for (var e in sorted.take(5)) e.key: e.value,
-    };
+    final sorted = expCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+    _categoryExpenses = {for (var e in sorted.take(5)) e.key: e.value};
 
     if (mounted) setState(() {});
   }
@@ -185,7 +163,7 @@ class _BilansScreenState extends State<BilansScreen>
         return Theme(
           data: ThemeData.light().copyWith(
             colorScheme: const ColorScheme.light(
-              primary: AppColors.primaryGreen,
+              primary: emeraldDark, // ✅ Harmonisé avec la charte
               onPrimary: Colors.white,
             ),
           ),
@@ -209,24 +187,12 @@ class _BilansScreenState extends State<BilansScreen>
       if (_selectedPeriod == 'mois') {
         var m = _selectedDate.month + offset;
         var y = _selectedDate.year;
-        if (m < 1) {
-          m = 12;
-          y--;
-        } else if (m > 12) {
-          m = 1;
-          y++;
-        }
+        if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
         _selectedDate = DateTime(y, m, 1);
       } else if (_selectedPeriod == 'trimestre') {
         var m = _selectedDate.month + (offset * 3);
         var y = _selectedDate.year;
-        if (m < 1) {
-          m = 12;
-          y--;
-        } else if (m > 12) {
-          m = 1;
-          y++;
-        }
+        if (m < 1) { m = 12; y--; } else if (m > 12) { m = 1; y++; }
         _selectedDate = DateTime(y, m, 1);
       } else {
         _selectedDate = DateTime(_selectedDate.year + offset, 1, 1);
@@ -237,49 +203,41 @@ class _BilansScreenState extends State<BilansScreen>
 
   String _getPeriodTitle() {
     switch (_selectedPeriod) {
-      case 'mois':
-        return DateFormat('MMMM yyyy', 'fr_FR').format(_selectedDate);
+      case 'mois': return DateFormat('MMMM yyyy', 'fr_FR').format(_selectedDate);
       case 'trimestre':
         final q = ((_selectedDate.month - 1) ~/ 3) + 1;
         return 'Trimestre $q — ${_selectedDate.year}';
-      case 'annee':
-        return 'Année ${_selectedDate.year}';
+      case 'annee': return 'Année ${_selectedDate.year}';
       case 'custom':
         if (_customDateRange == null) return 'Période sur mesure';
         return '${DateFormat('dd/MM').format(_customDateRange!.start)} au ${DateFormat('dd/MM/yyyy').format(_customDateRange!.end)}';
-      default:
-        return '';
+      default: return '';
     }
   }
 
-  String _fmt(double v) =>
-      NumberFormat('#,###', 'fr_FR').format(v).replaceAll(',', ' ');
+  String _fmt(double v) => NumberFormat('#,###', 'fr_FR').format(v).replaceAll(',', ' ');
 
   String _getCategoryEmoji(String category) {
     for (final key in _categoryEmojis.keys) {
-      if (category.toLowerCase().contains(key.toLowerCase())) {
-        return _categoryEmojis[key]!;
-      }
+      if (category.toLowerCase().contains(key.toLowerCase())) return _categoryEmojis[key]!;
     }
     return '📌';
   }
 
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Obligatoire pour AutomaticKeepAliveClientMixin
+    super.build(context);
 
     final solde = _totalRecettes - _totalDepenses;
     final hasData = _totalRecettes > 0 || _totalDepenses > 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // Fond gris très clair et doux
       body: _isLoading && _transactions.isEmpty
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryGreen),
-            )
+          ? const Center(child: CircularProgressIndicator(color: emeraldDark))
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: AppColors.primaryGreen,
+              color: emeraldDark,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
@@ -300,7 +258,7 @@ class _BilansScreenState extends State<BilansScreen>
                       const SizedBox(height: 16),
                       _buildCategoryCard(),
                     ],
-                    const SizedBox(height: 100),
+                    const SizedBox(height: 100), // Espace pour la BottomNavigationBar
                   ],
                 ),
               ),
@@ -319,36 +277,30 @@ class _BilansScreenState extends State<BilansScreen>
               GestureDetector(
                 onTap: _selectedPeriod == 'custom' ? null : () => _changeDate(-1),
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 44, height: 44,
                   decoration: BoxDecoration(
-                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF0F0F0),
+                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF8F9FA),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.chevron_left, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : Colors.black87),
+                  child: Icon(Icons.chevron_left_rounded, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : textDark),
                 ),
               ),
               Expanded(
                 child: Text(
                   _getPeriodTitle(),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark),
                   textAlign: TextAlign.center,
                 ),
               ),
               GestureDetector(
                 onTap: _selectedPeriod == 'custom' ? null : () => _changeDate(1),
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 44, height: 44,
                   decoration: BoxDecoration(
-                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF0F0F0),
+                    color: _selectedPeriod == 'custom' ? Colors.grey[200] : const Color(0xFFF8F9FA),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(Icons.chevron_right, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : Colors.black87),
+                  child: Icon(Icons.chevron_right_rounded, size: 28, color: _selectedPeriod == 'custom' ? Colors.grey : textDark),
                 ),
               ),
             ],
@@ -358,13 +310,13 @@ class _BilansScreenState extends State<BilansScreen>
             scrollDirection: Axis.horizontal,
             child: Row(
               children: [
-                _buildPeriodChip('📅 Mois', 'mois'),
+                _buildPeriodChip('Mois', 'mois'),
                 const SizedBox(width: 8),
-                _buildPeriodChip('📆 Trimestre', 'trimestre'),
+                _buildPeriodChip('Trimestre', 'trimestre'),
                 const SizedBox(width: 8),
-                _buildPeriodChip('🗓️ Année', 'annee'),
+                _buildPeriodChip('Année', 'annee'),
                 const SizedBox(width: 8),
-                _buildPeriodChip('📐 Sur mesure', 'custom'),
+                _buildPeriodChip('Sur mesure', 'custom'),
               ],
             ),
           ),
@@ -381,18 +333,20 @@ class _BilansScreenState extends State<BilansScreen>
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: selected ? AppColors.primaryGreen : Colors.grey[100],
+          // ✅ 1. FILTRE ACTIF : Vert Émeraude Sombre
+          color: selected ? emeraldDark : const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(12),
-          border: selected
-              ? null
-              : Border.all(color: Colors.grey[300]!, width: 1),
+          border: Border.all(
+            color: selected ? emeraldDark : Colors.grey.shade300,
+            width: selected ? 1.5 : 1,
+          ),
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : Colors.grey[700],
-              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              color: selected ? Colors.white : Colors.grey.shade700,
+              fontWeight: selected ? FontWeight.bold : FontWeight.w600,
               fontSize: 13,
             ),
           ),
@@ -403,26 +357,29 @@ class _BilansScreenState extends State<BilansScreen>
 
   Widget _buildConseilCard(double solde) {
     String message = "";
+    // ✅ 4. ICÔNE SOBRE ET CHALEUREUSE (Terre Cuite ou Émeraude)
     IconData icon = Icons.lightbulb_outline;
-    Color color = Colors.amber.shade800;
+    Color color = terracotta;
 
     if (_totalRecettes == 0 && _totalDepenses == 0) {
       message = "Aucune opération enregistrée pour cette période.";
       icon = Icons.info_outline;
-      color = Colors.blue;
+      color = Colors.grey.shade600;
     } else if (solde >= 0) {
       double ratio = _totalRecettes > 0 ? (_totalDepenses / _totalRecettes) * 100 : 0;
       if (ratio < 50) {
         message = "Excellente gestion ! Vos dépenses ne représentent que ${ratio.toStringAsFixed(0)}% de vos recettes.";
-        icon = Icons.sentiment_very_satisfied;
-        color = Colors.green.shade700;
+        icon = Icons.stars_rounded; // Icône sobre et positive
+        color = terracotta; // Touche chaleureuse
       } else {
         message = "Vous êtes bénéficiaire, mais vos dépenses absorbent ${ratio.toStringAsFixed(0)}% de vos revenus.";
+        icon = Icons.trending_up_rounded;
+        color = emeraldDark;
       }
     } else {
       message = "Attention : Vos dépenses dépassent vos ventes sur cette période.";
       icon = Icons.warning_amber_rounded;
-      color = Colors.red.shade700;
+      color = brickRed;
     }
 
     return Container(
@@ -431,16 +388,16 @@ class _BilansScreenState extends State<BilansScreen>
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
       child: Row(
         children: [
-          Icon(icon, color: color, size: 26),
+          Icon(icon, color: color, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade800, height: 1.3),
+              style: TextStyle(fontSize: 13, color: textDark.withOpacity(0.8), height: 1.3, fontWeight: FontWeight.w500),
             ),
           ),
         ],
@@ -458,22 +415,24 @@ class _BilansScreenState extends State<BilansScreen>
           Row(
             children: [
               Expanded(
+                // ✅ 3. MINI-CARTE REÇU : Icône épurée + fond 10% opacité
                 child: _buildStatCard(
-                  emoji: '📈',
+                  icon: Icons.arrow_upward_rounded,
                   label: 'Argent reçu',
                   amount: _totalRecettes,
-                  color: const Color(0xFF2E7D32),
-                  bgColor: const Color(0xFFE8F5E9),
+                  iconColor: emeraldDark,
+                  bgColor: emeraldDark.withOpacity(0.1),
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
+                // ✅ 3. MINI-CARTÉ DÉPENSÉ : Icône épurée + fond 10% opacité
                 child: _buildStatCard(
-                  emoji: '📉',
+                  icon: Icons.arrow_downward_rounded,
                   label: 'Argent dépensé',
                   amount: _totalDepenses,
-                  color: const Color(0xFFC62828),
-                  bgColor: const Color(0xFFFFEBEE),
+                  iconColor: brickRed,
+                  bgColor: brickRed.withOpacity(0.1),
                 ),
               ),
             ],
@@ -487,21 +446,22 @@ class _BilansScreenState extends State<BilansScreen>
     final isPositif = solde >= 0;
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 22),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       decoration: BoxDecoration(
+        // ✅ 2. DÉGRADÉ SUBTIL ET ÉLÉGANT (Plus de vert pomme flashy)
         gradient: LinearGradient(
           colors: isPositif
-              ? [const Color(0xFF1B5E20), const Color(0xFF388E3C)]
-              : [const Color(0xFFB71C1C), const Color(0xFFE53935)],
+              ? [const Color(0xFF0B4F36), const Color(0xFF0D5F41)] // Dégradé très subtil d'Émeraude
+              : [const Color(0xFF7F1D1D), const Color(0xFF9B2C2C)], // Dégradé subtil de Rouge Brique
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: (isPositif ? Colors.green : Colors.red).withOpacity(0.3),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: (isPositif ? emeraldDark : brickRed).withOpacity(0.15),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -510,9 +470,11 @@ class _BilansScreenState extends State<BilansScreen>
         children: [
           Row(
             children: [
-              Text(
-                isPositif ? '✅' : '⚠️',
-                style: const TextStyle(fontSize: 22),
+              // ✅ 2. ICÔNE SYSTÈME ÉPURÉE (Plus d'émoji cartoon)
+              Icon(
+                isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+                color: Colors.white,
+                size: 22,
               ),
               const SizedBox(width: 8),
               Text(
@@ -525,14 +487,14 @@ class _BilansScreenState extends State<BilansScreen>
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               '${solde < 0 ? '-' : ''}${_fmt(solde.abs())} FCFA',
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 34,
+                fontSize: 36,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.5,
               ),
@@ -541,21 +503,19 @@ class _BilansScreenState extends State<BilansScreen>
           const SizedBox(height: 4),
           Text(
             'Solde de la période',
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
           ),
         ],
       ),
     );
   }
 
+  // ✅ 3. WIDGET STAT CARD REFACTORISÉ POUR LES ICÔNES ÉPURÉES
   Widget _buildStatCard({
-    required String emoji,
+    required IconData icon,
     required String label,
     required double amount,
-    required Color color,
+    required Color iconColor,
     required Color bgColor,
   }) {
     return Container(
@@ -567,23 +527,23 @@ class _BilansScreenState extends State<BilansScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 28)),
-          const SizedBox(height: 10),
+          Icon(icon, color: iconColor, size: 28),
+          const SizedBox(height: 12),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
               '${_fmt(amount)} F',
               style: TextStyle(
-                fontSize: 17,
+                fontSize: 18,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: iconColor,
               ),
             ),
           ),
           const SizedBox(height: 4),
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: color.withOpacity(0.8)),
+            style: TextStyle(fontSize: 12, color: iconColor.withOpacity(0.8), fontWeight: FontWeight.w500),
           ),
         ],
       ),
@@ -597,24 +557,21 @@ class _BilansScreenState extends State<BilansScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
-          const Text('📊', style: TextStyle(fontSize: 56)),
+          Icon(Icons.receipt_long_rounded, size: 56, color: Colors.grey.shade400),
           const SizedBox(height: 16),
           const Text(
             'Pas de données pour cette période',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 8),
           Text(
             'Ajoutez des recettes et dépenses\npour voir vos bilans ici.',
-            style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
+            style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],
@@ -635,25 +592,16 @@ class _BilansScreenState extends State<BilansScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Text('🥧', style: TextStyle(fontSize: 22)),
+              Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark),
               SizedBox(width: 10),
-              Text(
-                'Répartition',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
+              Text('Répartition', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
             ],
           ),
           const SizedBox(height: 20),
@@ -667,33 +615,24 @@ class _BilansScreenState extends State<BilansScreen>
                       pieTouchData: PieTouchData(
                         touchCallback: (event, response) {
                           setState(() {
-                            _touchedPieIndex =
-                                response?.touchedSection?.touchedSectionIndex ?? -1;
+                            _touchedPieIndex = response?.touchedSection?.touchedSectionIndex ?? -1;
                           });
                         },
                       ),
                       sections: [
                         PieChartSectionData(
                           value: _totalRecettes,
-                          color: const Color(0xFF2E7D32),
+                          color: emeraldDark, // ✅ Harmonisé
                           title: '${pctRecettes.toStringAsFixed(0)}%',
                           radius: _touchedPieIndex == 0 ? 70 : 58,
-                          titleStyle: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
+                          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         PieChartSectionData(
                           value: _totalDepenses,
-                          color: const Color(0xFFC62828),
+                          color: brickRed, // ✅ Harmonisé
                           title: '${pctDepenses.toStringAsFixed(0)}%',
                           radius: _touchedPieIndex == 1 ? 70 : 58,
-                          titleStyle: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 13,
-                          ),
+                          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                       ],
                       centerSpaceRadius: 36,
@@ -706,11 +645,11 @@ class _BilansScreenState extends State<BilansScreen>
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildPieLegend('📈', 'Reçu', _totalRecettes, const Color(0xFF2E7D32)),
+                    _buildPieLegend(Icons.arrow_upward_rounded, 'Reçu', _totalRecettes, emeraldDark),
                     const SizedBox(height: 16),
-                    _buildPieLegend('📉', 'Dépensé', _totalDepenses, const Color(0xFFC62828)),
+                    _buildPieLegend(Icons.arrow_downward_rounded, 'Dépensé', _totalDepenses, brickRed),
                     const SizedBox(height: 16),
-                    _buildPieLegend('📊', 'Total', total, Colors.grey[700]!),
+                    _buildPieLegend(Icons.analytics_rounded, 'Total', total, textDark),
                   ],
                 ),
               ],
@@ -721,22 +660,18 @@ class _BilansScreenState extends State<BilansScreen>
     );
   }
 
-  Widget _buildPieLegend(String emoji, String label, double amount, Color color) {
+  Widget _buildPieLegend(IconData icon, String label, double amount, Color color) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 16)),
-        const SizedBox(width: 6),
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 8),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600])),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
             Text(
               '${_fmt(amount)} F',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
-                color: color,
-              ),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
             ),
           ],
         ),
@@ -746,10 +681,7 @@ class _BilansScreenState extends State<BilansScreen>
 
   Widget _buildBarChartCard() {
     final months = _monthlyRecettes.keys.toList();
-    final maxVal = [
-      ..._monthlyRecettes.values,
-      ..._monthlyDepenses.values,
-    ].fold(0.0, (m, v) => v > m ? v : m);
+    final maxVal = [..._monthlyRecettes.values, ..._monthlyDepenses.values].fold(0.0, (m, v) => v > m ? v : m);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -757,33 +689,24 @@ class _BilansScreenState extends State<BilansScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Text('📊', style: TextStyle(fontSize: 22)),
+              Icon(Icons.bar_chart_rounded, size: 22, color: textDark),
               SizedBox(width: 10),
-              Text(
-                'Évolution sur l\'année',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
+              Text('Évolution sur l\'année', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           Row(
             children: [
-              _buildLegendDot(const Color(0xFF2E7D32), '📈 Reçu'),
+              _buildLegendDot(emeraldDark, 'Reçu'),
               const SizedBox(width: 20),
-              _buildLegendDot(const Color(0xFFC62828), '📉 Dépensé'),
+              _buildLegendDot(brickRed, 'Dépensé'),
             ],
           ),
           const SizedBox(height: 20),
@@ -793,9 +716,7 @@ class _BilansScreenState extends State<BilansScreen>
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
                 maxY: maxVal > 0 ? maxVal * 1.2 : 100,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                ),
+                barTouchData: BarTouchData(enabled: true),
                 titlesData: FlTitlesData(
                   leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -805,15 +726,10 @@ class _BilansScreenState extends State<BilansScreen>
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
-                        if (idx < 0 || idx >= months.length) {
-                          return const SizedBox.shrink();
-                        }
+                        if (idx < 0 || idx >= months.length) return const SizedBox.shrink();
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            months[idx],
-                            style: const TextStyle(fontSize: 10, color: Colors.grey),
-                          ),
+                          child: Text(months[idx], style: const TextStyle(fontSize: 10, color: Colors.grey)),
                         );
                       },
                     ),
@@ -821,10 +737,7 @@ class _BilansScreenState extends State<BilansScreen>
                 ),
                 gridData: FlGridData(
                   drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => const FlLine(
-                    color: Color(0xFFF0F0F0),
-                    strokeWidth: 1,
-                  ),
+                  getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF0F0F0), strokeWidth: 1),
                 ),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(months.length, (i) {
@@ -835,13 +748,13 @@ class _BilansScreenState extends State<BilansScreen>
                     barRods: [
                       BarChartRodData(
                         toY: _monthlyRecettes[month] ?? 0,
-                        color: const Color(0xFF2E7D32),
+                        color: emeraldDark, // ✅ Harmonisé
                         width: 7,
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                       ),
                       BarChartRodData(
                         toY: _monthlyDepenses[month] ?? 0,
-                        color: const Color(0xFFC62828),
+                        color: brickRed, // ✅ Harmonisé
                         width: 7,
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
                       ),
@@ -859,12 +772,9 @@ class _BilansScreenState extends State<BilansScreen>
   Widget _buildLegendDot(Color color, String label) {
     return Row(
       children: [
-        Container(
-          width: 10, height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
+        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
       ],
     );
   }
@@ -879,25 +789,16 @@ class _BilansScreenState extends State<BilansScreen>
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Text('🏷️', style: TextStyle(fontSize: 22)),
+              Icon(Icons.category_rounded, size: 22, color: textDark),
               SizedBox(width: 10),
-              Text(
-                'Où va votre argent ?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
-              ),
+              Text('Où va votre argent ?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
             ],
           ),
           const SizedBox(height: 20),
@@ -914,16 +815,12 @@ class _BilansScreenState extends State<BilansScreen>
                 children: [
                   Row(
                     children: [
-                      Text(emoji, style: const TextStyle(fontSize: 22)),
+                      Text(emoji, style: const TextStyle(fontSize: 20)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           entry.key,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.black87,
-                          ),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textDark),
                         ),
                       ),
                       Column(
@@ -931,21 +828,17 @@ class _BilansScreenState extends State<BilansScreen>
                         children: [
                           Text(
                             '${_fmt(entry.value)} F',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: color,
-                            ),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
                           ),
                           Text(
                             '${(pct * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
                           ),
                         ],
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: LinearProgressIndicator(

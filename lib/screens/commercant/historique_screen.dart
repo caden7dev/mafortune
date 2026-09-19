@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure, Recettes)
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Alertes)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (lisibilité)
 
 class HistoriqueScreen extends StatefulWidget {
   const HistoriqueScreen({super.key});
@@ -26,19 +30,6 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
   // Recherche
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-
-  final Map<String, String> _catEmojis = {
-    'alimentation': '🍽️',
-    'transport': '🚗',
-    'stock': '📦',
-    'loyer': '🏠',
-    'santé': '💊',
-    'eau': '💡',
-    'électricité': '💡',
-    'téléphone': '📱',
-    'salaire': '💵',
-    'vente': '🛒',
-  };
 
   @override
   void initState() {
@@ -106,13 +97,6 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
   String _fmt(double v) =>
       NumberFormat('#,###', 'fr_FR').format(v).replaceAll(',', ' ');
 
-  String _getCatEmoji(String cat) {
-    for (final key in _catEmojis.keys) {
-      if (cat.toLowerCase().contains(key)) return _catEmojis[key]!;
-    }
-    return '📌';
-  }
-
   // Grouper les transactions par date (aujourd'hui, hier, date)
   String _groupLabel(DateTime date) {
     final now = DateTime.now();
@@ -151,26 +135,26 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
         .fold(0.0, (s, t) => s + t.montant);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // Fond gris très clair et doux
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        // ✅ 1. BANDEAU SUPÉRIEUR : Vert Émeraude Sombre
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          '📋 Historique',
+          'Historique', // Texte épuré sans émoji
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         ),
       ),
       body: _isLoading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryGreen))
+          ? const Center(child: CircularProgressIndicator(color: emeraldDark))
           : RefreshIndicator(
               onRefresh: _loadData,
-              color: AppColors.primaryGreen,
+              color: emeraldDark,
               child: Column(
                 children: [
                   // ── Barre filtres + recherche ──────────────────────────────
@@ -202,21 +186,21 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
           // Recherche
           TextField(
             controller: _searchController,
-            style: const TextStyle(fontSize: 16),
+            style: const TextStyle(fontSize: 16, color: textDark),
             decoration: InputDecoration(
-              hintText: '🔍  Rechercher une transaction...',
+              hintText: 'Rechercher une transaction...',
               hintStyle: const TextStyle(fontSize: 14, color: Colors.grey),
+              prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
               filled: true,
-              fillColor: Colors.grey[50],
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              fillColor: const Color(0xFFF8F9FA),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(14),
                 borderSide: BorderSide.none,
               ),
               suffixIcon: _searchQuery.isNotEmpty
                   ? IconButton(
-                      icon: const Icon(Icons.clear, color: Colors.grey),
+                      icon: const Icon(Icons.clear_rounded, color: Colors.grey),
                       onPressed: () {
                         _searchController.clear();
                         setState(() => _searchQuery = '');
@@ -232,11 +216,11 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
           // Filtres type — 3 boutons larges
           Row(
             children: [
-              Expanded(child: _buildFiltreBtn('📋', 'Tout', 'tous')),
+              Expanded(child: _buildFiltreBtn('Tout', 'tous')),
               const SizedBox(width: 8),
-              Expanded(child: _buildFiltreBtn('📈', 'Reçu', 'recettes')),
+              Expanded(child: _buildFiltreBtn('Reçu', 'recettes')),
               const SizedBox(width: 8),
-              Expanded(child: _buildFiltreBtn('📉', 'Dépensé', 'depenses')),
+              Expanded(child: _buildFiltreBtn('Dépensé', 'depenses')),
             ],
           ),
         ],
@@ -244,11 +228,12 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
     );
   }
 
-  Widget _buildFiltreBtn(String emoji, String label, String value) {
+  Widget _buildFiltreBtn(String label, String value) {
     final selected = _filtre == value;
-    Color activeColor = AppColors.primaryGreen;
-    if (value == 'recettes') activeColor = const Color(0xFF2E7D32);
-    if (value == 'depenses') activeColor = const Color(0xFFC62828);
+    
+    // ✅ 1. FILTRE ACTIF : Vert Émeraude pour 'tous' et 'recettes', Rouge Brique pour 'depenses'
+    Color activeColor = emeraldDark;
+    if (value == 'depenses') activeColor = brickRed;
 
     return GestureDetector(
       onTap: () => _setFiltre(value),
@@ -256,24 +241,22 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
         duration: const Duration(milliseconds: 180),
         height: 46,
         decoration: BoxDecoration(
-          color: selected ? activeColor : Colors.grey[100],
+          color: selected ? activeColor : const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: selected ? activeColor : Colors.grey[300]!,
+            color: selected ? activeColor : Colors.grey.shade300,
             width: selected ? 1.5 : 1,
           ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 16)),
-            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
-                color: selected ? Colors.white : Colors.grey[700],
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                color: selected ? Colors.white : Colors.grey.shade700,
               ),
             ),
           ],
@@ -290,34 +273,35 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
+          color: const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: Row(
           children: [
             // Nombre de transactions
             Text(
               '${_filtered.length} opération${_filtered.length > 1 ? 's' : ''}',
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
             ),
             const Spacer(),
-            // Recettes
+            // ✅ 3. MONTANTS POSITIFS : Vert Émeraude Sombre pour un contraste fort
             Text(
               '+${_fmt(recettes)} F',
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF2E7D32),
+                color: emeraldDark,
               ),
             ),
             const SizedBox(width: 14),
-            // Dépenses
+            // ✅ 3. MONTANTS NÉGATIFS : Rouge Brique adouci (plus de rose fluo)
             Text(
               '-${_fmt(depenses)} F',
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFC62828),
+                color: brickRed,
               ),
             ),
           ],
@@ -353,11 +337,11 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
             style: const TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              color: textDark,
             ),
           ),
           const SizedBox(width: 10),
-          Expanded(child: Divider(color: Colors.grey[300], thickness: 1)),
+          Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
         ],
       ),
     );
@@ -366,11 +350,12 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
   // ─── CARTE TRANSACTION ────────────────────────────────────────────────────────
   Widget _buildTransactionCard(TransactionModel t) {
     final isRecette = t.estRecette;
-    final emoji = isRecette ? '📈' : _getCatEmoji(t.categorie);
-    final color =
-        isRecette ? const Color(0xFF2E7D32) : const Color(0xFFC62828);
-    final bgColor =
-        isRecette ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE);
+    
+    // ✅ 2. ICÔNES SYSTÈME ÉPURÉES AVEC FOND À 10% D'OPACITÉ
+    final IconData iconData = isRecette ? Icons.trending_up_rounded : Icons.trending_down_rounded;
+    final Color iconColor = isRecette ? emeraldDark : brickRed;
+    final Color iconBgColor = isRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1);
+    
     final label = t.description?.isNotEmpty == true ? t.description! : t.categorie;
     final heure = DateFormat('HH:mm').format(t.date);
 
@@ -381,7 +366,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.03),
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -391,16 +376,16 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            // Cercle emoji
+            // ✅ Cercle icône harmonisé (plus d'émoji générique)
             Container(
               width: 52,
               height: 52,
               decoration: BoxDecoration(
-                color: bgColor,
+                color: iconBgColor,
                 shape: BoxShape.circle,
               ),
               child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 24)),
+                child: Icon(iconData, color: iconColor, size: 24),
               ),
             ),
 
@@ -416,7 +401,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: textDark,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -425,15 +410,13 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
                   Row(
                     children: [
                       Text(
-                        '🏷️ ${t.categorie}',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        t.categorie,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       ),
                       const SizedBox(width: 10),
                       Text(
-                        '🕐 $heure',
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.grey[500]),
+                        '• $heure',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                       ),
                     ],
                   ),
@@ -443,13 +426,13 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
 
             const SizedBox(width: 10),
 
-            // Montant
+            // ✅ Montant avec la couleur correspondante (Emerald ou BrickRed)
             Text(
               '${isRecette ? '+' : '-'}${_fmt(t.montant)} F',
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: color,
+                color: iconColor,
               ),
             ),
           ],
@@ -467,30 +450,29 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              isSearching ? '🔍' : '📋',
-              style: const TextStyle(fontSize: 64),
+            Icon(
+              isSearching ? Icons.search_off_rounded : Icons.receipt_long_rounded,
+              size: 64,
+              color: Colors.grey.shade400,
             ),
             const SizedBox(height: 20),
             Text(
-              isSearching
-                  ? 'Aucun résultat'
-                  : 'Aucune transaction',
+              isSearching ? 'Aucun résultat' : 'Aucune transaction',
               style: const TextStyle(
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: textDark,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             Text(
               isSearching
-                  ? 'Essayez un autre mot\nou changez le filtre.'
-                  : 'Vos transactions apparaîtront\nici après les avoir saisies.',
+                  ? 'Essayez un autre mot ou changez le filtre.'
+                  : 'Vos transactions apparaîtront ici après les avoir saisies.',
               style: TextStyle(
-                fontSize: 15,
-                color: Colors.grey[600],
+                fontSize: 14,
+                color: Colors.grey.shade600,
                 height: 1.5,
               ),
               textAlign: TextAlign.center,
@@ -503,16 +485,15 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
                   _setFiltre('tous');
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: emeraldDark, // ✅ Bouton harmonisé
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('🔄 Tout afficher',
-                    style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text(
+                  'Réinitialiser les filtres',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ],

@@ -2,9 +2,14 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
 import '../../models/utilisateur_model.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class ModifierProfilScreen extends StatefulWidget {
   final UtilisateurModel currentUser;
@@ -37,12 +42,9 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     super.initState();
     _nomController = TextEditingController(text: widget.currentUser.nom);
     _prenomController = TextEditingController(text: widget.currentUser.prenom);
-    _telephoneController =
-        TextEditingController(text: widget.currentUser.telephone);
-    _adresseController =
-        TextEditingController(text: widget.currentUser.adresse ?? '');
-    _typeActiviteController =
-        TextEditingController(text: widget.currentUser.typeActivite ?? '');
+    _telephoneController = TextEditingController(text: widget.currentUser.telephone);
+    _adresseController = TextEditingController(text: widget.currentUser.adresse ?? '');
+    _typeActiviteController = TextEditingController(text: widget.currentUser.typeActivite ?? '');
     _profileImageUrl = widget.currentUser.photo;
   }
 
@@ -72,7 +74,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+            backgroundColor: brickRed, // ✅ Couleur harmonisée
           ),
         );
       }
@@ -91,7 +93,6 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Handle
               Container(
                 width: 40,
                 height: 4,
@@ -102,41 +103,38 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                '📸 Choisir une photo',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                'Choisir une photo', // ✅ Suppression de l'émoji
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark),
               ),
               const SizedBox(height: 20),
 
-              // Prendre une photo
+              // ✅ Icônes épurées avec fond à 10% d'opacité
               _buildSheetOption(
-                emoji: '📷',
+                icon: Icons.camera_alt_rounded,
                 label: 'Prendre une photo',
-                color: AppColors.primaryGreen,
+                color: emeraldDark,
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.camera);
                 },
               ),
               const SizedBox(height: 12),
-
-              // Galerie
               _buildSheetOption(
-                emoji: '🖼️',
+                icon: Icons.image_rounded,
                 label: 'Choisir dans la galerie',
-                color: AppColors.primaryGreen,
+                color: emeraldDark,
                 onTap: () {
                   Navigator.pop(context);
                   _pickImage(ImageSource.gallery);
                 },
               ),
 
-              // Supprimer
               if (_profileImageUrl != null || _selectedImage != null) ...[
                 const SizedBox(height: 12),
                 _buildSheetOption(
-                  emoji: '🗑️',
+                  icon: Icons.delete_outline_rounded,
                   label: 'Supprimer la photo',
-                  color: Colors.red,
+                  color: brickRed, // ✅ Rouge Brique pour la suppression
                   onTap: () {
                     Navigator.pop(context);
                     _deleteImage();
@@ -151,7 +149,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   }
 
   Widget _buildSheetOption({
-    required String emoji,
+    required IconData icon,
     required String label,
     required Color color,
     required VoidCallback onTap,
@@ -162,14 +160,18 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         width: double.infinity,
         height: 60,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.08),
+          color: color.withOpacity(0.1), // ✅ Règle des 10% d'opacité
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: color.withOpacity(0.3)),
+          border: Border.all(color: color.withOpacity(0.2)),
         ),
         child: Row(
           children: [
             const SizedBox(width: 18),
-            Text(emoji, style: const TextStyle(fontSize: 24)),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 22),
+            ),
             const SizedBox(width: 16),
             Text(
               label,
@@ -204,7 +206,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Photo supprimée', style: TextStyle(fontSize: 16)),
-            backgroundColor: Colors.orange,
+            backgroundColor: terracotta, // ✅ Couleur harmonisée
           ),
         );
       }
@@ -213,7 +215,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+            backgroundColor: brickRed,
           ),
         );
       }
@@ -236,7 +238,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur upload: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+            backgroundColor: brickRed,
           ),
         );
       }
@@ -260,12 +262,8 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         nom: _nomController.text.trim(),
         prenom: _prenomController.text.trim(),
         telephone: _telephoneController.text.trim(),
-        adresse: _adresseController.text.trim().isEmpty
-            ? null
-            : _adresseController.text.trim(),
-        typeActivite: _typeActiviteController.text.trim().isEmpty
-            ? null
-            : _typeActiviteController.text.trim(),
+        adresse: _adresseController.text.trim().isEmpty ? null : _adresseController.text.trim(),
+        typeActivite: _typeActiviteController.text.trim().isEmpty ? null : _typeActiviteController.text.trim(),
         photo: newPhotoUrl,
       );
 
@@ -275,7 +273,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Profil mis à jour', style: TextStyle(fontSize: 16)),
-            backgroundColor: AppColors.primaryGreen,
+            backgroundColor: emeraldDark, // ✅ Couleur harmonisée
             duration: Duration(seconds: 2),
           ),
         );
@@ -286,7 +284,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Erreur: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+            backgroundColor: brickRed,
           ),
         );
       }
@@ -295,21 +293,20 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     }
   }
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark, // ✅ Vert Émeraude Sombre
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          '✏️ Modifier mon profil',
+          'Modifier mon profil', // ✅ Suppression de l'émoji
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -319,8 +316,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
               child: SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               ),
             ),
         ],
@@ -330,43 +326,40 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 40),
           children: [
-            // ── Photo de profil ──────────────────────────────────────────────
             _buildPhotoSection(),
-
             const SizedBox(height: 28),
 
-            // ── Champs éditables ─────────────────────────────────────────────
-            _buildSectionTitle('👤', 'Mes informations'),
+            _buildSectionTitle(Icons.person_outline, 'Mes informations'),
             const SizedBox(height: 14),
             _buildFieldCard([
               _buildField(
                 controller: _nomController,
-                emoji: '🪪',
+                icon: Icons.badge_outlined,
                 label: 'Nom',
                 required: true,
               ),
               _buildField(
                 controller: _prenomController,
-                emoji: '✍️',
+                icon: Icons.person_outline,
                 label: 'Prénom',
                 required: true,
               ),
               _buildField(
                 controller: _telephoneController,
-                emoji: '📱',
+                icon: Icons.phone_outlined,
                 label: 'Téléphone',
                 keyboardType: TextInputType.phone,
                 required: true,
               ),
               _buildField(
                 controller: _adresseController,
-                emoji: '📍',
+                icon: Icons.location_on_outlined,
                 label: 'Adresse',
                 required: false,
               ),
               _buildField(
                 controller: _typeActiviteController,
-                emoji: '🏪',
+                icon: Icons.storefront_outlined,
                 label: 'Type d\'activité',
                 required: false,
                 isLast: true,
@@ -375,27 +368,21 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Infos fixes ──────────────────────────────────────────────────
-            _buildSectionTitle('ℹ️', 'Informations fixes'),
+            _buildSectionTitle(Icons.info_outline, 'Informations fixes'),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.04),
-                    blurRadius: 8,
-                  ),
-                ],
+                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
               ),
               child: Column(
                 children: [
-                  _buildInfoRow('📧', 'Email', widget.currentUser.email),
+                  _buildInfoRow(Icons.email_outlined, 'Email', widget.currentUser.email),
                   const SizedBox(height: 14),
                   _buildInfoRow(
-                    '📅',
+                    Icons.calendar_today_outlined,
                     'Membre depuis',
                     _formatDate(widget.currentUser.dateCreation),
                   ),
@@ -405,37 +392,32 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
 
             const SizedBox(height: 32),
 
-            // ── Boutons action ───────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               height: 62,
               child: ElevatedButton(
                 onPressed: (_isLoading || _isUploading) ? null : _enregistrer,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: emeraldDark, // ✅ Couleur harmonisée
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      AppColors.primaryGreen.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
+                  disabledBackgroundColor: emeraldDark.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
                 child: _isLoading
                     ? const SizedBox(
                         width: 26,
                         height: 26,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 3, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
                       )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('💾', style: TextStyle(fontSize: 22)),
+                          Icon(Icons.save_rounded, size: 22), // ✅ Icône système épurée
                           SizedBox(width: 10),
                           Text(
                             'Enregistrer',
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -448,16 +430,13 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
               width: double.infinity,
               height: 54,
               child: OutlinedButton(
-                onPressed:
-                    _isLoading ? null : () => Navigator.pop(context),
+                onPressed: _isLoading ? null : () => Navigator.pop(context),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
+                  foregroundColor: textDark,
                   side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Annuler',
-                    style: TextStyle(fontSize: 18)),
+                child: const Text('Annuler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -466,12 +445,10 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     );
   }
 
-  // ─── SECTION PHOTO ───────────────────────────────────────────────────────────
   Widget _buildPhotoSection() {
     return Center(
       child: Column(
         children: [
-          // Avatar cliquable
           GestureDetector(
             onTap: (_isUploading || _isLoading) ? null : _showImagePickerSheet,
             child: Stack(
@@ -481,11 +458,10 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border:
-                        Border.all(color: AppColors.primaryGreen, width: 3),
+                    border: Border.all(color: emeraldDark, width: 3), // ✅ Couleur harmonisée
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withOpacity(0.1),
+                        color: Colors.black.withOpacity(0.08),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -493,8 +469,6 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                   ),
                   child: ClipOval(child: _buildProfileImage()),
                 ),
-
-                // Badge caméra
                 Positioned(
                   bottom: 2,
                   right: 2,
@@ -502,7 +476,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                     width: 38,
                     height: 38,
                     decoration: const BoxDecoration(
-                      color: AppColors.primaryGreen,
+                      color: emeraldDark, // ✅ Couleur harmonisée
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -510,28 +484,22 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                           ? const SizedBox(
                               width: 18,
                               height: 18,
-                              child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text('📷',
-                              style: TextStyle(fontSize: 18)),
+                          : const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20), // ✅ Icône système
                     ),
                   ),
                 ),
               ],
             ),
           ),
-
           const SizedBox(height: 12),
-
-          // Lien texte
           TextButton(
-            onPressed:
-                (_isUploading || _isLoading) ? null : _showImagePickerSheet,
+            onPressed: (_isUploading || _isLoading) ? null : _showImagePickerSheet,
             child: const Text(
               'Changer la photo',
               style: TextStyle(
-                color: AppColors.primaryGreen,
+                color: emeraldDark, // ✅ Couleur harmonisée
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -542,42 +510,37 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     );
   }
 
-  // ─── TITRE SECTION ───────────────────────────────────────────────────────────
-  Widget _buildSectionTitle(String emoji, String title) {
+  Widget _buildSectionTitle(IconData icon, String title) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
-        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: emeraldDark, size: 20),
+        ),
+        const SizedBox(width: 12),
         Text(
           title,
-          style: const TextStyle(
-              fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87),
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
         ),
       ],
     );
   }
 
-  // ─── CARD AVEC PLUSIEURS CHAMPS ──────────────────────────────────────────────
   Widget _buildFieldCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
       ),
       child: Column(children: children),
     );
   }
 
-  // ─── CHAMP INDIVIDUEL ────────────────────────────────────────────────────────
   Widget _buildField({
     required TextEditingController controller,
-    required String emoji,
+    required IconData icon,
     required String label,
     TextInputType? keyboardType,
     bool required = true,
@@ -591,56 +554,56 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
             controller: controller,
             keyboardType: keyboardType,
             enabled: !_isLoading,
-            style: const TextStyle(fontSize: 17, color: Colors.black87),
+            style: const TextStyle(fontSize: 17, color: textDark),
             decoration: InputDecoration(
-              labelText: '$emoji  $label${required ? '' : ' (optionnel)'}',
+              labelText: '$label${required ? ' *' : ' (optionnel)'}', // ✅ Étoile pour requis, plus propre
               labelStyle: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12)),
+              // ✅ Icône de champ avec fond à 10% d'opacité
+              prefixIcon: Container(
+                margin: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+                child: Icon(icon, color: emeraldDark, size: 20),
+              ),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(color: Colors.grey[300]!),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide:
-                    const BorderSide(color: AppColors.primaryGreen, width: 2),
+                borderSide: const BorderSide(color: emeraldDark, width: 2), // ✅ Couleur harmonisée
               ),
               filled: true,
-              fillColor: Colors.grey[50],
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              fillColor: const Color(0xFFF8F9FA),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             ),
-            validator: required
-                ? (v) => (v == null || v.isEmpty) ? '$label requis' : null
-                : null,
+            validator: required ? (v) => (v == null || v.isEmpty) ? '$label requis' : null : null,
           ),
         ),
-        if (!isLast)
-          Divider(height: 1, color: Colors.grey[100], indent: 16, endIndent: 16),
+        if (!isLast) Divider(height: 1, color: Colors.grey[200], indent: 16, endIndent: 16),
       ],
     );
   }
 
-  // ─── LIGNE INFO FIXE ────────────────────────────────────────────────────────
-  Widget _buildInfoRow(String emoji, String label, String value) {
+  Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 20)),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+          child: Icon(icon, color: emeraldDark, size: 20),
+        ),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(label,
-                  style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+              Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
               const SizedBox(height: 2),
               Text(
                 value,
-                style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
               ),
             ],
           ),
@@ -649,7 +612,6 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     );
   }
 
-  // ─── IMAGE PROFIL ────────────────────────────────────────────────────────────
   Widget _buildProfileImage() {
     if (_selectedImage != null) {
       return Image.file(
@@ -680,9 +642,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         fit: BoxFit.cover,
         loadingBuilder: (context, child, loadingProgress) {
           if (loadingProgress == null) return child;
-          return const Center(
-            child: CircularProgressIndicator(color: AppColors.primaryGreen),
-          );
+          return const Center(child: CircularProgressIndicator(color: emeraldDark));
         },
         errorBuilder: (_, __, ___) => _buildDefaultAvatar(),
       );
@@ -692,18 +652,16 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   }
 
   Widget _buildDefaultAvatar() {
-    final initial = widget.currentUser.nom.isNotEmpty
-        ? widget.currentUser.nom[0].toUpperCase()
-        : '?';
+    final initial = widget.currentUser.nom.isNotEmpty ? widget.currentUser.nom[0].toUpperCase() : '?';
     return Container(
-      color: AppColors.primaryGreen.withOpacity(0.15),
+      color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10% d'opacité
       child: Center(
         child: Text(
           initial,
           style: const TextStyle(
             fontSize: 44,
             fontWeight: FontWeight.bold,
-            color: AppColors.primaryGreen,
+            color: emeraldDark, // ✅ Couleur harmonisée
           ),
         ),
       ),

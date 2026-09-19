@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color terracotta = Color(0xFFD96B43);       // Vente / Action chaleureuse
+const Color brickRedSoft = Color(0xFFB91C1C);     // ✅ Dépense / Rouge brique lumineux (identique à Saisie Rapide)
+const Color emeraldDark = Color(0xFF0B4F36);      // Vert Émeraude Sombre (Sécurité, Structure)
+const Color textDark = Color(0xFF222222);         // Gris anthracite très foncé (lisibilité)
+const Color neutralBg = Color(0xFFF8F9FA);        // Gris/beige neutre très doux
 
 class ModifierTransactionSheet extends StatefulWidget {
   final TransactionModel transaction;
@@ -32,7 +38,6 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
   @override
   void initState() {
     super.initState();
-    // ✅ Pré-remplir avec les données existantes
     _isVente = widget.transaction.estRecette;
     _montantStr = widget.transaction.montant.toStringAsFixed(0);
     _descriptionController = TextEditingController(
@@ -92,7 +97,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Entrez un montant valide'),
-          backgroundColor: Colors.orange,
+          backgroundColor: terracotta,
           duration: Duration(seconds: 2),
         ),
       );
@@ -102,7 +107,6 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
     setState(() => _isLoading = true);
 
     try {
-      // ✅ Garde la date originale — ne la modifie PAS
       final transactionModifiee = widget.transaction.copyWith(
         montant: _montant,
         type: _isVente ? TypeTransaction.recette : TypeTransaction.depense,
@@ -116,11 +120,9 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
       );
 
       await _transactionService.updateTransaction(transactionModifiee);
-
       HapticFeedback.heavyImpact();
 
       if (mounted) {
-        // ✅ RENVOIE L'OBJET MODIFIÉ POUR MISE À JOUR INSTANTANÉE DE L'UI
         Navigator.pop(context, transactionModifiee);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -128,14 +130,12 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
               children: [
                 Text('✅', style: TextStyle(fontSize: 16)),
                 SizedBox(width: 10),
-                Text('Transaction modifiée',
-                    style: TextStyle(fontSize: 15)),
+                Text('Transaction modifiée', style: TextStyle(fontSize: 15)),
               ],
             ),
-            backgroundColor: AppColors.primaryGreen,
+            backgroundColor: emeraldDark,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -145,12 +145,10 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('❌ Erreur : $e',
-                style: const TextStyle(fontSize: 15)),
-            backgroundColor: Colors.red,
+            content: Text('❌ Erreur : $e', style: const TextStyle(fontSize: 15)),
+            backgroundColor: brickRedSoft,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
           ),
         );
@@ -179,8 +177,14 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
 
   @override
   Widget build(BuildContext context) {
-    final couleur = _isVente ? AppColors.primaryGreen : AppColors.expenseRed;
+    // ✅ Détermination dynamique de la couleur selon le mode
+    final couleur = _isVente ? terracotta : brickRedSoft;
     final screenHeight = MediaQuery.of(context).size.height;
+
+    // ✅ Logique conditionnelle pour les cadres (Neutre pour Vente, Coloré pour Dépense)
+    final Color frameBg = _isVente ? neutralBg : couleur.withOpacity(0.08);
+    final Color frameBorder = _isVente ? Colors.grey.shade300 : couleur.withOpacity(0.2);
+    final Color shortcutBorder = _isVente ? Colors.grey.shade300 : couleur.withOpacity(0.3);
 
     return FadeTransition(
       opacity: _fadeAnim,
@@ -205,8 +209,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
 
             // Header
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: Row(
                 children: [
                   const Text(
@@ -214,7 +217,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
-                      color: Color(0xFF1A1A2E),
+                      color: textDark,
                     ),
                   ),
                   const Spacer(),
@@ -227,28 +230,25 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                         color: Colors.grey[100],
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.close,
-                          size: 18, color: Colors.grey),
+                      child: const Icon(Icons.close, size: 18, color: textDark),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // ✅ Date originale conservée
+            // ✅ BANDEAU DE DATE : Fond pastel très léger, icônes Vert Émeraude Sombre
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.blue.withValues(alpha: 0.06),
+                color: const Color(0xFFF0F7F4),
                 borderRadius: BorderRadius.circular(12),
-                border:
-                    Border.all(color: Colors.blue.withValues(alpha: 0.2)),
+                border: Border.all(color: emeraldDark.withOpacity(0.15)),
               ),
               child: Row(
                 children: [
-                  const Text('📅', style: TextStyle(fontSize: 18)),
+                  const Icon(Icons.calendar_today_rounded, size: 18, color: emeraldDark),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -258,7 +258,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                           'Date originale conservée',
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.blue,
+                            color: emeraldDark,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -266,22 +266,21 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                           _formatDate(widget.transaction.date),
                           style: const TextStyle(
                             fontSize: 13,
-                            color: Color(0xFF1A1A2E),
+                            color: textDark,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.lock_outline,
-                      size: 14, color: Colors.blue),
+                  const Icon(Icons.lock_outline_rounded, size: 16, color: emeraldDark),
                 ],
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Sélecteur Vente / Dépense
+            // ✅ SÉLECTEUR VENTE / DÉPENSE
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -294,30 +293,22 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: _isVente
-                              ? AppColors.primaryGreen
-                              : Colors.grey[100],
+                          color: _isVente ? terracotta : Colors.grey[100],
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
                           children: [
-                            Icon(Icons.trending_up,
-                                color: _isVente
-                                    ? Colors.white
-                                    : Colors.grey[500],
-                                size: 26),
+                            Icon(Icons.trending_up_rounded,
+                                color: _isVente ? Colors.white : Colors.grey[500], size: 26),
                             const SizedBox(height: 4),
                             Text(
                               "J'ai VENDU",
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: _isVente
-                                    ? Colors.white
-                                    : Colors.grey[600],
+                                color: _isVente ? Colors.white : Colors.grey[600],
                               ),
                             ),
                           ],
@@ -334,30 +325,23 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                       },
                       child: AnimatedContainer(
                         duration: const Duration(milliseconds: 180),
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 14),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
                         decoration: BoxDecoration(
-                          color: !_isVente
-                              ? AppColors.expenseRed
-                              : Colors.grey[100],
+                          // ✅ Utilise maintenant brickRedSoft (0xFFB91C1C)
+                          color: !_isVente ? brickRedSoft : Colors.grey[100],
                           borderRadius: BorderRadius.circular(14),
                         ),
                         child: Column(
                           children: [
-                            Icon(Icons.trending_down,
-                                color: !_isVente
-                                    ? Colors.white
-                                    : Colors.grey[500],
-                                size: 26),
+                            Icon(Icons.trending_down_rounded,
+                                color: !_isVente ? Colors.white : Colors.grey[500], size: 26),
                             const SizedBox(height: 4),
                             Text(
                               "J'ai DÉPENSÉ",
                               style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
-                                color: !_isVente
-                                    ? Colors.white
-                                    : Colors.grey[600],
+                                color: !_isVente ? Colors.white : Colors.grey[600],
                               ),
                             ),
                           ],
@@ -369,17 +353,16 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // Affichage montant
+            // ✅ AFFICHAGE MONTANT
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 20, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
               decoration: BoxDecoration(
-                color: couleur.withValues(alpha: 0.08),
+                color: frameBg,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: couleur.withValues(alpha: 0.3)),
+                border: Border.all(color: frameBorder),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -389,10 +372,10 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                       fit: BoxFit.scaleDown,
                       child: Text(
                         _formatAffichage(_montantStr),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 38,
                           fontWeight: FontWeight.bold,
-                          color: couleur,
+                          color: textDark,
                           letterSpacing: 1,
                         ),
                       ),
@@ -404,16 +387,16 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: couleur.withValues(alpha: 0.7),
+                      color: textDark.withOpacity(0.6),
                     ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
-            // Touches rapides
+            // ✅ TOUCHES RAPIDES
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
@@ -424,23 +407,21 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                       child: GestureDetector(
                         onTap: () => _ajouterMontantRapide(v),
                         child: Container(
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 8),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
                           decoration: BoxDecoration(
-                            color: couleur.withValues(alpha: 0.1),
+                            color: Colors.white,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: couleur.withValues(alpha: 0.25)),
+                            border: Border.all(color: shortcutBorder, width: 1.5),
                           ),
                           child: Center(
                             child: FittedBox(
                               fit: BoxFit.scaleDown,
                               child: Text(
                                 v >= 1000 ? '${v ~/ 1000}k' : '$v',
-                                style: TextStyle(
+                                style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: couleur,
+                                  color: textDark,
                                 ),
                               ),
                             ),
@@ -453,29 +434,27 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             // Description
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: TextField(
                 controller: _descriptionController,
-                style: const TextStyle(fontSize: 15),
+                style: const TextStyle(fontSize: 15, color: textDark),
                 decoration: InputDecoration(
                   hintText: '📝 Ajouter une description (optionnel)',
-                  hintStyle:
-                      TextStyle(color: Colors.grey[400], fontSize: 14),
+                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
                   filled: true,
-                  fillColor: Colors.grey[50],
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  fillColor: neutralBg,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[200]!),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -485,7 +464,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
               ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 12),
 
             // Numpad
             Expanded(
@@ -494,18 +473,18 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                 child: Column(
                   children: [
                     _buildRangee(['7', '8', '9'], couleur),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     _buildRangee(['4', '5', '6'], couleur),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     _buildRangee(['1', '2', '3'], couleur),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     _buildRangee(['C', '0', '⌫'], couleur),
                   ],
                 ),
               ),
             ),
 
-            // Bouton valider
+            // ✅ BOUTON VALIDER
             Padding(
               padding: EdgeInsets.fromLTRB(
                 20, 8, 20,
@@ -517,7 +496,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : _valider,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: couleur,
+                    backgroundColor: couleur, // ✅ Applique terracotta ou brickRedSoft (0xFFB91C1C)
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -528,8 +507,7 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                       ? const SizedBox(
                           width: 24,
                           height: 24,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2.5, color: Colors.white),
+                          child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                         )
                       : const Text(
                           '✅  Enregistrer les modifications',
@@ -560,24 +538,19 @@ class _ModifierTransactionSheetState extends State<ModifierTransactionSheet>
                 onTap: () => _appuyerTouche(t),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: isBack || isClear
-                        ? Colors.grey[100]
-                        : Colors.grey[50],
+                    color: isBack || isClear ? Colors.grey[100] : Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(color: Colors.grey[200]!),
                   ),
                   child: Center(
                     child: isBack
-                        ? Icon(Icons.backspace_outlined,
-                            size: 20, color: Colors.grey[700])
+                        ? const Icon(Icons.backspace_outlined, size: 22, color: textDark)
                         : Text(
                             t,
                             style: TextStyle(
-                              fontSize: isClear ? 15 : 22,
+                              fontSize: isClear ? 16 : 24,
                               fontWeight: FontWeight.w600,
-                              color: isClear
-                                  ? Colors.red[400]
-                                  : Colors.black87,
+                              color: textDark,
                             ),
                           ),
                   ),

@@ -49,6 +49,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'dart:ui';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'screens/commercant/messages_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -139,6 +140,7 @@ class MyApp extends StatelessWidget {
             '/budget':                (context) => const BudgetScreen(),
             // ✅ Dashboard et écrans administration
             '/admin/dashboard':       (context) => const admin_dashboard.AdminDashboardScreen(),
+            '/messages':              (context) => const MessagesScreen(),
             '/admin/users':           (context) => const AdminUsersScreen(),
             '/admin/stats':           (context) => const AdminStatsScreen(),
             '/admin/settings':        (context) => const AdminSettingsScreen(),

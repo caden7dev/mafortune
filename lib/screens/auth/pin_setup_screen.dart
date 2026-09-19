@@ -1,8 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/tts_service.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile) - Accessible partout dans ce fichier
+const Color emeraldGreen = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color textDark = Color(0xFF222222); // Gris très foncé texturé pour le pavé
+const Color errorRed = Color(0xFF9B2C2C);
 
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
@@ -136,7 +141,6 @@ class _PinSetupScreenState extends State<PinSetupScreen>
       await _successController.forward();
 
       if (mounted) {
-        // ✅ Redirige vers l'écran de sécurisation du compte
         Navigator.pushReplacementNamed(context, '/securiser_compte');
       }
     } catch (e) {
@@ -171,31 +175,30 @@ class _PinSetupScreenState extends State<PinSetupScreen>
           opacity: _fadeAnim,
           child: Column(
             children: [
-              // ── Header ─────────────────────────────────────────────────────
+              // ── 1. HEADER : Vert Émeraude Sombre uni ──────────────────────
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
                 decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius:
-                      BorderRadius.vertical(bottom: Radius.circular(28)),
+                  color: emeraldGreen,
+                  borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
                 ),
                 child: Column(
                   children: [
-                    // Icône
+                    // ── 2. ICÔNE : Moderne et épurée (blanche) ─────────────
                     Container(
                       width: 80,
                       height: 80,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.15),
                         shape: BoxShape.circle,
-                        border: Border.all(
-                            color: Colors.white.withOpacity(0.3), width: 2),
+                        border: Border.all(color: Colors.white.withOpacity(0.3), width: 2),
                       ),
                       child: Center(
-                        child: Text(
-                          _isConfirming ? '🔐' : '🔢',
-                          style: const TextStyle(fontSize: 38),
+                        child: Icon(
+                          _isConfirming ? Icons.lock_rounded : Icons.shield_outlined,
+                          color: Colors.white,
+                          size: 40,
                         ),
                       ),
                     ),
@@ -203,13 +206,12 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                     const SizedBox(height: 16),
 
                     Text(
-                      _isConfirming
-                          ? 'Confirme ton code'
-                          : 'Crée ton code secret',
+                      _isConfirming ? 'Confirme ton code' : 'Crée ton code secret',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 24,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
                       ),
                     ),
 
@@ -220,15 +222,16 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                           ? 'Entre le même code une deuxième fois'
                           : 'Ce code protège ton application',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withOpacity(0.85),
                         fontSize: 14,
+                        fontWeight: FontWeight.w500,
                       ),
                       textAlign: TextAlign.center,
                     ),
 
                     const SizedBox(height: 24),
 
-                    // Indicateur progression
+                    // ── 3. INDICATEUR D'ÉTAPE ──────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -243,7 +246,7 @@ class _PinSetupScreenState extends State<PinSetupScreen>
 
               const Spacer(),
 
-              // ── Points PIN ─────────────────────────────────────────────────
+              // ── POINTS PIN ───────────────────────────────────────────────
               AnimatedBuilder(
                 animation: _shakeAnim,
                 builder: (context, child) {
@@ -258,7 +261,6 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                 },
                 child: Column(
                   children: [
-                    // Points
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(4, (index) {
@@ -270,14 +272,11 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                           height: filled ? 22 : 20,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: filled
-                                ? AppColors.primaryGreen
-                                : Colors.grey[300],
+                            color: filled ? emeraldGreen : Colors.grey[300],
                             boxShadow: filled
                                 ? [
                                     BoxShadow(
-                                      color: AppColors.primaryGreen
-                                          .withOpacity(0.4),
+                                      color: emeraldGreen.withOpacity(0.3),
                                       blurRadius: 8,
                                       offset: const Offset(0, 2),
                                     ),
@@ -288,28 +287,29 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                       }),
                     ),
 
-                    // Message erreur
+                    // Message d'erreur harmonisé
                     if (_errorMessage != null) ...[
                       const SizedBox(height: 16),
                       Container(
                         margin: const EdgeInsets.symmetric(horizontal: 40),
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: errorRed.withOpacity(0.08),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red.shade200),
+                          border: Border.all(color: errorRed.withOpacity(0.2)),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text('⚠️', style: TextStyle(fontSize: 16)),
+                            const Icon(Icons.error_outline, color: errorRed, size: 18),
                             const SizedBox(width: 8),
                             Flexible(
                               child: Text(
                                 _errorMessage!,
                                 style: const TextStyle(
-                                  color: Colors.red,
+                                  color: errorRed,
                                   fontSize: 13,
+                                  fontWeight: FontWeight.w500,
                                   height: 1.4,
                                 ),
                                 textAlign: TextAlign.center,
@@ -325,7 +325,7 @@ class _PinSetupScreenState extends State<PinSetupScreen>
 
               const Spacer(),
 
-              // ── Numpad ─────────────────────────────────────────────────────
+              // ── 4. PAVÉ NUMÉRIQUE ────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Column(
@@ -346,15 +346,12 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                               duration: const Duration(milliseconds: 200),
                               height: 70,
                               decoration: BoxDecoration(
-                                color: _isConfirming
-                                    ? Colors.orange.withOpacity(0.1)
-                                    : Colors.transparent,
+                                color: _isConfirming ? terracotta.withOpacity(0.1) : Colors.transparent,
                                 shape: BoxShape.circle,
                               ),
                               child: Center(
                                 child: _isConfirming
-                                    ? const Text('↩️',
-                                        style: TextStyle(fontSize: 28))
+                                    ? const Icon(Icons.refresh_rounded, color: terracotta, size: 28)
                                     : const SizedBox.shrink(),
                               ),
                             ),
@@ -368,11 +365,9 @@ class _PinSetupScreenState extends State<PinSetupScreen>
                             onTap: _supprimer,
                             child: Container(
                               height: 70,
-                              decoration: const BoxDecoration(
-                                  shape: BoxShape.circle),
+                              decoration: const BoxDecoration(shape: BoxShape.circle),
                               child: const Center(
-                                child: Text('⌫',
-                                    style: TextStyle(fontSize: 28)),
+                                child: Icon(Icons.backspace_outlined, color: textDark, size: 28),
                               ),
                             ),
                           ),
@@ -406,6 +401,7 @@ class _PinSetupScreenState extends State<PinSetupScreen>
     );
   }
 
+  // ✅ CORRECTION : Utilisation dynamique du paramètre 'label'
   Widget _buildStep(bool isActive, bool isDone, String number, String label) {
     return Column(
       children: [
@@ -414,36 +410,29 @@ class _PinSetupScreenState extends State<PinSetupScreen>
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            color: isActive || isDone
-                ? Colors.white
-                : Colors.white.withOpacity(0.3),
+            color: isActive || isDone ? Colors.white : Colors.white.withOpacity(0.3),
             shape: BoxShape.circle,
           ),
           child: Center(
             child: isDone
-                ? Icon(Icons.check,
-                    color: AppColors.primaryGreen, size: 18)
+                ? const Icon(Icons.check, color: emeraldGreen, size: 20)
                 : Text(
                     number,
                     style: TextStyle(
-                      color: isActive
-                          ? AppColors.primaryGreen
-                          : Colors.white60,
+                      color: isActive ? emeraldGreen : Colors.white,
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
-          label,
-          style: TextStyle(
-            color: isActive
-                ? Colors.white
-                : Colors.white.withOpacity(0.5),
+          label, // Affiche "Créer" pour l'étape 1 et "Confirmer" pour l'étape 2
+          style: const TextStyle(
+            color: Colors.white,
             fontSize: 12,
-            fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -455,11 +444,9 @@ class _PinSetupScreenState extends State<PinSetupScreen>
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 18),
       width: 40,
       height: 2,
-      decoration: BoxDecoration(
-        color: active
-            ? Colors.white
-            : Colors.white.withOpacity(0.3),
-        borderRadius: BorderRadius.circular(1),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.all(Radius.circular(1)),
       ),
     );
   }
@@ -522,7 +509,7 @@ class _PressableNumButtonState extends State<_PressableNumButton>
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.07),
+                color: Colors.black.withOpacity(0.06),
                 blurRadius: 8,
                 offset: const Offset(0, 3),
               ),
@@ -532,9 +519,9 @@ class _PressableNumButtonState extends State<_PressableNumButton>
             child: Text(
               '${widget.number}',
               style: const TextStyle(
-                fontSize: 26,
+                fontSize: 28,
                 fontWeight: FontWeight.w600,
-                color: Color(0xFF1A1A2E),
+                color: textDark,
               ),
             ),
           ),

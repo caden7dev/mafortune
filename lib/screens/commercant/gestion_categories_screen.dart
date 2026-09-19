@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Recettes, Actions principales)
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Accents chaleureux)
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Suppression)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (Lisibilité)
 
 class GestionCategoriesScreen extends StatefulWidget {
   const GestionCategoriesScreen({super.key});
 
   @override
-  State<GestionCategoriesScreen> createState() =>
-      _GestionCategoriesScreenState();
+  State<GestionCategoriesScreen> createState() => _GestionCategoriesScreenState();
 }
 
 class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
@@ -55,11 +59,9 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Handle
               Center(
                 child: Container(
-                  width: 40,
-                  height: 4,
+                  width: 40, height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey[300],
                     borderRadius: BorderRadius.circular(2),
@@ -67,46 +69,55 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-
-              Text(
-                _selectedTab == 0
-                    ? '➕ Nouvelle catégorie de recette'
-                    : '➕ Nouvelle catégorie de dépense',
-                style: const TextStyle(
-                    fontSize: 19, fontWeight: FontWeight.bold),
+              
+              // ✅ Titre épuré avec icône système
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: emeraldDark.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.add_circle_outline, color: emeraldDark, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _selectedTab == 0 ? 'Nouvelle catégorie de recette' : 'Nouvelle catégorie de dépense',
+                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: textDark),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 24),
 
-              // Nom
+              // ✅ Champ avec icône préfixe à 10% d'opacité
               TextField(
                 controller: controller,
                 autofocus: true,
-                style: const TextStyle(fontSize: 18),
+                style: const TextStyle(fontSize: 18, color: textDark),
                 decoration: InputDecoration(
-                  labelText: '✍️  Nom de la catégorie',
-                  labelStyle:
-                      TextStyle(fontSize: 15, color: Colors.grey[600]),
-                  border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                  labelText: 'Nom de la catégorie',
+                  labelStyle: TextStyle(fontSize: 15, color: Colors.grey[600]),
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+                    child: const Icon(Icons.label_outline, color: emeraldDark, size: 18),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(
-                        color: AppColors.primaryGreen, width: 2),
+                    borderSide: const BorderSide(color: emeraldDark, width: 2),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 ),
               ),
 
               const SizedBox(height: 18),
 
-              // Choisir emoji
               const Text(
                 'Choisir une icône :',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
               ),
               const SizedBox(height: 10),
               Wrap(
@@ -120,21 +131,15 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
                       width: 50,
                       height: 50,
                       decoration: BoxDecoration(
-                        color: isSelected
-                            ? AppColors.primaryGreen.withOpacity(0.15)
-                            : Colors.grey[100],
+                        // ✅ Règle des 10% d'opacité pour la sélection
+                        color: isSelected ? emeraldDark.withOpacity(0.1) : Colors.grey[100],
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: isSelected
-                              ? AppColors.primaryGreen
-                              : Colors.grey[300]!,
+                          color: isSelected ? emeraldDark : Colors.grey[300]!,
                           width: isSelected ? 2 : 1,
                         ),
                       ),
-                      child: Center(
-                        child: Text(e,
-                            style: const TextStyle(fontSize: 24)),
-                      ),
+                      child: Center(child: Text(e, style: const TextStyle(fontSize: 24))),
                     ),
                   );
                 }).toList(),
@@ -142,7 +147,6 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
 
               const SizedBox(height: 24),
 
-              // Bouton enregistrer
               SizedBox(
                 width: double.infinity,
                 height: 58,
@@ -166,29 +170,23 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
                     Navigator.pop(ctx);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text(
-                          '$selectedEmoji "$nom" ajoutée',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                        backgroundColor: AppColors.primaryGreen,
+                        content: Text('$selectedEmoji "$nom" ajoutée', style: const TextStyle(fontSize: 16)),
+                        backgroundColor: emeraldDark, // ✅ Couleur harmonisée
                       ),
                     );
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryGreen,
+                    backgroundColor: emeraldDark,
                     foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
-                    elevation: 3,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    elevation: 0,
                   ),
                   child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text('💾', style: TextStyle(fontSize: 22)),
-                      SizedBox(width: 10),
-                      Text('Enregistrer',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.bold)),
+                      Icon(Icons.save_rounded, size: 20), // ✅ Icône système épurée
+                      SizedBox(width: 8),
+                      Text('Enregistrer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     ],
                   ),
                 ),
@@ -211,20 +209,25 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(cat['icon'] as String,
-                style: const TextStyle(fontSize: 52)),
+            // ✅ Icône de suppression dans un cercle à 10% d'opacité
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: brickRed.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline_rounded, size: 48, color: brickRed),
+            ),
             const SizedBox(height: 16),
             Text(
               'Supprimer "${cat['nom']}" ?',
-              style: const TextStyle(
-                  fontSize: 19, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: textDark),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
             Text(
               'Cette catégorie sera supprimée définitivement.',
-              style:
-                  TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4),
+              style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -234,14 +237,11 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
+                  backgroundColor: brickRed, // ✅ Rouge Brique pour la destruction
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Supprimer',
-                    style:
-                        TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Supprimer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 10),
@@ -251,13 +251,11 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(ctx, false),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
+                  foregroundColor: textDark,
                   side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Annuler',
-                    style: TextStyle(fontSize: 16)),
+                child: const Text('Annuler', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -276,9 +274,8 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('🗑️ "${cat['nom']}" supprimée',
-                style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.orange,
+            content: Text('🗑️ "${cat['nom']}" supprimée', style: const TextStyle(fontSize: 16)),
+            backgroundColor: brickRed, // ✅ Couleur harmonisée
           ),
         );
       }
@@ -306,47 +303,37 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
+              child: Container(width: 40, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
-                Text(cat['icon'] as String,
-                    style: const TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                const Text(
-                  'Renommer la catégorie',
-                  style: TextStyle(
-                      fontSize: 19, fontWeight: FontWeight.bold),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+                  child: const Icon(Icons.edit_outlined, color: emeraldDark, size: 20),
                 ),
+                const SizedBox(width: 12),
+                const Text('Renommer la catégorie', style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: textDark)),
               ],
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             TextField(
               controller: controller,
               autofocus: true,
-              style: const TextStyle(fontSize: 18),
+              style: const TextStyle(fontSize: 18, color: textDark),
               decoration: InputDecoration(
                 labelText: 'Nouveau nom',
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                labelStyle: TextStyle(fontSize: 15, color: Colors.grey[600]),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(14),
-                  borderSide: const BorderSide(
-                      color: AppColors.primaryGreen, width: 2),
+                  borderSide: const BorderSide(color: emeraldDark, width: 2),
                 ),
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 16),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
               height: 56,
@@ -358,21 +345,24 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
                   Navigator.pop(ctx);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('✅ Renommée en "$nom"',
-                          style: const TextStyle(fontSize: 16)),
-                      backgroundColor: AppColors.primaryGreen,
+                      content: Text('✅ Renommée en "$nom"', style: const TextStyle(fontSize: 16)),
+                      backgroundColor: emeraldDark,
                     ),
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: emeraldDark,
                   foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Enregistrer',
-                    style: TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold)),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.save_rounded, size: 20),
+                    SizedBox(width: 8),
+                    Text('Enregistrer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 20),
@@ -386,40 +376,38 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
   @override
   Widget build(BuildContext context) {
     final isRecettes = _selectedTab == 0;
-    final categories =
-        isRecettes ? _categoriesRecettes : _categoriesDepenses;
-    final tabColor =
-        isRecettes ? AppColors.primaryGreen : const Color(0xFFC62828);
+    final categories = isRecettes ? _categoriesRecettes : _categoriesDepenses;
+    final tabColor = isRecettes ? emeraldDark : brickRed; // ✅ Rouge Brique pour les dépenses
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '🏷️ Mes catégories',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.label_outlined, size: 22, color: Colors.white),
+            SizedBox(width: 8),
+            Text('Mes catégories', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ],
         ),
       ),
       body: Column(
         children: [
-          // ── Tabs grands ────────────────────────────────────────────────────
           Container(
             color: Colors.white,
             child: Row(
               children: [
-                Expanded(child: _buildTab('📈 Recettes', 0, AppColors.primaryGreen)),
-                Expanded(child: _buildTab('📉 Dépenses', 1, const Color(0xFFC62828))),
+                Expanded(child: _buildTab('Recettes', 0, emeraldDark)),
+                Expanded(child: _buildTab('Dépenses', 1, brickRed)),
               ],
             ),
           ),
-
-          // ── Compteur ───────────────────────────────────────────────────────
           Container(
             color: Colors.white,
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
@@ -431,32 +419,24 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
               ),
             ),
           ),
-
-          // ── Liste ──────────────────────────────────────────────────────────
           Expanded(
             child: categories.isEmpty
                 ? _buildEmptyState(tabColor)
                 : ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
                     itemCount: categories.length,
-                    itemBuilder: (context, index) =>
-                        _buildCategoryCard(categories[index], tabColor),
+                    itemBuilder: (context, index) => _buildCategoryCard(categories[index], tabColor),
                   ),
           ),
         ],
       ),
-
-      // ── FAB — Ajouter ─────────────────────────────────────────────────────
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddCategorySheet,
-        backgroundColor: tabColor,
+        backgroundColor: tabColor, // ✅ S'adapte à l'onglet actif
         foregroundColor: Colors.white,
         elevation: 4,
-        icon: const Text('➕', style: TextStyle(fontSize: 20)),
-        label: const Text(
-          'Ajouter',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
+        icon: const Icon(Icons.add_rounded, size: 20), // ✅ Icône système épurée
+        label: const Text('Ajouter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -471,20 +451,27 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
         padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           border: Border(
-            bottom: BorderSide(
-              color: selected ? color : Colors.transparent,
-              width: 3,
-            ),
+            bottom: BorderSide(color: selected ? color : Colors.transparent, width: 3),
           ),
         ),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-            color: selected ? color : Colors.grey[500],
-          ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              index == 0 ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+              size: 18,
+              color: selected ? color : Colors.grey[500],
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+                color: selected ? color : Colors.grey[500],
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -499,19 +486,13 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(
           children: [
-            // Emoji dans cercle coloré
+            // ✅ Emoji dans cercle coloré à 10% d'opacité
             Container(
               width: 52,
               height: 52,
@@ -519,95 +500,84 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
                 color: tabColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Center(
-                child: Text(
-                  cat['icon'] as String,
-                  style: const TextStyle(fontSize: 26),
-                ),
-              ),
+              child: Center(child: Text(cat['icon'] as String, style: const TextStyle(fontSize: 26))),
             ),
-
             const SizedBox(width: 14),
-
-            // Nom + badge
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     cat['nom'] as String,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark),
                   ),
                   const SizedBox(height: 4),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 3),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
-                      color: isEditable
-                          ? Colors.blue.withOpacity(0.1)
-                          : Colors.grey[100],
+                      // ✅ Badges harmonisés avec la charte
+                      color: isEditable ? terracotta.withOpacity(0.1) : Colors.grey.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      isEditable ? '✏️ Personnalisée' : '🔒 Par défaut',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: isEditable
-                            ? Colors.blue[700]
-                            : Colors.grey[600],
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isEditable ? Icons.edit_outlined : Icons.lock_outline,
+                          size: 12,
+                          color: isEditable ? terracotta : Colors.grey[600],
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          isEditable ? 'Personnalisée' : 'Par défaut',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: isEditable ? terracotta : Colors.grey[600],
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
-
-            // Actions — seulement si editable
             if (isEditable)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Renommer
+                  // ✅ Bouton Renommer : Émeraude à 10%
                   GestureDetector(
                     onTap: () => _renameCategory(cat),
                     child: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.blue.withOpacity(0.08),
+                        color: emeraldDark.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Center(
-                        child: Text('✏️', style: TextStyle(fontSize: 18)),
-                      ),
+                      child: const Center(child: Icon(Icons.edit_outlined, color: emeraldDark, size: 18)),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  // Supprimer
+                  // ✅ Bouton Supprimer : Rouge Brique à 10%
                   GestureDetector(
                     onTap: () => _deleteCategory(cat),
                     child: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.red.withOpacity(0.08),
+                        color: brickRed.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Center(
-                        child: Text('🗑️', style: TextStyle(fontSize: 18)),
-                      ),
+                      child: const Center(child: Icon(Icons.delete_outline_rounded, color: brickRed, size: 18)),
                     ),
                   ),
                 ],
               )
             else
-              // Cadenas — non modifiable
-              const Text('🔒', style: TextStyle(fontSize: 20, color: Colors.grey)),
+              // ✅ Cadenas système propre
+              const Icon(Icons.lock_outline, size: 20, color: Colors.grey),
           ],
         ),
       ),
@@ -620,18 +590,20 @@ class _GestionCategoriesScreenState extends State<GestionCategoriesScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Text('🏷️', style: TextStyle(fontSize: 60)),
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle),
+            child: Icon(Icons.label_outlined, size: 60, color: Colors.grey[400]), // ✅ Icône système propre
+          ),
           const SizedBox(height: 16),
           const Text(
             'Aucune catégorie',
-            style: TextStyle(
-                fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark),
           ),
           const SizedBox(height: 8),
           Text(
             'Appuyez sur "Ajouter" pour créer\nvotre première catégorie.',
-            style: TextStyle(
-                fontSize: 15, color: Colors.grey[600], height: 1.5),
+            style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.5),
             textAlign: TextAlign.center,
           ),
         ],

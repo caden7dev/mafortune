@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../core/constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/screenshot_wrapper.dart';
 
@@ -42,6 +41,13 @@ class _SignupScreenState extends State<SignupScreen> {
     {'emoji': '🔧', 'label': 'Artisan'},
     {'emoji': '📦', 'label': 'Commerce divers'},
   ];
+
+  // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+  static const Color emeraldGreen = Color(0xFF0B4F36);
+  static const Color terracotta = Color(0xFFD96B43);
+  static const Color textDark = Color(0xFF333333);
+  static const Color textMedium = Color(0xFF555555);
+  static const Color errorRed = Color(0xFF9B2C2C);
 
   @override
   void dispose() {
@@ -139,9 +145,7 @@ class _SignupScreenState extends State<SignupScreen> {
     final success = await authProvider.registerCommercant(
       email: email,
       password: password,
-      nom: _nomController.text.trim().isEmpty
-          ? prenom
-          : _nomController.text.trim(),
+      nom: _nomController.text.trim().isEmpty ? prenom : _nomController.text.trim(),
       prenom: prenom,
       telephone: telephone,
       typeActivite: _selectedActivity!,
@@ -159,7 +163,7 @@ class _SignupScreenState extends State<SignupScreen> {
         _telephoneFocus.requestFocus();
       } else if (msg.contains('network')) {
         setState(() {
-          _globalError = 'Pas de connexion Internet';
+          _globalError = 'Pas de connexion Internet. Vérifie ton réseau.';
         });
       } else {
         setState(() {
@@ -179,53 +183,47 @@ class _SignupScreenState extends State<SignupScreen> {
         body: SafeArea(
           child: Column(
             children: [
-              // Header vert
-              Container(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-                decoration: const BoxDecoration(
-                  gradient: AppColors.primaryGradient,
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(28),
-                  ),
-                ),
+              // Header épuré
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () => Navigator.pop(context),
-                        ),
-                        const Spacer(),
-                      ],
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: emeraldGreen, size: 28),
+                      onPressed: () => Navigator.pop(context),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     const Text(
                       'Créer mon compte',
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+                        color: emeraldGreen,
+                        fontSize: 28,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: -0.5,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     const Text(
-                      "C'est rapide et gratuit",
+                      "C'est rapide, gratuit et sécurisé.",
                       style: TextStyle(
-                        color: Colors.white70,
+                        color: textMedium,
                         fontSize: 15,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 20),
+                    // Indicateurs d'étape
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [1, 2, 3].map((i) {
                         return Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 6),
+                          margin: const EdgeInsets.only(right: 8),
                           width: _etape == i ? 32 : 10,
                           height: 10,
                           decoration: BoxDecoration(
-                            color: _etape == i ? Colors.white : Colors.white38,
+                            color: _etape == i ? terracotta : Colors.grey.shade300,
                             borderRadius: BorderRadius.circular(5),
                           ),
                         );
@@ -234,68 +232,70 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                 ),
               ),
+              
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
+                  // ✅ 3. ESPACEMENT : Padding ajusté pour un flux de lecture fluide
+                  padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Erreur globale (ex: Pas de connexion)
+                      // Erreur globale
                       if (_globalError != null) ...[
                         Container(
                           padding: const EdgeInsets.all(14),
                           decoration: BoxDecoration(
-                            color: Colors.red.shade50,
+                            color: errorRed.withOpacity(0.08),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.shade200),
+                            border: Border.all(color: errorRed.withOpacity(0.2)),
                           ),
                           child: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                              const Icon(Icons.error_outline, color: errorRed, size: 20),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   _globalError!,
-                                  style: const TextStyle(color: Colors.red, fontSize: 14),
+                                  style: const TextStyle(color: errorRed, fontSize: 14, fontWeight: FontWeight.w500),
                                 ),
                               ),
                             ],
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 24),
                       ],
 
+                      // ✅ 1 & 2. SIMPLIFICATION : Plus de titres redondants, juste les labels et les icônes internes
                       // ÉTAPE 1 — Nom et prénom
                       Container(
                         key: _prenomKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionTitle('👤', 'Comment tu t\'appelles ?'),
-                            const SizedBox(height: 16),
                             _buildChamp(
                               controller: _prenomController,
                               focusNode: _prenomFocus,
                               label: 'Ton prénom *',
                               hint: 'Ex: Ama',
+                              icon: Icons.badge_outlined,
                               errorText: _prenomError,
                               onChanged: (_) {
-                                if (_prenomError != null) {
-                                  setState(() => _prenomError = null);
-                                }
+                                if (_prenomError != null) setState(() => _prenomError = null);
                                 setState(() => _etape = 1);
                               },
                             ),
-                            const SizedBox(height: 14),
+                            const SizedBox(height: 16), // Espacement compact et harmonieux
                             _buildChamp(
                               controller: _nomController,
                               label: 'Ton nom (optionnel)',
                               hint: 'Ex: Koffi',
+                              icon: Icons.person_outline_rounded,
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      
+                      const SizedBox(height: 24), // Séparation fluide entre les blocs
 
                       // ÉTAPE 2 — Téléphone
                       Container(
@@ -303,19 +303,16 @@ class _SignupScreenState extends State<SignupScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionTitle('📱', 'Ton numéro de téléphone'),
-                            const SizedBox(height: 16),
                             _buildChamp(
                               controller: _telephoneController,
                               focusNode: _telephoneFocus,
                               label: 'Numéro *',
-                              hint: '90000000',
+                              hint: '90 00 00 00',
+                              icon: Icons.phone_outlined,
                               clavier: TextInputType.phone,
                               errorText: _telephoneError,
                               onChanged: (_) {
-                                if (_telephoneError != null) {
-                                  setState(() => _telephoneError = null);
-                                }
+                                if (_telephoneError != null) setState(() => _telephoneError = null);
                                 setState(() => _etape = 2);
                               },
                               formatters: [
@@ -323,36 +320,36 @@ class _SignupScreenState extends State<SignupScreen> {
                                 LengthLimitingTextInputFormatter(8),
                               ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             const Text(
-                              '🔒 Ton numéro sert à te connecter — personne ne le verra',
-                              style: TextStyle(color: Colors.grey, fontSize: 13),
+                              '🔒 Ton numéro sert à te connecter. Il reste confidentiel.',
+                              style: TextStyle(color: textMedium, fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
+                      
+                      const SizedBox(height: 32), // Respiration avant la section importante
 
-                      // ÉTAPE 3 — Activité
+                      // ÉTAPE 3 — Activité (Titre et icône conservés comme demandé)
                       Container(
                         key: _activiteKey,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildSectionTitle('🏪', 'Qu\'est-ce que tu fais comme travail ?'),
+                            _buildSectionTitle(Icons.storefront_outlined, 'Qu\'est-ce que tu fais ?'),
                             const SizedBox(height: 16),
 
-                            // Erreur spécifique pour la sélection d'activité
                             if (_activiteError != null) ...[
                               Text(
-                                '⚠️ ${_activiteError!}',
+                                '⚠️ $_activiteError',
                                 style: const TextStyle(
-                                  color: Colors.red,
+                                  color: errorRed,
                                   fontSize: 13.5,
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w600,
                                 ),
                               ),
-                              const SizedBox(height: 10),
+                              const SizedBox(height: 12),
                             ],
 
                             GridView.count(
@@ -376,31 +373,26 @@ class _SignupScreenState extends State<SignupScreen> {
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 180),
                                     decoration: BoxDecoration(
-                                      color: isSelected ? AppColors.primaryGreen : Colors.grey.shade100,
+                                      color: isSelected ? emeraldGreen.withOpacity(0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: isSelected
-                                            ? AppColors.primaryGreen
-                                            : _activiteError != null
-                                                ? Colors.red.shade300
-                                                : Colors.grey.shade300,
-                                        width: 2,
+                                        color: isSelected 
+                                            ? emeraldGreen 
+                                            : (_activiteError != null ? errorRed : Colors.grey.shade300),
+                                        width: isSelected ? 2 : 1.5,
                                       ),
                                     ),
                                     child: Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Text(
-                                          activite['emoji']!,
-                                          style: const TextStyle(fontSize: 32),
-                                        ),
+                                        Text(activite['emoji']!, style: const TextStyle(fontSize: 32)),
                                         const SizedBox(height: 8),
                                         Text(
                                           activite['label']!,
                                           style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: isSelected ? Colors.white : Colors.black87,
+                                            fontSize: 13.5,
+                                            fontWeight: FontWeight.w700,
+                                            color: isSelected ? emeraldGreen : textMedium,
                                           ),
                                           textAlign: TextAlign.center,
                                         ),
@@ -413,49 +405,60 @@ class _SignupScreenState extends State<SignupScreen> {
                           ],
                         ),
                       ),
+                      
                       const SizedBox(height: 36),
 
-                      // Bouton créer
+                      // Bouton principal
                       SizedBox(
                         width: double.infinity,
-                        height: 64,
+                        height: 60,
                         child: ElevatedButton(
                           onPressed: isLoading ? null : _creerCompte,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryGreen,
+                            backgroundColor: terracotta,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(16),
                             ),
-                            elevation: 2,
+                            elevation: 0,
+                            shadowColor: terracotta.withOpacity(0.3),
                           ),
                           child: isLoading
                               ? const SizedBox(
-                                  width: 26,
-                                  height: 26,
+                                  width: 24,
+                                  height: 24,
                                   child: CircularProgressIndicator(
-                                    strokeWidth: 2,
+                                    strokeWidth: 2.5,
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Text(
-                                  '✅   Créer mon compte',
-                                  style: TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                  ),
+                              : const Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'Créer mon compte',
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    SizedBox(width: 8),
+                                    Icon(Icons.arrow_forward_rounded, size: 20),
+                                  ],
                                 ),
                         ),
                       ),
                       const SizedBox(height: 16),
+                      
                       Center(
                         child: TextButton(
                           onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
                           child: const Text(
-                            "J'ai déjà un compte →",
+                            "J'ai déjà un compte",
                             style: TextStyle(
-                              color: AppColors.primaryGreen,
+                              color: emeraldGreen,
                               fontSize: 15,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ),
@@ -472,18 +475,26 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  Widget _buildSectionTitle(String emoji, String titre) {
+  // ✅ Icône de section conservée UNIQUEMENT pour "Qu'est-ce que tu fais ?"
+  Widget _buildSectionTitle(IconData icon, String titre) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 22)),
-        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: emeraldGreen.withOpacity(0.1),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, color: emeraldGreen, size: 20),
+        ),
+        const SizedBox(width: 12),
         Expanded(
           child: Text(
             titre,
             style: const TextStyle(
               fontSize: 17,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+              fontWeight: FontWeight.w700,
+              color: textDark,
             ),
           ),
         ),
@@ -491,10 +502,12 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
+  // ✅ Champs de saisie épurés : icône discrète en préfixe, pas de titre redondant au-dessus
   Widget _buildChamp({
     required TextEditingController controller,
     required String label,
     required String hint,
+    required IconData icon,
     FocusNode? focusNode,
     String? errorText,
     TextInputType clavier = TextInputType.text,
@@ -509,7 +522,7 @@ class _SignupScreenState extends State<SignupScreen> {
           style: const TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w600,
-            color: Colors.black87,
+            color: textDark,
           ),
         ),
         const SizedBox(height: 8),
@@ -519,18 +532,19 @@ class _SignupScreenState extends State<SignupScreen> {
           keyboardType: clavier,
           inputFormatters: formatters,
           onChanged: onChanged,
-          style: const TextStyle(fontSize: 16),
+          style: const TextStyle(fontSize: 16, color: textDark, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
+            prefixIcon: Icon(icon, color: emeraldGreen, size: 20), // Icône discrète à l'intérieur
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.grey),
-            errorText: errorText, // Affiche le message d'erreur directement SOUS le champ
+            errorText: errorText,
             errorStyle: const TextStyle(
-              color: Colors.red,
+              color: errorRed,
               fontSize: 13,
               fontWeight: FontWeight.w500,
             ),
             filled: true,
-            fillColor: Colors.grey.shade50,
+            fillColor: const Color(0xFFF8F9FA),
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -542,15 +556,15 @@ class _SignupScreenState extends State<SignupScreen> {
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.primaryGreen, width: 2),
+              borderSide: const BorderSide(color: emeraldGreen, width: 2),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 1.5),
+              borderSide: const BorderSide(color: errorRed, width: 1.5),
             ),
             focusedErrorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: Colors.red, width: 2),
+              borderSide: const BorderSide(color: errorRed, width: 2),
             ),
           ),
         ),

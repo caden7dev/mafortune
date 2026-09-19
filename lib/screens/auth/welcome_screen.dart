@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class WelcomeScreen extends StatefulWidget {
@@ -20,17 +19,11 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   late Animation<Offset> _buttonSlide;
   late Animation<double> _buttonFade;
 
-  // Couleurs de l'application
-  static const Color primaryGreen = Color(0xFF0F9D58);
-  static const LinearGradient primaryGradient = LinearGradient(
-    begin: Alignment.topCenter,
-    end: Alignment.bottomCenter,
-    colors: [
-      Color(0xFF0F9D58),
-      Color(0xFF075E34),
-      Color(0xFF032B18),
-    ],
-  );
+  // 🎨 CHARTE GRAPHIQUE MA FORTUNE
+  static const Color emeraldGreen = Color(0xFF0B4F36); // Sécurité & Structure
+  static const Color terracotta = Color(0xFFD96B43);   // Chaleur & Action
+  static const Color textDark = Color(0xFF333333);     // Lisibilité maximale
+  static const Color textMedium = Color(0xFF555555);   // Sous-titres lisibles
 
   @override
   void initState() {
@@ -38,55 +31,31 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1400),
+      duration: const Duration(milliseconds: 1200),
     );
 
     // 1. Animation du Logo
-    _logoScale = Tween<double>(begin: 0.6, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.0, 0.45, curve: Curves.easeOutBack),
-      ),
+    _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.45, curve: Curves.easeOutBack)),
     );
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.0, 0.35, curve: Curves.easeOut),
-      ),
+      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.35, curve: Curves.easeOut)),
     );
 
     // 2. Animation du Contenu & Features
-    _contentSlide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.3, 0.75, curve: Curves.easeOutCubic),
-      ),
+    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Interval(0.3, 0.75, curve: Curves.easeOutCubic)),
     );
     _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.3, 0.65, curve: Curves.easeOut),
-      ),
+      CurvedAnimation(parent: _controller, curve: Interval(0.3, 0.65, curve: Curves.easeOut)),
     );
 
     // 3. Animation des Boutons
-    _buttonSlide = Tween<Offset>(
-      begin: const Offset(0, 0.25),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.55, 1.0, curve: Curves.easeOutCubic),
-      ),
+    _buttonSlide = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: Interval(0.55, 1.0, curve: Curves.easeOutCubic)),
     );
     _buttonFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: Interval(0.55, 0.9, curve: Curves.easeOut),
-      ),
+      CurvedAnimation(parent: _controller, curve: Interval(0.55, 0.9, curve: Curves.easeOut)),
     );
 
     _controller.forward();
@@ -98,15 +67,14 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     super.dispose();
   }
 
-  // Méthode générique de navigation sécurisée
   void _navigateTo(BuildContext context, String routeName, String fallbackMessage) {
     try {
       Navigator.pushNamed(context, routeName);
     } catch (_) {
-      // Si la route n'est pas encore déclarée dans main.dart, on affiche un message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(fallbackMessage),
+          backgroundColor: textMedium,
           duration: const Duration(seconds: 2),
         ),
       );
@@ -116,8 +84,15 @@ class _WelcomeScreenState extends State<WelcomeScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // ✅ 1. FOND : Blanc pur vers gris très clair (lumineux et accueillant)
       body: Container(
-        decoration: const BoxDecoration(gradient: primaryGradient),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Colors.white, Color(0xFFF8F9FA)],
+          ),
+        ),
         child: SafeArea(
           child: LayoutBuilder(
             builder: (context, constraints) {
@@ -126,13 +101,13 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: constraints.maxHeight),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24.0),
+                    padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
                     child: IntrinsicHeight(
                       child: Column(
                         children: [
-                          const Spacer(),
+                          const Spacer(flex: 2),
 
-                          // ── Logo Pro avec Effet Verre ──────────────────────
+                          // ── Logo Épuré & Professionnel ──────────────────────
                           ScaleTransition(
                             scale: _logoScale,
                             child: FadeTransition(
@@ -141,113 +116,116 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             ),
                           ),
 
-                          const SizedBox(height: 36),
+                          const SizedBox(height: 32),
 
-                          // ── Titre + Accroche + Features ────────────────────
+                          // ── Titre + Accroche ───────────────────────────────
                           SlideTransition(
                             position: _contentSlide,
                             child: FadeTransition(
                               opacity: _contentFade,
                               child: Column(
                                 children: [
+                                  // ✅ 3. TEXTES : Titre en Vert Émeraude, gras et grand
                                   const Text(
-                                    'MaFortune',
+                                    'Ma Fortune',
                                     style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 38,
+                                      color: emeraldGreen,
+                                      fontSize: 36,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: -0.5,
                                     ),
                                   ),
                                   const SizedBox(height: 12),
-                                  Text(
-                                    'Gérez votre argent facilement,\nen toute sérénité.',
+                                  // ✅ 3. TEXTES : Sous-titre en gris foncé très lisible
+                                  const Text(
+                                    'Gérez vos finances au quotidien,\nen toute simplicité et sécurité.',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: Colors.white.withOpacity(0.85),
+                                      color: textMedium,
                                       fontSize: 16,
-                                      height: 1.4,
-                                      fontWeight: FontWeight.w400,
+                                      height: 1.5,
+                                      fontWeight: FontWeight.w500,
                                     ),
                                   ),
-                                  const SizedBox(height: 36),
+                                  const SizedBox(height: 40),
 
-                                  // ── Points Forts ──────────────────────────
+                                  // ── Points Forts (Design épuré) ────────────
                                   _buildFeatureTile(
                                     icon: Icons.insights_rounded,
-                                    title: 'Suivi des gains au quotidien',
+                                    title: 'Suivi des gains',
                                     subtitle: 'Visualisez vos recettes en un coup d\'œil',
                                   ),
                                   const SizedBox(height: 12),
                                   _buildFeatureTile(
                                     icon: Icons.record_voice_over_rounded,
-                                    title: 'Rapport vocal automatique',
-                                    subtitle: 'L\'application vous énonce votre bilan',
+                                    title: 'Rapport vocal',
+                                    subtitle: 'Votre bilan énoncé automatiquement',
                                   ),
                                   const SizedBox(height: 12),
                                   _buildFeatureTile(
                                     icon: Icons.wifi_off_rounded,
-                                    title: 'Fonctionne hors-ligne',
-                                    subtitle: 'Utilisable à tout moment sans connexion',
+                                    title: 'Mode hors-ligne',
+                                    subtitle: 'Fonctionne même sans connexion internet',
                                   ),
                                 ],
                               ),
                             ),
                           ),
 
-                          const Spacer(),
+                          const Spacer(flex: 3),
                           const SizedBox(height: 24),
 
-                          // ── Boutons d'action Actifs ───────────────────────
+                          // ── Boutons d'action (Charte respectée) ────────────
                           SlideTransition(
                             position: _buttonSlide,
                             child: FadeTransition(
                               opacity: _buttonFade,
                               child: Column(
                                 children: [
+                                  // ✅ 2. BOUTON PRINCIPAL : Terre Cuite, grand, arrondi
                                   _PressableButton(
                                     onTap: () => _navigateTo(
                                       context,
                                       '/signup',
                                       'Redirection vers l\'inscription (/signup)',
                                     ),
-                                    backgroundColor: Colors.white,
+                                    backgroundColor: terracotta,
                                     child: const Row(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
                                         Text(
-                                          'Commencer dès maintenant',
+                                          'Créer un compte',
                                           style: TextStyle(
-                                            color: primaryGreen,
+                                            color: Colors.white,
                                             fontSize: 17,
-                                            fontWeight: FontWeight.bold,
+                                            fontWeight: FontWeight.w700,
                                           ),
                                         ),
                                         SizedBox(width: 8),
                                         Icon(
                                           Icons.arrow_forward_rounded,
-                                          color: primaryGreen,
+                                          color: Colors.white,
                                           size: 20,
                                         ),
                                       ],
                                     ),
                                   ),
-                                  const SizedBox(height: 12),
+                                  
+                                  const SizedBox(height: 16),
+                                  
+                                  // ✅ 2. BOUTON SECONDAIRE : Outlined, Vert Émeraude
                                   _PressableButton(
                                     onTap: () => _navigateTo(
                                       context,
                                       '/login',
                                       'Redirection vers la connexion (/login)',
                                     ),
-                                    backgroundColor: Colors.white.withOpacity(0.12),
-                                    border: Border.all(
-                                      color: Colors.white.withOpacity(0.3),
-                                      width: 1.2,
-                                    ),
+                                    backgroundColor: Colors.transparent,
+                                    border: Border.all(color: emeraldGreen, width: 1.5),
                                     child: const Text(
                                       "J'ai déjà un compte",
                                       style: TextStyle(
-                                        color: Colors.white,
+                                        color: emeraldGreen,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w600,
                                       ),
@@ -258,7 +236,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                             ),
                           ),
 
-                          const SizedBox(height: 24),
+                          const SizedBox(height: 32),
                         ],
                       ),
                     ),
@@ -272,66 +250,65 @@ class _WelcomeScreenState extends State<WelcomeScreen>
     );
   }
 
-  // Composant Logo avec Glassmorphism
+  // ✅ Logo adapté au fond clair : fond vert 10% opacité, icône verte
   Widget _buildLogo() {
     return Container(
-      width: 110,
-      height: 110,
+      width: 100,
+      height: 100,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: Colors.white.withOpacity(0.15),
-        border: Border.all(color: Colors.white.withOpacity(0.35), width: 2),
+        color: emeraldGreen.withOpacity(0.08), // Règle des 10% d'opacité
+        border: Border.all(color: emeraldGreen.withOpacity(0.15), width: 2),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 24,
-            offset: const Offset(0, 10),
+            color: emeraldGreen.withOpacity(0.08),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(60),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: const Center(
-            child: Icon(
-              Icons.account_balance_wallet_rounded,
-              size: 52,
-              color: Colors.white,
-            ),
-          ),
+      child: const Center(
+        child: Icon(
+          Icons.account_balance_wallet_rounded,
+          size: 48,
+          color: emeraldGreen,
         ),
       ),
     );
   }
 
-  // Tuile d'information des fonctionnalités
+  // ✅ Tuile d'information : Fond blanc, ombre douce, icône verte sur fond clair
   Widget _buildFeatureTile({
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.1),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.18),
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey.shade200, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
+          // Icône avec fond arrondi à 10% d'opacité
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: emeraldGreen.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: Colors.white, size: 22),
+            child: Icon(icon, color: emeraldGreen, size: 22),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -339,17 +316,18 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                 Text(
                   title,
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: textDark,
                     fontSize: 15,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.75),
-                    fontSize: 12.5,
+                  style: const TextStyle(
+                    color: textMedium,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ],
@@ -392,7 +370,7 @@ class _PressableButtonState extends State<_PressableButton>
       duration: const Duration(milliseconds: 90),
       reverseDuration: const Duration(milliseconds: 150),
     );
-    _scale = Tween<double>(begin: 1.0, end: 0.96).animate(
+    _scale = Tween<double>(begin: 1.0, end: 0.97).animate(
       CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
     );
   }
@@ -417,17 +395,17 @@ class _PressableButtonState extends State<_PressableButton>
         scale: _scale,
         child: Container(
           width: double.infinity,
-          height: 56,
+          height: 58, // ✅ Bouton légèrement plus grand pour l'ergonomie mobile
           decoration: BoxDecoration(
             color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(16), // ✅ Arrondi généreux
             border: widget.border,
             boxShadow: widget.border == null
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
-                      blurRadius: 16,
-                      offset: const Offset(0, 6),
+                      color: Colors.black.withOpacity(0.08), // Ombre douce et moderne
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
                     ),
                   ]
                 : null,

@@ -2,10 +2,15 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldGreen = Color(0xFF0B4F36);
+const Color textDark = Color(0xFF222222); // Gris anthracite très foncé
+const Color textMedium = Color(0xFF555555); // Gris foncé lisible
+const Color errorRed = Color(0xFF9B2C2C);
 
 class PinVerifyScreen extends StatefulWidget {
   const PinVerifyScreen({super.key});
@@ -125,41 +130,34 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                 child: IntrinsicHeight(
                   child: Column(
                     children: [
-                      // ── Header Glassmorphic avec Icône de Sécurité ────────
+                      // ── 1. HEADER : Vert Émeraude Sombre uni (plus de dégradé flashy) ──
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
                         decoration: const BoxDecoration(
-                          gradient: AppColors.primaryGradient,
+                          color: emeraldGreen,
                           borderRadius: BorderRadius.vertical(
                               bottom: Radius.circular(32)),
                         ),
                         child: Column(
                           children: [
-                            // Badge Icône Sécurité Glassmorphic
+                            // Badge Icône Sécurité épuré
                             Container(
                               width: 72,
                               height: 72,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: Colors.white.withValues(alpha: 0.15),
+                                color: Colors.white.withOpacity(0.15),
                                 border: Border.all(
-                                  color: Colors.white.withValues(alpha: 0.35),
+                                  color: Colors.white.withOpacity(0.35),
                                   width: 1.5,
                                 ),
                               ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(40),
-                                child: BackdropFilter(
-                                  filter:
-                                      ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-                                  child: const Center(
-                                    child: Icon(
-                                      Icons.lock_outline_rounded,
-                                      size: 36,
-                                      color: Colors.white,
-                                    ),
-                                  ),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.lock_outline_rounded,
+                                  size: 36,
+                                  color: Colors.white,
                                 ),
                               ),
                             ),
@@ -169,7 +167,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                               style: TextStyle(
                                 color: Colors.white,
                                 fontSize: 24,
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w800,
                                 letterSpacing: -0.5,
                               ),
                             ),
@@ -177,8 +175,9 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             Text(
                               'Entrez votre code secret à 4 chiffres',
                               style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.85),
+                                color: Colors.white.withOpacity(0.85),
                                 fontSize: 14,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ],
@@ -188,7 +187,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                       const Spacer(),
                       const SizedBox(height: 16),
 
-                      // ── Message d'erreur ──────────────────────────────────
+                      // ── Message d'erreur harmonisé ──────────────────────────────────
                       if (_erreurVisible)
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -196,14 +195,14 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 16, vertical: 12),
                             decoration: BoxDecoration(
-                              color: Colors.red.shade50,
+                              color: errorRed.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(14),
-                              border: Border.all(color: Colors.red.shade200),
+                              border: Border.all(color: errorRed.withOpacity(0.2)),
                             ),
                             child: Row(
                               children: [
                                 const Icon(Icons.error_outline_rounded,
-                                    color: Colors.red, size: 20),
+                                    color: errorRed, size: 20),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Text(
@@ -211,7 +210,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                                         ? 'Code incorrect. Il vous reste $restantes essai${restantes > 1 ? 's' : ''}.'
                                         : 'Trop de tentatives échouées.',
                                     style: const TextStyle(
-                                        color: Colors.red,
+                                        color: errorRed,
                                         fontSize: 13.5,
                                         fontWeight: FontWeight.w500),
                                   ),
@@ -236,16 +235,12 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               color: _erreurVisible
-                                  ? Colors.red.shade400
-                                  : rempli
-                                      ? AppColors.primaryGreen
-                                      : const Color(0xFFE5E7EB),
+                                  ? errorRed
+                                  : (rempli ? emeraldGreen : const Color(0xFFE5E7EB)),
                               border: Border.all(
                                 color: _erreurVisible
-                                    ? Colors.red.shade400
-                                    : rempli
-                                        ? AppColors.primaryGreen
-                                        : const Color(0xFFD1D5DB),
+                                    ? errorRed
+                                    : (rempli ? emeraldGreen : const Color(0xFFD1D5DB)),
                                 width: 2,
                               ),
                             ),
@@ -256,7 +251,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                       const Spacer(),
                       const SizedBox(height: 20),
 
-                      // ── Clavier Numérique (Numpad) ────────────────────────
+                      // ── 2. CLAVIER NUMÉRIQUE (Numpad) ────────────────────────
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 36),
                         child: Column(
@@ -270,7 +265,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                // PIN Oublié
+                                // ✅ PIN Oublié : Fond blanc, icône Vert Émeraude
                                 GestureDetector(
                                   onTap: _isLoading
                                       ? null
@@ -280,19 +275,21 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                                     width: 72,
                                     height: 72,
                                     decoration: BoxDecoration(
-                                      color: Colors.amber.shade50,
+                                      color: Colors.white,
                                       shape: BoxShape.circle,
+                                      border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
                                     ),
-                                    child: Center(
+                                    child: const Center(
                                       child: Icon(
                                         Icons.help_outline_rounded,
-                                        color: Colors.amber.shade800,
+                                        color: emeraldGreen,
                                         size: 26,
                                       ),
                                     ),
                                   ),
                                 ),
                                 _buildTouche('0'),
+                                // ✅ Touche Effacer : Fond blanc, icône gris anthracite foncé
                                 _buildToucheEffacer(),
                               ],
                             ),
@@ -300,26 +297,26 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                         ),
                       ),
 
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 24),
 
                       // ── Zone Loader ───────────────────────────────────────
                       SizedBox(
                         height: 32,
                         child: _isLoading
                             ? const CircularProgressIndicator(
-                                color: AppColors.primaryGreen, strokeWidth: 2.5)
+                                color: emeraldGreen, strokeWidth: 2.5)
                             : const SizedBox.shrink(),
                       ),
 
-                      // ── Déconnexion / Changement d'utilisateur ───────────
+                      // ── 3. DÉCONNEXION : Texte gris foncé lisible ──────────
                       TextButton(
                         onPressed: _isLoading ? null : _deconnecter,
                         child: const Text(
                           'Ce n\'est pas vous ? Se déconnecter',
                           style: TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w500,
+                            color: textMedium, // ✅ Gris foncé lisible (#555555)
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
@@ -355,7 +352,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
           border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -367,7 +364,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
             style: const TextStyle(
               fontSize: 26,
               fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2937),
+              color: textDark, // ✅ Gris anthracite très foncé
             ),
           ),
         ),
@@ -382,11 +379,13 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
         width: 72,
         height: 72,
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
+          color: Colors.white, // ✅ Fond blanc identique aux chiffres
           shape: BoxShape.circle,
+          border: Border.all(color: const Color(0xFFE5E7EB), width: 1.5),
         ),
         child: const Center(
-          child: Icon(Icons.backspace_outlined, color: Colors.red, size: 24),
+          // ✅ Icône en gris anthracite très foncé (ou emeraldGreen si tu préfères)
+          child: Icon(Icons.backspace_outlined, color: textDark, size: 26),
         ),
       ),
     );

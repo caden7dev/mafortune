@@ -1,24 +1,25 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
 import '../../services/auth_service.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Erreurs)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class ChangerMotDePasseScreen extends StatefulWidget {
   const ChangerMotDePasseScreen({super.key});
 
   @override
-  State<ChangerMotDePasseScreen> createState() =>
-      _ChangerMotDePasseScreenState();
+  State<ChangerMotDePasseScreen> createState() => _ChangerMotDePasseScreenState();
 }
 
 class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
 
-  final TextEditingController _currentPasswordController =
-      TextEditingController();
+  final TextEditingController _currentPasswordController = TextEditingController();
   final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController =
-      TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
   bool _isLoading = false;
   bool _showCurrent = false;
@@ -46,11 +47,8 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-              '✅ Mot de passe changé avec succès',
-              style: TextStyle(fontSize: 16),
-            ),
-            backgroundColor: AppColors.primaryGreen,
+            content: Text('✅ Mot de passe changé avec succès', style: TextStyle(fontSize: 16)),
+            backgroundColor: emeraldDark, // ✅ Couleur harmonisée
           ),
         );
         Navigator.pop(context, true);
@@ -60,7 +58,7 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+            backgroundColor: brickRed, // ✅ Couleur harmonisée pour les erreurs
           ),
         );
       }
@@ -69,22 +67,27 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
     }
   }
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair et doux
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          '🔐 Changer le mot de passe',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline, size: 22, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'Changer le mot de passe',
+              style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
       body: Form(
@@ -92,17 +95,19 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 28, 20, 40),
           children: [
-            // ── Icône principale ─────────────────────────────────────────────
+            // ── ICÔNE PRINCIPALE ─────────────────────────────────────────────
             Center(
               child: Container(
                 width: 100,
                 height: 100,
                 decoration: BoxDecoration(
-                  color: AppColors.primaryGreen.withOpacity(0.1),
+                  color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10%
                   shape: BoxShape.circle,
                 ),
-                child: const Center(
-                  child: Text('🔑', style: TextStyle(fontSize: 50)),
+                child: const Icon(
+                  Icons.lock_reset_rounded, // ✅ Icône système épurée
+                  size: 50,
+                  color: emeraldDark,
                 ),
               ),
             ),
@@ -114,7 +119,7 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
               style: TextStyle(
                 fontSize: 26,
                 fontWeight: FontWeight.bold,
-                color: Colors.black87,
+                color: textDark, // ✅ Remplacement de Colors.black87
                 height: 1.2,
               ),
               textAlign: TextAlign.center,
@@ -130,23 +135,21 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
 
             const SizedBox(height: 32),
 
-            // ── Champ 1 — Mot de passe actuel ────────────────────────────────
-            _buildSectionLabel('🔒', 'Mot de passe actuel'),
+            // ── CHAMP 1 : MOT DE PASSE ACTUEL ────────────────────────────────
+            _buildSectionLabel(Icons.lock_outline, 'Mot de passe actuel'),
             const SizedBox(height: 10),
             _buildPasswordField(
               controller: _currentPasswordController,
               hint: 'Entrez votre mot de passe actuel',
               showPassword: _showCurrent,
-              onToggle: () =>
-                  setState(() => _showCurrent = !_showCurrent),
-              validator: (v) =>
-                  (v == null || v.isEmpty) ? 'Mot de passe requis' : null,
+              onToggle: () => setState(() => _showCurrent = !_showCurrent),
+              validator: (v) => (v == null || v.isEmpty) ? 'Mot de passe requis' : null,
             ),
 
             const SizedBox(height: 24),
 
-            // ── Champ 2 — Nouveau mot de passe ───────────────────────────────
-            _buildSectionLabel('🆕', 'Nouveau mot de passe'),
+            // ── CHAMP 2 : NOUVEAU MOT DE PASSE ───────────────────────────────
+            _buildSectionLabel(Icons.password_outlined, 'Nouveau mot de passe'),
             const SizedBox(height: 10),
             _buildPasswordField(
               controller: _newPasswordController,
@@ -162,15 +165,14 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
 
             const SizedBox(height: 24),
 
-            // ── Champ 3 — Confirmer ───────────────────────────────────────────
-            _buildSectionLabel('✅', 'Confirmer le nouveau mot de passe'),
+            // ── CHAMP 3 : CONFIRMER ───────────────────────────────────────────
+            _buildSectionLabel(Icons.check_circle_outline, 'Confirmer le nouveau mot de passe'),
             const SizedBox(height: 10),
             _buildPasswordField(
               controller: _confirmPasswordController,
               hint: 'Répétez le nouveau mot de passe',
               showPassword: _showConfirm,
-              onToggle: () =>
-                  setState(() => _showConfirm = !_showConfirm),
+              onToggle: () => setState(() => _showConfirm = !_showConfirm),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Confirmation requise';
                 if (v != _newPasswordController.text) {
@@ -182,25 +184,23 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Conseil sécurité ─────────────────────────────────────────────
+            // ── CONSEIL SÉCURITÉ ─────────────────────────────────────────────
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.07),
+                color: emeraldDark.withOpacity(0.08), // ✅ Fond harmonisé
                 borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: emeraldDark.withOpacity(0.15)),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('💡', style: TextStyle(fontSize: 20)),
-                  SizedBox(width: 10),
-                  Expanded(
+                  const Icon(Icons.lightbulb_outline, size: 20, color: emeraldDark), // ✅ Icône système
+                  const SizedBox(width: 10),
+                  const Expanded(
                     child: Text(
                       'Utilisez au moins 6 caractères. Mélangez lettres et chiffres pour plus de sécurité.',
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.black87,
-                          height: 1.5),
+                      style: TextStyle(fontSize: 14, color: textDark, height: 1.5, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ],
@@ -209,38 +209,33 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
 
             const SizedBox(height: 36),
 
-            // ── Bouton Enregistrer ────────────────────────────────────────────
+            // ── BOUTON ENREGISTRER ────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               height: 62,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : _changerMotDePasse,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryGreen,
+                  backgroundColor: emeraldDark,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      AppColors.primaryGreen.withOpacity(0.5),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
-                  elevation: 4,
+                  disabledBackgroundColor: emeraldDark.withOpacity(0.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  elevation: 0,
                 ),
                 child: _isLoading
                     ? const SizedBox(
                         width: 26,
                         height: 26,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 3, color: Colors.white),
+                        child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white),
                       )
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Text('💾', style: TextStyle(fontSize: 22)),
+                          Icon(Icons.save_rounded, size: 22), // ✅ Icône système épurée
                           SizedBox(width: 10),
                           Text(
                             'Enregistrer',
-                            style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold),
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),
@@ -249,21 +244,18 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
 
             const SizedBox(height: 12),
 
-            // ── Bouton Annuler ────────────────────────────────────────────────
+            // ── BOUTON ANNULER ────────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               height: 54,
               child: OutlinedButton(
-                onPressed:
-                    _isLoading ? null : () => Navigator.pop(context),
+                onPressed: _isLoading ? null : () => Navigator.pop(context),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
+                  foregroundColor: textDark,
                   side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Text('Annuler',
-                    style: TextStyle(fontSize: 18)),
+                child: const Text('Annuler', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -273,17 +265,21 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
   }
 
   // ─── LABEL SECTION ───────────────────────────────────────────────────────────
-  Widget _buildSectionLabel(String emoji, String label) {
+  Widget _buildSectionLabel(IconData icon, String label) {
     return Row(
       children: [
-        Text(emoji, style: const TextStyle(fontSize: 18)),
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10%
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 16, color: emeraldDark),
+        ),
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
         ),
       ],
     );
@@ -301,39 +297,38 @@ class _ChangerMotDePasseScreenState extends State<ChangerMotDePasseScreen> {
       controller: controller,
       obscureText: !showPassword,
       enabled: !_isLoading,
-      style: const TextStyle(fontSize: 17, color: Colors.black87),
+      style: const TextStyle(fontSize: 17, color: textDark),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(fontSize: 14, color: Colors.grey[400]),
         filled: true,
         fillColor: Colors.white,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-        border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(14)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide(color: Colors.grey[300]!),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide:
-              const BorderSide(color: AppColors.primaryGreen, width: 2),
+          borderSide: const BorderSide(color: emeraldDark, width: 2), // ✅ Bordure harmonisée
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.red),
+          borderSide: const BorderSide(color: brickRed, width: 1.5), // ✅ Erreur en Rouge Brique
         ),
-        // Bouton afficher/masquer — grand
-        suffixIcon: GestureDetector(
-          onTap: onToggle,
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            child: Text(
-              showPassword ? '🙈' : '👁️',
-              style: const TextStyle(fontSize: 20),
-            ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: brickRed, width: 2),
+        ),
+        // ✅ Bouton afficher/masquer avec icônes système propres
+        suffixIcon: IconButton(
+          icon: Icon(
+            showPassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            color: Colors.grey[500],
+            size: 22,
           ),
+          onPressed: onToggle,
         ),
       ),
       validator: validator,
