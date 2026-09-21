@@ -168,6 +168,8 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     });
   }
 
+  // ✅ CORRECTION : Suppression de la mise à jour manuelle du solde ici.
+  // TransactionService.addTransaction s'en occupe déjà automatiquement et une seule fois.
   Future<void> _valider() async {
     final user = _authService.currentUser;
     if (user == null) return;
@@ -221,6 +223,8 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             produitId: produit['id'],
             produitNom: produit['nom'],
           );
+          
+          // ✅ Le service enregistre la transaction ET met à jour le solde automatiquement
           await _transactionService.addTransaction(tx);
         }
       } else {
@@ -237,18 +241,23 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           modePaiement: ModePaiement.especes,
           categorie: _isVente ? 'Ventes' : 'Achats',
         );
+        
+        // ✅ Le service enregistre la transaction ET met à jour le solde automatiquement
         await _transactionService.addTransaction(tx);
       }
 
       HapticFeedback.heavyImpact();
       if (mounted) {
-        Navigator.pop(context, true);
+        // ✅ Ferme la page et déclenche le rafraîchissement du Dashboard
+        Navigator.pop(context, true); 
+        
         final total = _mode == 'produits' ? _totalPanier : double.parse(_montantStr);
         final tts = TtsService();
         if (_isVente) tts.confirmerVente(total);
         else tts.confirmerDepense(total);
       }
     } catch (e) {
+      debugPrint('Erreur validation: $e');
       if (mounted) {
         setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -420,7 +429,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
   }
 
   Widget _buildModeProduits(Color couleur) {
-    // ✅ Logique conditionnelle pour les cadres (Neutre pour Vente, Coloré pour Dépense)
     final bool isVente = _isVente;
     final Color frameBg = isVente ? const Color(0xFFF8F9FA) : couleur.withOpacity(0.08);
     final Color frameBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.2);
@@ -649,18 +657,14 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
   }
 
   Widget _buildModeMontantLibre(Color couleur) {
-    // ✅ 1. Ajustement dynamique des couleurs selon le mode actif
     final bool isVente = _isVente;
     
-    // Pour la Vente : fond neutre très clair (#F8F9FA) et bordure grise douce
-    // Pour la Dépense : fond rosé/rouge adouci et bordure rouge brique (validé comme parfait)
     final Color frameBg = isVente ? const Color(0xFFF8F9FA) : couleur.withOpacity(0.08);
     final Color frameBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.2);
     final Color shortcutBorder = isVente ? Colors.grey.shade300 : couleur.withOpacity(0.3);
 
     return Column(
       children: [
-        // ✅ 2. CADRE DU MONTANT
         Container(
           margin: const EdgeInsets.fromLTRB(20, 8, 20, 8),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
@@ -695,7 +699,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           ),
         ),
 
-        // ✅ 3. TOUCHES RAPIDES
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Row(
@@ -734,7 +737,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
 
         const SizedBox(height: 12),
 
-        // ✅ 4. PAVÉ NUMÉRIQUE
         Expanded(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),

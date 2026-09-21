@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/transaction_model.dart';
 import 'package:flutter/foundation.dart';
+import '../models/transaction_model.dart';
 
 class TransactionService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -8,10 +8,7 @@ class TransactionService {
   // ─── CACHE MÉMOIRE ───────────────────────────────────────────────────────────
   final Map<String, List<TransactionModel>> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
-
-  // Flag pour forcer la lecture depuis le serveur après add/update/delete
   final Set<String> _forceServerNext = {};
-
   static const Duration _cacheDuration = Duration(minutes: 2);
 
   bool _isCacheValid(String key) {
@@ -25,14 +22,40 @@ class TransactionService {
     _cacheTimestamps[key] = DateTime.now();
   }
 
-  /// Invalide intégralement le cache d'un commerçant après add/update/delete
   void invalidateCache(String commercantId) {
     _cache.removeWhere((key, _) => key.contains(commercantId));
     _cacheTimestamps.removeWhere((key, _) => key.contains(commercantId));
     _forceServerNext.add(commercantId);
   }
 
-  // ─── ADD (Renvoie l'objet Transaction enregistré) ───────────────────────────
+
+   // ─── RECALCUL DU SOLDE (Pour garantir la cohérence) ─────────────────────
+  /// Recalcule le soldeActuel en faisant la somme de TOUTES les transactions
+  /// Cette méthode garantit que le solde est toujours cohérent avec les données réelles
+  Future<double> recalculerSolde(String commercantId) async {
+    try {
+      final transactions = await getTransactionsByCommercant(
+        commercantId,
+        forceRefresh: true,
+      );
+      
+      double solde = 0;
+      for (var t in transactions) {
+        solde += t.impactSolde; // impactSolde = +montant pour recette, -montant pour dépense
+      }
+      
+      // Mise à jour directe du champ soldeActuel
+      await _db.collection('utilisateurs').doc(commercantId).update({
+        'soldeActuel': solde,
+      });
+      
+      return solde;
+    } catch (e) {
+      debugPrint('Erreur recalculSolde: $e');
+      return 0;
+    }
+  }
+  // ─── ADD TRANSACTION ─────────────────────────────────────────────────────────
   Future<TransactionModel> addTransaction(TransactionModel transaction) async {
     try {
       final docRef = _db.collection('transactions').doc();
@@ -43,13 +66,14 @@ class TransactionService {
 
       await docRef.set(transactionEnregistree.toFirestore());
 
-      // Invalidation du cache
+      // ✅ Invalidation du cache pour forcer le rafraîchissement de l'UI
       invalidateCache(transactionEnregistree.commercantId);
 
-      // Mise à jour du solde
+      // ✅ Mise à jour atomique du solde de l'utilisateur
       _updateCommercantSolde(
-          transactionEnregistree.commercantId,
-          transactionEnregistree.impactSolde);
+        transactionEnregistree.commercantId,
+        transactionEnregistree.impactSolde,
+      );
 
       return transactionEnregistree;
     } catch (e) {
@@ -58,7 +82,7 @@ class TransactionService {
     }
   }
 
-  // ─── GET ALL — avec prise en compte du forceRefresh ─────────────────────────
+  // ─── GET ALL TRANSACTIONS ────────────────────────────────────────────────────
   Future<List<TransactionModel>> getTransactionsByCommercant(
     String commercantId, {
     int? limit,
@@ -71,7 +95,6 @@ class TransactionService {
     }
 
     if (!forceRefresh && _isCacheValid(cacheKey) && _cache.containsKey(cacheKey)) {
-      debugPrint('✅ Cache hit: $cacheKey');
       final cached = _cache[cacheKey]!;
       if (limit != null && limit < cached.length) {
         return cached.sublist(0, limit);
@@ -95,6 +118,7 @@ class TransactionService {
               source: forceServer ? Source.server : Source.serverAndCache,
             ));
       } catch (_) {
+        // Fallback sur le cache en cas de perte de connexion
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
@@ -106,7 +130,6 @@ class TransactionService {
           .toList();
 
       list.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
-
       _setCache(cacheKey, list);
 
       if (limit != null && limit < list.length) {
@@ -119,7 +142,7 @@ class TransactionService {
     }
   }
 
-  // ─── GET QUICK STATS (Avec prise en compte du forceRefresh) ─────────────────
+  // ─── GET QUICK STATS (Jour) ──────────────────────────────────────────────────
   Future<Map<String, dynamic>> getQuickStats(
     String commercantId, {
     bool forceRefresh = false,
@@ -136,8 +159,7 @@ class TransactionService {
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
-            .where('date',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
             .get(GetOptions(
               source: forceServer ? Source.server : Source.serverAndCache,
@@ -146,8 +168,7 @@ class TransactionService {
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
-            .where('date',
-                isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
+            .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
             .get(const GetOptions(source: Source.cache));
       }
@@ -182,46 +203,37 @@ class TransactionService {
     DateTime dateFin,
   ) async {
     try {
-      final debut =
-          DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
-      final fin =
-          DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
+      final debut = DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
+      final fin = DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
 
       final snapshot = await _db
           .collection('transactions')
           .where('commercantId', isEqualTo: commercantId)
-          .where('date',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(debut))
+          .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(debut))
           .where('date', isLessThanOrEqualTo: Timestamp.fromDate(fin))
           .orderBy('date', descending: true)
           .get(const GetOptions(source: Source.serverAndCache));
 
-      return snapshot.docs
-          .map((doc) => TransactionModel.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => TransactionModel.fromFirestore(doc)).toList();
     } catch (e) {
       debugPrint('Fallback local pour période: $e');
       final all = await getTransactionsByCommercant(commercantId);
-      final debut =
-          DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
-      final fin =
-          DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
-      return all.where((t) {
-        return !t.date.isBefore(debut) && !t.date.isAfter(fin);
-      }).toList()
+      final debut = DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
+      final fin = DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
+      
+      return all.where((t) => !t.date.isBefore(debut) && !t.date.isAfter(fin)).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
     }
   }
 
-  // ─── GET DETAILED STATS ───────────────────────────────────────────────────────
+  // ─── GET DETAILED STATS ──────────────────────────────────────────────────────
   Future<Map<String, dynamic>> getDetailedStats(
     String commercantId,
     DateTime dateDebut,
     DateTime dateFin,
   ) async {
     try {
-      final transactions =
-          await getTransactionsByPeriode(commercantId, dateDebut, dateFin);
+      final transactions = await getTransactionsByPeriode(commercantId, dateDebut, dateFin);
 
       double totalRecettes = 0;
       double totalDepenses = 0;
@@ -234,13 +246,11 @@ class TransactionService {
         if (t.estRecette) {
           totalRecettes += t.montant;
           nombreRecettes++;
-          recettesParCategorie[t.categorie] =
-              (recettesParCategorie[t.categorie] ?? 0) + t.montant;
+          recettesParCategorie[t.categorie] = (recettesParCategorie[t.categorie] ?? 0) + t.montant;
         } else {
           totalDepenses += t.montant;
           nombreDepenses++;
-          depensesParCategorie[t.categorie] =
-              (depensesParCategorie[t.categorie] ?? 0) + t.montant;
+          depensesParCategorie[t.categorie] = (depensesParCategorie[t.categorie] ?? 0) + t.montant;
         }
       }
 
@@ -261,55 +271,6 @@ class TransactionService {
     }
   }
 
-  // ─── GET MONTHLY STATS ────────────────────────────────────────────────────────
-  Future<Map<String, Map<String, double>>> getMonthlyStats(
-    String commercantId,
-    int year,
-  ) async {
-    final stats = <String, Map<String, double>>{};
-
-    try {
-      final startOfYear = DateTime(year, 1, 1, 0, 0, 0);
-      final endOfYear = DateTime(year, 12, 31, 23, 59, 59);
-
-      final transactions = await getTransactionsByPeriode(
-          commercantId, startOfYear, endOfYear);
-
-      for (int month = 1; month <= 12; month++) {
-        stats['${month.toString().padLeft(2, '0')}/$year'] = {
-          'recettes': 0,
-          'depenses': 0,
-          'benefice': 0,
-        };
-      }
-
-      for (final t in transactions) {
-        final key =
-            '${t.date.month.toString().padLeft(2, '0')}/$year';
-        if (!stats.containsKey(key)) continue;
-
-        if (t.estRecette) {
-          stats[key]!['recettes'] = (stats[key]!['recettes'] ?? 0) + t.montant;
-        } else {
-          stats[key]!['depenses'] = (stats[key]!['depenses'] ?? 0) + t.montant;
-        }
-        stats[key]!['benefice'] =
-            (stats[key]!['recettes'] ?? 0) - (stats[key]!['depenses'] ?? 0);
-      }
-    } catch (e) {
-      debugPrint('Erreur getMonthlyStats: $e');
-      for (int month = 1; month <= 12; month++) {
-        stats['${month.toString().padLeft(2, '0')}/$year'] = {
-          'recettes': 0,
-          'depenses': 0,
-          'benefice': 0,
-        };
-      }
-    }
-
-    return stats;
-  }
-
   // ─── HELPERS ─────────────────────────────────────────────────────────────────
   Future<double> getTotalByPeriod(
     String commercantId,
@@ -319,9 +280,7 @@ class TransactionService {
   }) async {
     try {
       final stats = await getDetailedStats(commercantId, dateDebut, dateFin);
-      return recettes
-          ? stats['totalRecettes'] ?? 0
-          : stats['totalDepenses'] ?? 0;
+      return recettes ? stats['totalRecettes'] ?? 0 : stats['totalDepenses'] ?? 0;
     } catch (e) {
       return 0;
     }
@@ -339,8 +298,7 @@ class TransactionService {
           ? stats['recettesParCategorie'] as Map<String, double>
           : stats['depensesParCategorie'] as Map<String, double>;
 
-      final sorted = categories.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
+      final sorted = categories.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
       return {for (var e in sorted.take(5)) e.key: e.value};
     } catch (e) {
       return {};
@@ -359,9 +317,7 @@ class TransactionService {
           .orderBy('dateCreation', descending: true)
           .get(const GetOptions(source: Source.serverAndCache));
 
-      return snapshot.docs
-          .map((doc) => TransactionModel.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => TransactionModel.fromFirestore(doc)).toList();
     } catch (e) {
       debugPrint('Erreur getTransactionsByType: $e');
       return [];
@@ -380,9 +336,7 @@ class TransactionService {
           .orderBy('dateCreation', descending: true)
           .get(const GetOptions(source: Source.serverAndCache));
 
-      return snapshot.docs
-          .map((doc) => TransactionModel.fromFirestore(doc))
-          .toList();
+      return snapshot.docs.map((doc) => TransactionModel.fromFirestore(doc)).toList();
     } catch (e) {
       debugPrint('Erreur getTransactionsByCategorie: $e');
       return [];
@@ -405,22 +359,16 @@ class TransactionService {
     }
   }
 
-  // ─── UPDATE ─────────────────────────────────────────────────────────────────
+  // ─── UPDATE TRANSACTION ──────────────────────────────────────────────────────
   Future<void> updateTransaction(TransactionModel transaction) async {
     try {
-      final oldDoc = await _db
-          .collection('transactions')
-          .doc(transaction.id)
-          .get();
-
+      final oldDoc = await _db.collection('transactions').doc(transaction.id).get();
       if (!oldDoc.exists) throw Exception('Transaction introuvable');
 
       final old = TransactionModel.fromFirestore(oldDoc);
-
-      final updatedTransaction = transaction.copyWith(
-        dateModification: DateTime.now(),
-      );
-
+      final updatedTransaction = transaction.copyWith(dateModification: DateTime.now());
+      
+      // Calcul de la différence pour ajuster le solde correctement
       final delta = updatedTransaction.impactSolde - old.impactSolde;
 
       await _db
@@ -439,21 +387,18 @@ class TransactionService {
     }
   }
 
-  // ─── DELETE ──────────────────────────────────────────────────────────────────
-  Future<void> deleteTransaction(
-      String transactionId, String commercantId) async {
+  // ─── DELETE TRANSACTION ──────────────────────────────────────────────────────
+  Future<void> deleteTransaction(String transactionId, String commercantId) async {
     try {
-      final doc = await _db
-          .collection('transactions')
-          .doc(transactionId)
-          .get();
-
+      final doc = await _db.collection('transactions').doc(transactionId).get();
       if (!doc.exists) throw Exception('Transaction introuvable');
 
       final transaction = TransactionModel.fromFirestore(doc);
       await _db.collection('transactions').doc(transactionId).delete();
 
       invalidateCache(commercantId);
+      
+      // On annule l'impact de la transaction supprimée sur le solde
       _updateCommercantSolde(commercantId, -transaction.impactSolde);
     } catch (e) {
       debugPrint('Erreur deleteTransaction: $e');
@@ -461,13 +406,15 @@ class TransactionService {
     }
   }
 
-  // ─── SOLDE ───────────────────────────────────────────────────────────────────
+  // ─── MISE À JOUR DU SOLDE (Le cœur de la correction) ───────────────────────
   void _updateCommercantSolde(String commercantId, double montant) {
     if (montant == 0) return;
+    
+    // FieldValue.increment est atomique et gère parfaitement les écritures simultanées
     _db.collection('utilisateurs').doc(commercantId).update({
       'soldeActuel': FieldValue.increment(montant),
     }).catchError((e) {
-      debugPrint('Solde sera sync au retour du réseau: $e');
+      debugPrint('⚠️ Échec mise à jour solde (sera sync au retour réseau): $e');
     });
   }
 }

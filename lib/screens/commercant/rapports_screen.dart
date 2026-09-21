@@ -15,7 +15,9 @@ const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
 const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class RapportsScreen extends StatefulWidget {
-  const RapportsScreen({super.key});
+  // ✅ Ajout du paramètre refreshTrigger
+  final int refreshTrigger;
+  const RapportsScreen({super.key, this.refreshTrigger = 0});
 
   @override
   State<RapportsScreen> createState() => _RapportsScreenState();
@@ -76,6 +78,15 @@ class _RapportsScreenState extends State<RapportsScreen>
     });
   }
 
+  // ✅ CORRECTION : Déclenche le rechargement quand le Dashboard a fini de mettre à jour le solde
+  @override
+  void didUpdateWidget(RapportsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTrigger != oldWidget.refreshTrigger) {
+      _loadData();
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -85,7 +96,7 @@ class _RapportsScreenState extends State<RapportsScreen>
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+   Future<void> _loadData() async {
     if (_allTransactions.isEmpty) {
       setState(() => _isLoading = true);
     }
@@ -93,7 +104,12 @@ class _RapportsScreenState extends State<RapportsScreen>
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
-      _allTransactions = await _transactionService.getTransactionsByCommercant(_currentUser!.id);
+      
+      // ✅ APRÈS
+      _allTransactions = await _transactionService.getTransactionsByCommercant(
+        _currentUser!.id,
+        forceRefresh: true,
+      );
       _applyFilters();
     } catch (e) {
       debugPrint('Erreur rapports: $e');
@@ -102,18 +118,13 @@ class _RapportsScreenState extends State<RapportsScreen>
     }
   }
 
-  // ✅ CORRECTION : Ajout de catégories par défaut en cas de base de données vide
   Future<void> _loadCategories() async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('categories')
-          .get(); // On retire le .where pour être sûr de tout récupérer, même si le champ "estActive" manque
-      
+      final snap = await FirebaseFirestore.instance.collection('categories').get();
       List<String> fetched = snap.docs.map((d) => d['nom'] as String).toList();
       
       if (mounted) {
         setState(() {
-          // Si la base de données est vide, on utilise une liste de secours pour que le menu fonctionne toujours
           _categories = fetched.isEmpty 
               ? ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre']
               : fetched;
@@ -211,8 +222,10 @@ class _RapportsScreenState extends State<RapportsScreen>
       ),
     );
     if (picked != null) {
-      setState(() => _dateRange = picked);
-      _applyFilters();
+      setState(() {
+        _dateRange = picked;
+        _applyFilters();
+      });
     }
   }
 
@@ -551,8 +564,6 @@ class _RapportsScreenState extends State<RapportsScreen>
             ),
           ),
           const SizedBox(height: 10),
-          
-          // ✅ CORRECTION : DropdownButton robuste avec hint et valeurs par défaut
           Container(
             height: 52,
             padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -581,7 +592,6 @@ class _RapportsScreenState extends State<RapportsScreen>
               ),
             ),
           ),
-
           if (_filteredTransactions.isNotEmpty) ...[
             const SizedBox(height: 8),
             Align(
@@ -679,6 +689,7 @@ class _RapportsScreenState extends State<RapportsScreen>
   }
 
   Widget _buildSummaryBar(double recettes, double depenses, double solde) {
+    final isPositif = solde >= 0;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
       decoration: BoxDecoration(
@@ -705,11 +716,11 @@ class _RapportsScreenState extends State<RapportsScreen>
           ),
           _buildCellDivider(),
           _buildSummaryCell(
-            icon: Icons.account_balance_wallet_rounded,
-            value: _fmt(solde.abs()),
-            label: 'Solde',
-            iconColor: emeraldDark,
-            bgColor: emeraldDark.withOpacity(0.1),
+            icon: isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded,
+            value: _fmt(solde),
+            label: 'Résultat',
+            iconColor: isPositif ? emeraldDark : brickRed,
+            bgColor: isPositif ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
           ),
         ],
       ),
@@ -818,266 +829,299 @@ class _RapportsScreenState extends State<RapportsScreen>
   }
 
   Widget _buildTransactionList() {
-    if (_filteredTransactions.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.search_off_rounded, size: 56, color: Colors.grey),
-            const SizedBox(height: 16),
-            const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
-            const SizedBox(height: 8),
-            Text('Changez les filtres pour voir\nd\'autres résultats.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _resetFilters,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: emeraldDark,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-              child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      itemCount: _filteredTransactions.length,
-      itemBuilder: (context, index) {
-        final t = _filteredTransactions[index];
-        final catEmoji = _getCatEmoji(t.categorie);
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: emeraldDark,
+      child: _filteredTransactions.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: t.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
                   child: Center(
-                    child: Icon(
-                      t.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                      color: t.estRecette ? emeraldDark : brickRed,
-                      size: 24,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.search_off_rounded, size: 56, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                        const SizedBox(height: 8),
+                        Text('Tirez vers le bas pour actualiser\nou changez les filtres.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
+                        const SizedBox(height: 24),
+                        ElevatedButton(
+                          onPressed: _resetFilters,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: emeraldDark,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        t.description ?? t.categorie,
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 4),
-                      Row(
-                        children: [
-                          Text(DateFormat('dd/MM/yyyy').format(t.date), style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                          const SizedBox(width: 8),
-                          Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Text(
-                  '${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                    color: t.estRecette ? emeraldDark : brickRed,
-                  ),
-                ),
               ],
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+              itemCount: _filteredTransactions.length,
+              itemBuilder: (context, index) {
+                final t = _filteredTransactions[index];
+                final catEmoji = _getCatEmoji(t.categorie);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 50,
+                          height: 50,
+                          decoration: BoxDecoration(
+                            color: t.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Icon(
+                              t.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                              color: t.estRecette ? emeraldDark : brickRed,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                t.description ?? t.categorie,
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  Text(DateFormat('dd/MM/yyyy').format(t.date), style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                                  const SizedBox(width: 8),
+                                  Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                            color: t.estRecette ? emeraldDark : brickRed,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
             ),
-          ),
-        );
-      },
     );
   }
 
   Widget _buildChartView(double totalRecettes, double totalDepenses) {
-    if (_filteredTransactions.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey),
-            SizedBox(height: 16),
-            Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey)),
-          ],
-        ),
-      );
-    }
-
-    final Map<String, double> dailyData = {};
-    for (var t in _filteredTransactions) {
-      final key = DateFormat('dd/MM').format(t.date);
-      if (t.estRecette) {
-        dailyData[key] = (dailyData[key] ?? 0) + t.montant;
-      } else {
-        dailyData[key] = (dailyData[key] ?? 0) - t.montant;
-      }
-    }
-
-    final sortedKeys = dailyData.keys.toList()..sort();
-    final spots = List.generate(sortedKeys.length, (i) => FlSpot(i.toDouble(), dailyData[sortedKeys[i]]!));
-
-    final maxY = spots.fold(0.0, (m, s) => s.y > m ? s.y : m);
-    final minY = spots.fold(0.0, (m, s) => s.y < m ? s.y : m);
-
-    final nbRecettes = _filteredTransactions.where((t) => t.estRecette).length;
-    final nbDepenses = _filteredTransactions.where((t) => !t.estRecette).length;
-
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: _buildMiniStat('${_filteredTransactions.length}', 'Total', Icons.receipt_long_rounded, emeraldDark)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMiniStat('$nbRecettes', 'Reçus', Icons.arrow_upward_rounded, emeraldDark)),
-              const SizedBox(width: 10),
-              Expanded(child: _buildMiniStat('$nbDepenses', 'Dépensés', Icons.arrow_downward_rounded, brickRed)),
-            ],
-          ),
-          const SizedBox(height: 16),
-          if (spots.length > 1)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.trending_up_rounded, size: 22, color: textDark),
-                      SizedBox(width: 10),
-                      Text('Évolution du solde', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 200,
-                    child: LineChart(
-                      LineChartData(
-                        minY: minY * 1.2,
-                        maxY: maxY > 0 ? maxY * 1.2 : 100,
-                        lineBarsData: [
-                          LineChartBarData(
-                            spots: spots,
-                            isCurved: true,
-                            color: emeraldDark,
-                            barWidth: 3,
-                            belowBarData: BarAreaData(show: true, color: emeraldDark.withOpacity(0.1)),
-                            dotData: FlDotData(
-                              show: spots.length <= 10,
-                              getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: emeraldDark),
-                            ),
-                          ),
-                        ],
-                        titlesData: FlTitlesData(
-                          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              interval: (spots.length / 5).ceilToDouble(),
-                              getTitlesWidget: (value, meta) {
-                                final i = value.toInt();
-                                if (i < 0 || i >= sortedKeys.length) return const SizedBox.shrink();
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 6),
-                                  child: Text(sortedKeys[i], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                                );
-                              },
-                            ),
-                          ),
-                        ),
-                        gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF5F5F5), strokeWidth: 1)),
-                        borderData: FlBorderData(show: false),
-                        lineTouchData: LineTouchData(
-                          touchTooltipData: LineTouchTooltipData(
-                            getTooltipItems: (spots) => spots.map((s) {
-                              final i = s.x.toInt();
-                              final date = i < sortedKeys.length ? sortedKeys[i] : '';
-                              return LineTooltipItem('$date\n${_fmt(s.y)} F', const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold));
-                            }).toList(),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 16),
-          if (totalRecettes > 0 || totalDepenses > 0)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Row(
-                    children: [
-                      Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark),
-                      SizedBox(width: 10),
-                      Text('Répartition de la sélection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('📈 ${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 14)),
-                      Text('📉 ${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 14)),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(10),
-                    child: Row(
+    return RefreshIndicator(
+      onRefresh: _loadData,
+      color: emeraldDark,
+      child: _filteredTransactions.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.6,
+                  child: const Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (totalRecettes > 0) Expanded(flex: (totalRecettes / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: emeraldDark)),
-                        if (totalDepenses > 0) Expanded(flex: (totalDepenses / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: brickRed)),
+                        Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey)),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 10),
+                ),
+              ],
+            )
+          : SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              child: Column(
+                children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('${(totalRecettes / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% reçu', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                      Text('${(totalDepenses / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% dépensé', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                      Expanded(child: _buildMiniStat('${_filteredTransactions.length}', 'Total', Icons.receipt_long_rounded, emeraldDark)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildMiniStat('${_filteredTransactions.where((t) => t.estRecette).length}', 'Reçus', Icons.arrow_upward_rounded, emeraldDark)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _buildMiniStat('${_filteredTransactions.where((t) => !t.estRecette).length}', 'Dépensés', Icons.arrow_downward_rounded, brickRed)),
                     ],
                   ),
+                  const SizedBox(height: 16),
+                  Builder(
+                    builder: (context) {
+                      final Map<String, double> dailyData = {};
+                      for (var t in _filteredTransactions) {
+                        final key = DateFormat('dd/MM').format(t.date);
+                        if (t.estRecette) {
+                          dailyData[key] = (dailyData[key] ?? 0) + t.montant;
+                        } else {
+                          dailyData[key] = (dailyData[key] ?? 0) - t.montant;
+                        }
+                      }
+                      final sortedKeys = dailyData.keys.toList()..sort();
+                      final spots = List.generate(sortedKeys.length, (i) => FlSpot(i.toDouble(), dailyData[sortedKeys[i]]!));
+                      final maxY = spots.fold(0.0, (m, s) => s.y > m ? s.y : m);
+                      final minY = spots.fold(0.0, (m, s) => s.y < m ? s.y : m);
+
+                      return spots.length > 1
+                          ? Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Row(
+                                    children: [
+                                      Icon(Icons.trending_up_rounded, size: 22, color: textDark),
+                                      SizedBox(width: 10),
+                                      Text('Évolution du résultat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 20),
+                                  SizedBox(
+                                    height: 200,
+                                    child: LineChart(
+                                      LineChartData(
+                                        minY: minY * 1.2,
+                                        maxY: maxY > 0 ? maxY * 1.2 : 100,
+                                        lineBarsData: [
+                                          LineChartBarData(
+                                            spots: spots,
+                                            isCurved: true,
+                                            color: emeraldDark,
+                                            barWidth: 3,
+                                            belowBarData: BarAreaData(show: true, color: emeraldDark.withOpacity(0.1)),
+                                            dotData: FlDotData(
+                                              show: spots.length <= 10,
+                                              getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: emeraldDark),
+                                            ),
+                                          ),
+                                        ],
+                                        titlesData: FlTitlesData(
+                                          leftTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                          bottomTitles: AxisTitles(
+                                            sideTitles: SideTitles(
+                                              showTitles: true,
+                                              interval: (spots.length / 5).ceilToDouble(),
+                                              getTitlesWidget: (value, meta) {
+                                                final i = value.toInt();
+                                                if (i < 0 || i >= sortedKeys.length) return const SizedBox.shrink();
+                                                return Padding(
+                                                  padding: const EdgeInsets.only(top: 6),
+                                                  child: Text(sortedKeys[i], style: const TextStyle(fontSize: 10, color: Colors.grey)),
+                                                );
+                                              },
+                                            ),
+                                          ),
+                                        ),
+                                        gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF5F5F5), strokeWidth: 1)),
+                                        borderData: FlBorderData(show: false),
+                                        lineTouchData: LineTouchData(
+                                          touchTooltipData: LineTouchTooltipData(
+                                            getTooltipItems: (spots) => spots.map((s) {
+                                              final i = s.x.toInt();
+                                              final date = i < sortedKeys.length ? sortedKeys[i] : '';
+                                              return LineTooltipItem('$date\n${_fmt(s.y)} F', const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold));
+                                            }).toList(),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          : const SizedBox.shrink();
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  if (totalRecettes > 0 || totalDepenses > 0)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark),
+                              SizedBox(width: 10),
+                              Text('Répartition de la sélection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.trending_up_rounded, color: emeraldDark, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text('${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 14)),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  const Icon(Icons.trending_down_rounded, color: brickRed, size: 18),
+                                  const SizedBox(width: 6),
+                                  Text('${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 14)),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 10),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Row(
+                              children: [
+                                if (totalRecettes > 0) Expanded(flex: (totalRecettes / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: emeraldDark)),
+                                if (totalDepenses > 0) Expanded(flex: (totalDepenses / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: brickRed)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('${(totalRecettes / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% reçu', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                              Text('${(totalDepenses / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% dépensé', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),
-        ],
-      ),
     );
   }
 

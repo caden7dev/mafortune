@@ -14,7 +14,7 @@ import 'rapports_screen.dart';
 import 'notifications_screen.dart';
 import 'profil_screen.dart';
 import 'messages_screen.dart';
-import 'historique_screen.dart'; // ✅ Assure-toi que ce fichier existe bien dans ton dossier
+import 'historique_screen.dart';
 import '../../services/tts_service.dart';
 import '../../services/bilan_notification_service.dart';
 
@@ -44,6 +44,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
   int _currentIndex = 0;
+  
+  // ✅ CORRECTION : Le compteur doit être À L'INTÉRIEUR de la classe State
+  int _refreshTrigger = 0;
 
   String _getTitle() {
     switch (_currentIndex) {
@@ -89,6 +92,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _currentUser = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
       if (_currentUser == null) return;
 
+      // ✅ RECALCUL AUTOMATIQUE : Garantit que le solde est cohérent avec les transactions
+      if (forceRefresh) {
+        await _transactionService.recalculerSolde(_currentUser!.id);
+        // Recharger l'utilisateur pour récupérer le nouveau solde
+        _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
+      }
+
       await Future.wait([
         _loadStatsAndTransactions(forceRefresh),
         _loadMessagesPreview(), 
@@ -104,7 +114,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       debugPrint('Erreur chargement: $e');
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _refreshTrigger++; // ✅ Incrémenter le compteur à chaque chargement réussi
+        });
+      }
     }
   }
 
@@ -337,7 +352,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() => _currentIndex = index);
-          if (index == 0) _loadData(forceRefresh: true);
+          
         },
       ),
       floatingActionButton: _currentIndex == 0
@@ -352,13 +367,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ✅ CORRECTION : Passage du trigger aux écrans enfants
   Widget _buildCurrentTab() {
     return IndexedStack(
       index: _currentIndex,
       children: [
         _buildDashboardContent(),
-        const BilansScreen(),
-        const RapportsScreen(),
+        BilansScreen(refreshTrigger: _refreshTrigger),
+        RapportsScreen(refreshTrigger: _refreshTrigger),
         const NotificationsScreen(),
         ProfilScreen(preloadedUser: _currentUser),
       ],
@@ -426,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Mon argent aujourd\'hui', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 14)),
                         const SizedBox(height: 8),
                         FittedBox(
                           fit: BoxFit.scaleDown,
@@ -436,9 +452,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            Expanded(child: _buildMiniStat('📈', 'Gagné', '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F', Colors.white)),
+                            Expanded(child: _buildMiniStat('📈', 'Vente du jour', '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F', Colors.white)),
                             Container(width: 1, height: 40, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 12)),
-                            Expanded(child: _buildMiniStat('📉', 'Dépensé', '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F', Colors.white.withOpacity(0.9))),
+                            Expanded(child: _buildMiniStat('📉', 'Dépense du jour', '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F', Colors.white.withOpacity(0.9))),
                           ],
                         ),
                       ],
@@ -583,8 +599,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           _recentTransactions.isEmpty
               ? const SliverToBoxAdapter(
                   child: Padding(
-                    // ✅ CORRECTION ICI : Ajout de 'const' devant EdgeInsets.all(40)
-                    padding: const EdgeInsets.all(40),
+                    padding: EdgeInsets.all(40),
                     child: Center(
                       child: Column(
                         children: [
@@ -605,7 +620,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
 
-          // ✅ BOUTON "VOIR TOUT L'HISTORIQUE" RÉINTÉGRÉ
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
@@ -615,8 +629,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     context,
                     MaterialPageRoute(builder: (context) => const HistoriqueScreen()),
                   );
-                  // Si tu utilises des routes nommées dans main.dart, remplace par :
-                  // Navigator.pushNamed(context, '/historique');
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -652,7 +664,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          const SliverToBoxAdapter(child: SizedBox(height: 110)), // Espace pour la FAB et la BottomNav
+          const SliverToBoxAdapter(child: SizedBox(height: 110)),
         ],
       ),
     );

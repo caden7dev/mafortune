@@ -7,13 +7,15 @@ import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
-const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure, Recettes)
-const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Chaleur, Action, Conseils)
-const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Alertes)
-const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (lisibilité)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class BilansScreen extends StatefulWidget {
-  const BilansScreen({super.key});
+  // ✅ Ajout du paramètre refreshTrigger
+  final int refreshTrigger;
+  const BilansScreen({super.key, this.refreshTrigger = 0});
 
   @override
   State<BilansScreen> createState() => _BilansScreenState();
@@ -31,7 +33,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
   bool _isLoading = true;
   int _touchedPieIndex = -1;
 
-  String _selectedPeriod = 'mois'; // 'mois', 'trimestre', 'annee', 'custom'
+  String _selectedPeriod = 'mois';
   DateTime _selectedDate = DateTime.now();
   DateTimeRange? _customDateRange;
 
@@ -67,6 +69,15 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     _loadData();
   }
 
+  // ✅ CORRECTION : Déclenche le rechargement quand le Dashboard a fini de mettre à jour le solde
+  @override
+  void didUpdateWidget(BilansScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTrigger != oldWidget.refreshTrigger) {
+      _loadData();
+    }
+  }
+
   Future<void> _loadData() async {
     if (_transactions.isEmpty) {
       setState(() => _isLoading = true);
@@ -74,7 +85,12 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     try {
       _currentUser = await _authService.getCurrentUserData();
       if (_currentUser == null) return;
-      _transactions = await _transactionService.getTransactionsByCommercant(_currentUser!.id);
+      
+      // ✅ APRÈS (Force la récupération des toutes dernières données du serveur)
+      _transactions = await _transactionService.getTransactionsByCommercant(
+        _currentUser!.id,
+        forceRefresh: true, 
+      );
       _calculateStats();
     } catch (e) {
       debugPrint('Erreur bilans: $e');
@@ -154,18 +170,11 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
       context: context,
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
-      initialDateRange: _customDateRange ??
-          DateTimeRange(
-            start: DateTime.now().subtract(const Duration(days: 7)),
-            end: DateTime.now(),
-          ),
+      initialDateRange: _customDateRange ?? DateTimeRange(start: DateTime.now().subtract(const Duration(days: 7)), end: DateTime.now()),
       builder: (context, child) {
         return Theme(
           data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: emeraldDark, // ✅ Harmonisé avec la charte
-              onPrimary: Colors.white,
-            ),
+            colorScheme: const ColorScheme.light(primary: emeraldDark, onPrimary: Colors.white),
           ),
           child: child!,
         );
@@ -232,7 +241,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     final hasData = _totalRecettes > 0 || _totalDepenses > 0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // Fond gris très clair et doux
+      backgroundColor: const Color(0xFFF8F9FA),
       body: _isLoading && _transactions.isEmpty
           ? const Center(child: CircularProgressIndicator(color: emeraldDark))
           : RefreshIndicator(
@@ -258,7 +267,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                       const SizedBox(height: 16),
                       _buildCategoryCard(),
                     ],
-                    const SizedBox(height: 100), // Espace pour la BottomNavigationBar
+                    const SizedBox(height: 100),
                   ],
                 ),
               ),
@@ -333,22 +342,14 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          // ✅ 1. FILTRE ACTIF : Vert Émeraude Sombre
           color: selected ? emeraldDark : const Color(0xFFF8F9FA),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? emeraldDark : Colors.grey.shade300,
-            width: selected ? 1.5 : 1,
-          ),
+          border: Border.all(color: selected ? emeraldDark : Colors.grey.shade300, width: selected ? 1.5 : 1),
         ),
         child: Center(
           child: Text(
             label,
-            style: TextStyle(
-              color: selected ? Colors.white : Colors.grey.shade700,
-              fontWeight: selected ? FontWeight.bold : FontWeight.w600,
-              fontSize: 13,
-            ),
+            style: TextStyle(color: selected ? Colors.white : Colors.grey.shade700, fontWeight: selected ? FontWeight.bold : FontWeight.w600, fontSize: 13),
           ),
         ),
       ),
@@ -357,7 +358,6 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
 
   Widget _buildConseilCard(double solde) {
     String message = "";
-    // ✅ 4. ICÔNE SOBRE ET CHALEUREUSE (Terre Cuite ou Émeraude)
     IconData icon = Icons.lightbulb_outline;
     Color color = terracotta;
 
@@ -369,8 +369,8 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
       double ratio = _totalRecettes > 0 ? (_totalDepenses / _totalRecettes) * 100 : 0;
       if (ratio < 50) {
         message = "Excellente gestion ! Vos dépenses ne représentent que ${ratio.toStringAsFixed(0)}% de vos recettes.";
-        icon = Icons.stars_rounded; // Icône sobre et positive
-        color = terracotta; // Touche chaleureuse
+        icon = Icons.stars_rounded;
+        color = terracotta;
       } else {
         message = "Vous êtes bénéficiaire, mais vos dépenses absorbent ${ratio.toStringAsFixed(0)}% de vos revenus.";
         icon = Icons.trending_up_rounded;
@@ -415,25 +415,11 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
           Row(
             children: [
               Expanded(
-                // ✅ 3. MINI-CARTE REÇU : Icône épurée + fond 10% opacité
-                child: _buildStatCard(
-                  icon: Icons.arrow_upward_rounded,
-                  label: 'Argent reçu',
-                  amount: _totalRecettes,
-                  iconColor: emeraldDark,
-                  bgColor: emeraldDark.withOpacity(0.1),
-                ),
+                child: _buildStatCard(icon: Icons.arrow_upward_rounded, label: 'Argent reçu', amount: _totalRecettes, iconColor: emeraldDark, bgColor: emeraldDark.withOpacity(0.1)),
               ),
               const SizedBox(width: 12),
               Expanded(
-                // ✅ 3. MINI-CARTÉ DÉPENSÉ : Icône épurée + fond 10% opacité
-                child: _buildStatCard(
-                  icon: Icons.arrow_downward_rounded,
-                  label: 'Argent dépensé',
-                  amount: _totalDepenses,
-                  iconColor: brickRed,
-                  bgColor: brickRed.withOpacity(0.1),
-                ),
+                child: _buildStatCard(icon: Icons.arrow_downward_rounded, label: 'Argent dépensé', amount: _totalDepenses, iconColor: brickRed, bgColor: brickRed.withOpacity(0.1)),
               ),
             ],
           ),
@@ -448,61 +434,32 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       decoration: BoxDecoration(
-        // ✅ 2. DÉGRADÉ SUBTIL ET ÉLÉGANT (Plus de vert pomme flashy)
         gradient: LinearGradient(
-          colors: isPositif
-              ? [const Color(0xFF0B4F36), const Color(0xFF0D5F41)] // Dégradé très subtil d'Émeraude
-              : [const Color(0xFF7F1D1D), const Color(0xFF9B2C2C)], // Dégradé subtil de Rouge Brique
+          colors: isPositif ? [const Color(0xFF0B4F36), const Color(0xFF0D5F41)] : [const Color(0xFF7F1D1D), const Color(0xFF9B2C2C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: (isPositif ? emeraldDark : brickRed).withOpacity(0.15),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: (isPositif ? emeraldDark : brickRed).withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              // ✅ 2. ICÔNE SYSTÈME ÉPURÉE (Plus d'émoji cartoon)
-              Icon(
-                isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-                color: Colors.white,
-                size: 22,
-              ),
+              Icon(isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded, color: Colors.white, size: 22),
               const SizedBox(width: 8),
-              Text(
-                isPositif ? 'Vous êtes en bénéfice' : 'Vous êtes en déficit',
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text(isPositif ? 'Vous êtes en bénéfice' : 'Vous êtes en déficit', style: const TextStyle(color: Colors.white70, fontSize: 15, fontWeight: FontWeight.w500)),
             ],
           ),
           const SizedBox(height: 12),
           FittedBox(
             fit: BoxFit.scaleDown,
-            child: Text(
-              '${solde < 0 ? '-' : ''}${_fmt(solde.abs())} FCFA',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 36,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5,
-              ),
-            ),
+            child: Text('${solde < 0 ? '-' : ''}${_fmt(solde.abs())} FCFA', style: const TextStyle(color: Colors.white, fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
           ),
           const SizedBox(height: 4),
           Text(
-            'Solde de la période',
+            'Résultat de la période',
             style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 13),
           ),
         ],
@@ -510,41 +467,18 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     );
   }
 
-  // ✅ 3. WIDGET STAT CARD REFACTORISÉ POUR LES ICÔNES ÉPURÉES
-  Widget _buildStatCard({
-    required IconData icon,
-    required String label,
-    required double amount,
-    required Color iconColor,
-    required Color bgColor,
-  }) {
+  Widget _buildStatCard({required IconData icon, required String label, required double amount, required Color iconColor, required Color bgColor}) {
     return Container(
       padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: bgColor,
-        borderRadius: BorderRadius.circular(16),
-      ),
+      decoration: BoxDecoration(color: bgColor, borderRadius: BorderRadius.circular(16)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, color: iconColor, size: 28),
           const SizedBox(height: 12),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              '${_fmt(amount)} F',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: iconColor,
-              ),
-            ),
-          ),
+          FittedBox(fit: BoxFit.scaleDown, child: Text('${_fmt(amount)} F', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: iconColor))),
           const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: iconColor.withOpacity(0.8), fontWeight: FontWeight.w500),
-          ),
+          Text(label, style: TextStyle(fontSize: 12, color: iconColor.withOpacity(0.8), fontWeight: FontWeight.w500)),
         ],
       ),
     );
@@ -554,26 +488,14 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.grey.shade200)),
       child: Column(
         children: [
           Icon(Icons.receipt_long_rounded, size: 56, color: Colors.grey.shade400),
           const SizedBox(height: 16),
-          const Text(
-            'Pas de données pour cette période',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
-            textAlign: TextAlign.center,
-          ),
+          const Text('Pas de données pour cette période', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
           const SizedBox(height: 8),
-          Text(
-            'Ajoutez des recettes et dépenses\npour voir vos bilans ici.',
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5),
-            textAlign: TextAlign.center,
-          ),
+          Text('Ajoutez des recettes et dépenses\npour voir vos bilans ici.', style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.5), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -589,21 +511,11 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark),
-              SizedBox(width: 10),
-              Text('Répartition', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
-            ],
-          ),
+          const Row(children: [Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Répartition', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark))]),
           const SizedBox(height: 20),
           SizedBox(
             height: 180,
@@ -612,28 +524,10 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                 Expanded(
                   child: PieChart(
                     PieChartData(
-                      pieTouchData: PieTouchData(
-                        touchCallback: (event, response) {
-                          setState(() {
-                            _touchedPieIndex = response?.touchedSection?.touchedSectionIndex ?? -1;
-                          });
-                        },
-                      ),
+                      pieTouchData: PieTouchData(touchCallback: (event, response) { setState(() { _touchedPieIndex = response?.touchedSection?.touchedSectionIndex ?? -1; }); }),
                       sections: [
-                        PieChartSectionData(
-                          value: _totalRecettes,
-                          color: emeraldDark, // ✅ Harmonisé
-                          title: '${pctRecettes.toStringAsFixed(0)}%',
-                          radius: _touchedPieIndex == 0 ? 70 : 58,
-                          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        PieChartSectionData(
-                          value: _totalDepenses,
-                          color: brickRed, // ✅ Harmonisé
-                          title: '${pctDepenses.toStringAsFixed(0)}%',
-                          radius: _touchedPieIndex == 1 ? 70 : 58,
-                          titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
+                        PieChartSectionData(value: _totalRecettes, color: emeraldDark, title: '${pctRecettes.toStringAsFixed(0)}%', radius: _touchedPieIndex == 0 ? 70 : 58, titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                        PieChartSectionData(value: _totalDepenses, color: brickRed, title: '${pctDepenses.toStringAsFixed(0)}%', radius: _touchedPieIndex == 1 ? 70 : 58, titleStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
                       ],
                       centerSpaceRadius: 36,
                       sectionsSpace: 3,
@@ -669,10 +563,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
-            Text(
-              '${_fmt(amount)} F',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
-            ),
+            Text('${_fmt(amount)} F', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
           ],
         ),
       ],
@@ -686,29 +577,13 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.bar_chart_rounded, size: 22, color: textDark),
-              SizedBox(width: 10),
-              Text('Évolution sur l\'année', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
-            ],
-          ),
+          const Row(children: [Icon(Icons.bar_chart_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Évolution sur l\'année', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark))]),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              _buildLegendDot(emeraldDark, 'Reçu'),
-              const SizedBox(width: 20),
-              _buildLegendDot(brickRed, 'Dépensé'),
-            ],
-          ),
+          Row(children: [_buildLegendDot(emeraldDark, 'Reçu'), const SizedBox(width: 20), _buildLegendDot(brickRed, 'Dépensé')]),
           const SizedBox(height: 20),
           SizedBox(
             height: 180,
@@ -727,18 +602,12 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                       getTitlesWidget: (value, meta) {
                         final idx = value.toInt();
                         if (idx < 0 || idx >= months.length) return const SizedBox.shrink();
-                        return Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(months[idx], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                        );
+                        return Padding(padding: const EdgeInsets.only(top: 6), child: Text(months[idx], style: const TextStyle(fontSize: 10, color: Colors.grey)));
                       },
                     ),
                   ),
                 ),
-                gridData: FlGridData(
-                  drawVerticalLine: false,
-                  getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF0F0F0), strokeWidth: 1),
-                ),
+                gridData: FlGridData(drawVerticalLine: false, getDrawingHorizontalLine: (_) => const FlLine(color: Color(0xFFF0F0F0), strokeWidth: 1)),
                 borderData: FlBorderData(show: false),
                 barGroups: List.generate(months.length, (i) {
                   final month = months[i];
@@ -746,18 +615,8 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                     x: i,
                     barsSpace: 3,
                     barRods: [
-                      BarChartRodData(
-                        toY: _monthlyRecettes[month] ?? 0,
-                        color: emeraldDark, // ✅ Harmonisé
-                        width: 7,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                      ),
-                      BarChartRodData(
-                        toY: _monthlyDepenses[month] ?? 0,
-                        color: brickRed, // ✅ Harmonisé
-                        width: 7,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                      ),
+                      BarChartRodData(toY: _monthlyRecettes[month] ?? 0, color: emeraldDark, width: 7, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+                      BarChartRodData(toY: _monthlyDepenses[month] ?? 0, color: brickRed, width: 7, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
                     ],
                   );
                 }),
@@ -770,13 +629,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
   }
 
   Widget _buildLegendDot(Color color, String label) {
-    return Row(
-      children: [
-        Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-        const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
-      ],
-    );
+    return Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)), const SizedBox(width: 6), Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w500))]);
   }
 
   Widget _buildCategoryCard() {
@@ -786,21 +639,11 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.category_rounded, size: 22, color: textDark),
-              SizedBox(width: 10),
-              Text('Où va votre argent ?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
-            ],
-          ),
+          const Row(children: [Icon(Icons.category_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Où va votre argent ?', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark))]),
           const SizedBox(height: 20),
           ...List.generate(entries.length, (i) {
             final entry = entries[i];
@@ -817,23 +660,12 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                     children: [
                       Text(emoji, style: const TextStyle(fontSize: 20)),
                       const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          entry.key,
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textDark),
-                        ),
-                      ),
+                      Expanded(child: Text(entry.key, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textDark))),
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          Text(
-                            '${_fmt(entry.value)} F',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color),
-                          ),
-                          Text(
-                            '${(pct * 100).toStringAsFixed(0)}%',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-                          ),
+                          Text('${_fmt(entry.value)} F', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+                          Text('${(pct * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
                         ],
                       ),
                     ],
@@ -841,12 +673,7 @@ class _BilansScreenState extends State<BilansScreen> with AutomaticKeepAliveClie
                   const SizedBox(height: 8),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: pct,
-                      minHeight: 8,
-                      backgroundColor: color.withOpacity(0.15),
-                      valueColor: AlwaysStoppedAnimation<Color>(color),
-                    ),
+                    child: LinearProgressIndicator(value: pct, minHeight: 8, backgroundColor: color.withOpacity(0.15), valueColor: AlwaysStoppedAnimation<Color>(color)),
                   ),
                 ],
               ),

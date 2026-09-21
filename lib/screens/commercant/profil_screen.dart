@@ -18,10 +18,10 @@ import '../auth/securiser_compte_screen.dart';
 import 'messages_screen.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
-const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
-const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
-const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
-const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
+const Color emeraldDark = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color brickRed = Color(0xFFB91C1C);
+const Color textDark = Color(0xFF222222);
 
 class ProfilScreen extends StatefulWidget {
   final UtilisateurModel? preloadedUser;
@@ -35,6 +35,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
   final DeleteAccountService _deleteService = DeleteAccountService();
+  
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -48,6 +49,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
       _isLoading = false;
     } else {
       _loadProfile();
+    }
+  }
+
+  // ✅ CORRECTION MAGIQUE : Met à jour l'écran instantanément si le Dashboard rafraîchit les données
+  @override
+  void didUpdateWidget(ProfilScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.preloadedUser != null && widget.preloadedUser != oldWidget.preloadedUser) {
+      setState(() {
+        _currentUser = widget.preloadedUser;
+      });
     }
   }
 
@@ -75,10 +87,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   Future<void> _modifierProfil() async {
     if (_currentUser == null) return;
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => ModifierProfilScreen(currentUser: _currentUser!)),
-    );
+    final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => ModifierProfilScreen(currentUser: _currentUser!)));
     if (result == true) await _loadProfile(forceRefresh: true);
   }
 
@@ -95,12 +104,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   }
 
   Future<void> _changerPin() async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('🔧 Bientôt disponible', style: TextStyle(fontSize: 16)),
-        backgroundColor: terracotta,
-      ),
-    );
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🔧 Bientôt disponible', style: TextStyle(fontSize: 16)), backgroundColor: terracotta));
   }
 
   Future<void> _gestionCategories() async {
@@ -120,46 +124,26 @@ class _ProfilScreenState extends State<ProfilScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle),
-              child: const Icon(Icons.logout_rounded, size: 48, color: brickRed),
-            ),
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.logout_rounded, size: 48, color: brickRed)),
             const SizedBox(height: 16),
-            const Text('Vous déconnecter ?',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark),
-                textAlign: TextAlign.center),
+            const Text('Vous déconnecter ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
             const SizedBox(height: 10),
-            Text(
-              'Vos données restent enregistrées.\nVous pouvez revenir à tout moment.',
-              style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
-              textAlign: TextAlign.center,
-            ),
+            Text('Vos données restent enregistrées.\nVous pouvez revenir à tout moment.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
             const SizedBox(height: 28),
             SizedBox(
-              width: double.infinity,
-              height: 56,
+              width: double.infinity, height: 56,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: brickRed,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Oui, me déconnecter', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
-              width: double.infinity,
-              height: 52,
+              width: double.infinity, height: 52,
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
-                  side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Annuler', style: TextStyle(fontSize: 17)),
               ),
             ),
@@ -184,27 +168,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle),
-              child: const Icon(Icons.warning_amber_rounded, size: 48, color: brickRed),
-            ),
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.warning_amber_rounded, size: 48, color: brickRed)),
             const SizedBox(height: 16),
-            const Text('Supprimer le compte ?',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark),
-                textAlign: TextAlign.center),
+            const Text('Supprimer le compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: brickRed.withOpacity(0.07),
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: brickRed.withOpacity(0.07), borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tout sera supprimé définitivement :',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: brickRed)),
+                  Text('Tout sera supprimé définitivement :', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: brickRed)),
                   const SizedBox(height: 8),
                   _buildDeleteItem(Icons.attach_money_rounded, 'Toutes vos transactions'),
                   _buildDeleteItem(Icons.label_rounded, 'Vos catégories'),
@@ -215,29 +189,19 @@ class _ProfilScreenState extends State<ProfilScreen> {
             ),
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity,
-              height: 56,
+              width: double.infinity, height: 56,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: brickRed,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
-              width: double.infinity,
-              height: 52,
+              width: double.infinity, height: 52,
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
-                  side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Annuler', style: TextStyle(fontSize: 17)),
               ),
             ),
@@ -270,49 +234,31 @@ class _ProfilScreenState extends State<ProfilScreen> {
                 hintText: 'SUPPRIMER',
                 hintStyle: TextStyle(color: Colors.grey[400]),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: brickRed, width: 2),
-                ),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: brickRed, width: 2)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
             const SizedBox(height: 20),
             SizedBox(
-              width: double.infinity,
-              height: 56,
+              width: double.infinity, height: 56,
               child: ElevatedButton(
                 onPressed: () {
                   if (confirmController.text.trim() == 'SUPPRIMER') {
                     Navigator.pop(context, true);
                   } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Tapez exactement : SUPPRIMER', style: TextStyle(fontSize: 16)),
-                        backgroundColor: brickRed,
-                      ),
-                    );
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Tapez exactement : SUPPRIMER', style: TextStyle(fontSize: 16)), backgroundColor: brickRed));
                   }
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: brickRed,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Supprimer définitivement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
             SizedBox(
-              width: double.infinity,
-              height: 52,
+              width: double.infinity, height: 52,
               child: OutlinedButton(
                 onPressed: () => Navigator.pop(context, false),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey[700],
-                  side: BorderSide(color: Colors.grey[300]!),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                ),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
                 child: const Text('Annuler', style: TextStyle(fontSize: 17)),
               ),
             ),
@@ -332,13 +278,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: Row(
-            children: [
-              CircularProgressIndicator(color: emeraldDark),
-              SizedBox(width: 20),
-              Text('Suppression en cours...', style: TextStyle(fontSize: 16, color: textDark)),
-            ],
-          ),
+          child: Row(children: [CircularProgressIndicator(color: emeraldDark), SizedBox(width: 20), Text('Suppression en cours...', style: TextStyle(fontSize: 16, color: textDark))]),
         ),
       ),
     );
@@ -348,33 +288,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
       if (mounted) {
         Navigator.of(context).pop();
         Navigator.of(context).pushReplacementNamed('/welcome');
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Compte supprimé avec succès', style: TextStyle(fontSize: 16)),
-            backgroundColor: emeraldDark,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Compte supprimé avec succès', style: TextStyle(fontSize: 16)), backgroundColor: emeraldDark));
       }
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
         if (e.toString().contains('requires-recent-login')) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Reconnectez-vous d\'abord pour supprimer votre compte.', style: const TextStyle(fontSize: 16)),
-              backgroundColor: terracotta,
-              duration: const Duration(seconds: 5),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reconnectez-vous d\'abord pour supprimer votre compte.', style: const TextStyle(fontSize: 16)), backgroundColor: terracotta, duration: const Duration(seconds: 5)));
           await _authService.signOut();
           if (mounted) Navigator.of(context).pushReplacementNamed('/login');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)),
-              backgroundColor: brickRed,
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)), backgroundColor: brickRed));
         }
       }
     }
@@ -392,10 +316,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFFF8F9FA),
-        body: Center(child: CircularProgressIndicator(color: emeraldDark)),
-      );
+      return const Scaffold(backgroundColor: Color(0xFFF8F9FA), body: Center(child: CircularProgressIndicator(color: emeraldDark)));
     }
 
     if (_currentUser == null) {
@@ -407,20 +328,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
             children: [
               Icon(Icons.error_outline_rounded, size: 56, color: Colors.grey[400]),
               const SizedBox(height: 16),
-              const Text('Impossible de charger\nvotre profil',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark),
-                  textAlign: TextAlign.center),
+              const Text('Impossible de charger\nvotre profil', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
               const SizedBox(height: 24),
               SizedBox(
                 height: 56,
                 child: ElevatedButton(
                   onPressed: _loadProfile,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: emeraldDark,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                    padding: const EdgeInsets.symmetric(horizontal: 32),
-                  ),
+                  style: ElevatedButton.styleFrom(backgroundColor: emeraldDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)), padding: const EdgeInsets.symmetric(horizontal: 32)),
                   child: const Text('Réessayer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
               ),
@@ -433,249 +347,160 @@ class _ProfilScreenState extends State<ProfilScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            children: [
-              // ── HEADER : Fond uni Émeraude Sombre (plus de dégradé flashy) ─────
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
-                decoration: const BoxDecoration(color: emeraldDark),
-                child: Column(
-                  children: [
-                    Container(
-                      width: 100,
-                      height: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                      ),
-                      child: ClipOval(
-                        child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
-                            ? Image.network(
-                                _currentUser!.photo!,
-                                width: 100,
-                                height: 100,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => Center(
-                                  child: Text(_getInitial(),
-                                      style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white)),
-                                ),
-                              )
-                            : Center(
-                                child: Text(_getInitial(),
-                                    style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white)),
-                              ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Text(_currentUser!.nomComplet,
-                        style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center),
-                    const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.phone_rounded, size: 16, color: Colors.white70),
-                        const SizedBox(width: 6),
-                        Text(_currentUser!.telephone,
-                            style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15)),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.storefront_rounded, size: 16, color: Colors.white),
-                          const SizedBox(width: 6),
-                          Text(
-                            _currentUser!.typeActivite ?? 'Commerçant',
-                            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(height: 20),
-
-              // ── SOLDE : Dégradé subtil Émeraude ───────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Container(
+        // ✅ Ajout du RefreshIndicator pour permettre un rafraîchissement manuel du profil
+        child: RefreshIndicator(
+          onRefresh: () => _loadProfile(forceRefresh: true),
+          color: emeraldDark,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Column(
+              children: [
+                Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.all(22),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF0B4F36), Color(0xFF0D5F41)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(color: emeraldDark.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 6))
-                    ],
-                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
+                  decoration: const BoxDecoration(color: emeraldDark),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        width: 100, height: 100,
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
+                        child: ClipOval(
+                          child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
+                              ? Image.network(_currentUser!.photo!, width: 100, height: 100, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Center(child: Text(_getInitial(), style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white))))
+                              : Center(child: Text(_getInitial(), style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white))),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(_currentUser!.nomComplet, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+                      const SizedBox(height: 6),
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                            child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 18),
-                          ),
-                          const SizedBox(width: 8),
-                          const Text('Solde actuel', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                          const Icon(Icons.phone_rounded, size: 16, color: Colors.white70),
+                          const SizedBox(width: 6),
+                          Text(_currentUser!.telephone, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15)),
                         ],
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA',
-                        style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 24),
-
-              // ── INFORMATIONS ─────────────────────────────────────────
-              _buildSection('Mes informations', [
-                _buildInfoCard(Icons.email_outlined, 'Email', _currentUser!.email),
-                _buildInfoCard(Icons.location_on_outlined, 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
-                _buildInfoCard(Icons.storefront_outlined, 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // ── MON COMPTE ───────────────────────────────────────────
-              _buildSection('Mon compte', [
-                _buildMenuItem(icon: Icons.edit_outlined, title: 'Modifier mon profil', onTap: _modifierProfil),
-                _buildMenuItem(icon: Icons.inventory_2_outlined, title: 'Mes produits & services', onTap: _mesProduits),
-                _buildMenuItem(icon: Icons.shield_outlined, title: 'Sécuriser mon compte', onTap: _securiserCompte),
-                _buildMenuItem(icon: Icons.lock_outline, title: 'Changer le mot de passe', onTap: _changerMotDePasse),
-                _buildMenuItem(icon: Icons.pin_outlined, title: 'Changer le code PIN', onTap: _changerPin),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // ── GESTION FINANCIÈRE ───────────────────────────────────
-              _buildSection('Gestion financière', [
-                _buildMenuItem(icon: Icons.label_outline, title: 'Mes catégories', onTap: _gestionCategories),
-                _buildMenuItem(icon: Icons.flag_outlined, title: 'Budget mensuel', onTap: _budgetMensuel),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // ── PARAMÈTRES ───────────────────────────────────────────
-              _buildSection('Paramètres', [
-                _buildMenuItem(
-                  icon: Icons.notifications_none_outlined,
-                  title: 'Notifications',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen())),
-                ),
-                _buildMenuItem(
-                  icon: Icons.privacy_tip_outlined,
-                  title: 'Confidentialité',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen())),
-                ),
-                _buildMenuItem(
-                  icon: Icons.palette_outlined,
-                  title: 'Thème',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemeScreen())),
-                ),
-              ]),
-
-              const SizedBox(height: 24),
-
-              // ── AIDE & CONTACT ───────────────────────────────────────
-              _buildSection('Aide & Contact', [
-                _buildMenuItem(
-                  icon: Icons.chat_bubble_outline,
-                  title: 'Messagerie Admin',
-                  subtitle: 'Discutez directement avec le support',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen())),
-                ),
-                _buildMenuItem(
-                  icon: Icons.help_outline,
-                  title: 'Aide & Support',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen())),
-                ),
-                _buildMenuItem(
-                  icon: Icons.info_outline,
-                  title: 'À propos de MaFortune',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AProposScreen())),
-                ),
-              ]),
-
-              if (_isAdmin) ...[
-                const SizedBox(height: 24),
-                _buildSection('Administration', [
-                  _buildMenuItem(
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: 'Tableau de bord Admin',
-                    onTap: () => Navigator.pushNamed(context, '/admin/dashboard'),
-                  ),
-                ]),
-              ],
-
-              const SizedBox(height: 28),
-
-              // ── ACTIONS ──────────────────────────────────────────────
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Column(
-                  children: [
-                    SizedBox(
-                      width: double.infinity,
-                      height: 60,
-                      child: OutlinedButton(
-                        onPressed: _deconnexion,
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: brickRed,
-                          side: const BorderSide(color: brickRed, width: 1.5),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        ),
-                        child: const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(24)),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.logout_rounded, size: 22, color: brickRed),
-                            SizedBox(width: 10),
-                            Text('Me déconnecter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: brickRed)),
+                            const Icon(Icons.storefront_rounded, size: 16, color: Colors.white),
+                            const SizedBox(width: 6),
+                            Text(_currentUser!.typeActivite ?? 'Commerçant', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 20),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(22),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF0B4F36), Color(0xFF0D5F41)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [BoxShadow(color: emeraldDark.withOpacity(0.2), blurRadius: 12, offset: const Offset(0, 6))],
                     ),
-                    const SizedBox(height: 12),
-                    TextButton(
-                      onPressed: _supprimerCompte,
-                      child: Text(
-                        'Supprimer mon compte',
-                        style: TextStyle(
-                          color: Colors.grey[500],
-                          fontSize: 14,
-                          decoration: TextDecoration.underline,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 18)),
+                            const SizedBox(width: 8),
+                             const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text('${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                _buildSection('Mes informations', [
+                  _buildInfoCard(Icons.email_outlined, 'Email', _currentUser!.email),
+                  _buildInfoCard(Icons.location_on_outlined, 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
+                  _buildInfoCard(Icons.storefront_outlined, 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
+                ]),
+
+                const SizedBox(height: 24),
+
+                _buildSection('Mon compte', [
+                  _buildMenuItem(icon: Icons.edit_outlined, title: 'Modifier mon profil', onTap: _modifierProfil),
+                  _buildMenuItem(icon: Icons.inventory_2_outlined, title: 'Mes produits & services', onTap: _mesProduits),
+                  _buildMenuItem(icon: Icons.shield_outlined, title: 'Sécuriser mon compte', onTap: _securiserCompte),
+                  _buildMenuItem(icon: Icons.lock_outline, title: 'Changer le mot de passe', onTap: _changerMotDePasse),
+                  _buildMenuItem(icon: Icons.pin_outlined, title: 'Changer le code PIN', onTap: _changerPin),
+                ]),
+
+                const SizedBox(height: 24),
+
+                _buildSection('Gestion financière', [
+                  _buildMenuItem(icon: Icons.label_outline, title: 'Mes catégories', onTap: _gestionCategories),
+                  _buildMenuItem(icon: Icons.flag_outlined, title: 'Budget mensuel', onTap: _budgetMensuel),
+                ]),
+
+                const SizedBox(height: 24),
+
+                _buildSection('Paramètres', [
+                  _buildMenuItem(icon: Icons.notifications_none_outlined, title: 'Notifications', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const NotificationsScreen()))),
+                  _buildMenuItem(icon: Icons.privacy_tip_outlined, title: 'Confidentialité', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ConfidentialiteScreen()))),
+                  _buildMenuItem(icon: Icons.palette_outlined, title: 'Thème', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ThemeScreen()))),
+                ]),
+
+                const SizedBox(height: 24),
+
+                _buildSection('Aide & Contact', [
+                  _buildMenuItem(icon: Icons.chat_bubble_outline, title: 'Messagerie Admin', subtitle: 'Discutez directement avec le support', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()))),
+                  _buildMenuItem(icon: Icons.help_outline, title: 'Aide & Support', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen()))),
+                  _buildMenuItem(icon: Icons.info_outline, title: 'À propos de MaFortune', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AProposScreen()))),
+                ]),
+
+                if (_isAdmin) ...[
+                  const SizedBox(height: 24),
+                  _buildSection('Administration', [
+                    _buildMenuItem(icon: Icons.admin_panel_settings_outlined, title: 'Tableau de bord Admin', onTap: () => Navigator.pushNamed(context, '/admin/dashboard')),
+                  ]),
+                ],
+
+                const SizedBox(height: 28),
+
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity, height: 60,
+                        child: OutlinedButton(
+                          onPressed: _deconnexion,
+                          style: OutlinedButton.styleFrom(foregroundColor: brickRed, side: const BorderSide(color: brickRed, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
+                          child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.logout_rounded, size: 22, color: brickRed), SizedBox(width: 10), Text('Me déconnecter', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: brickRed))]),
                         ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 12),
+                      TextButton(
+                        onPressed: _supprimerCompte,
+                        child: Text('Supprimer mon compte', style: TextStyle(color: Colors.grey[500], fontSize: 14, decoration: TextDecoration.underline)),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
 
-              const SizedBox(height: 40),
-            ],
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
         ),
       ),
@@ -687,41 +512,24 @@ class _ProfilScreenState extends State<ProfilScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
-          const SizedBox(height: 14),
-          ...children,
-        ],
+        children: [Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)), const SizedBox(height: 14), ...children],
       ),
     );
   }
 
-  // ✅ Icônes épurées avec fond à 10% d'opacité
   Widget _buildInfoCard(IconData icon, String label, String value) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))]),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
-            child: Icon(icon, color: emeraldDark, size: 22),
-          ),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: emeraldDark, size: 22)),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                const SizedBox(height: 4),
-                Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark)),
-              ],
+              children: [Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])), const SizedBox(height: 4), Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark))],
             ),
           ),
         ],
@@ -729,21 +537,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  // ✅ Menu items avec icônes épurées
-  Widget _buildMenuItem({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required VoidCallback onTap,
-    Widget? trailing,
-  }) {
+  Widget _buildMenuItem({required IconData icon, required String title, String? subtitle, required VoidCallback onTap, Widget? trailing}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))]),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -753,21 +550,14 @@ class _ProfilScreenState extends State<ProfilScreen> {
             padding: EdgeInsets.symmetric(horizontal: 18, vertical: subtitle != null ? 14 : 17),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
-                  child: Icon(icon, color: emeraldDark, size: 20),
-                ),
+                Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: emeraldDark, size: 20)),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark)),
-                      if (subtitle != null) ...[
-                        const SizedBox(height: 2),
-                        Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                      ],
+                      if (subtitle != null) ...[const SizedBox(height: 2), Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey[600]))],
                     ],
                   ),
                 ),
@@ -783,13 +573,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget _buildDeleteItem(IconData icon, String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: brickRed),
-          const SizedBox(width: 8),
-          Text(text, style: const TextStyle(fontSize: 14, color: textDark, height: 1.4)),
-        ],
-      ),
+      child: Row(children: [Icon(icon, size: 18, color: brickRed), const SizedBox(width: 8), Text(text, style: const TextStyle(fontSize: 14, color: textDark, height: 1.4))]),
     );
   }
 }
