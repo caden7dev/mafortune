@@ -14,21 +14,28 @@ class CustomBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ Récupère la hauteur de la barre système (barre de gestes Android)
+    // ✅ Détecte dynamiquement si on est en mode sombre
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
+    // ✅ Couleurs adaptatives selon le thème
+    final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+    final shadowColor = isDark ? Colors.black.withOpacity(0.5) : Colors.black.withOpacity(0.05);
+    final selectedColor = const Color(0xFF0B4F36); // Vert Émeraude (identique dans les deux modes)
+    final unselectedColor = isDark ? Colors.grey[400]! : Colors.grey[600]!;
+
     final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: bgColor, // ✅ Couleur dynamique
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: shadowColor, // ✅ Ombre adaptative
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
       ),
-      // ✅ Ajoute le padding bas pour ne pas être caché par la barre système
       padding: EdgeInsets.only(bottom: bottomPadding),
       child: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -57,21 +64,15 @@ class CustomBottomNav extends StatelessWidget {
               }
             },
             type: BottomNavigationBarType.fixed,
-            
-            // ✅ MODIFICATION : Force la couleur de l'item actif en Vert Émeraude Sombre
-            selectedItemColor: const Color(0xFF0B4F36), 
-            
-            unselectedItemColor: Colors.grey.shade600,
+            selectedItemColor: selectedColor,
+            unselectedItemColor: unselectedColor, // ✅ Couleur dynamique
             selectedFontSize: 12,
             unselectedFontSize: 12,
-            
-            // ✅ Supprime le padding interne par défaut du BottomNavigationBar
-            // pour éviter le double espacement
             elevation: 0,
-            backgroundColor: Colors.transparent,
+            backgroundColor: Colors.transparent, // Le fond est géré par le Container parent
             items: [
               const BottomNavigationBarItem(
-                icon: Icon(Icons.home_rounded), // J'ai ajouté _rounded pour un look plus moderne
+                icon: Icon(Icons.home_rounded),
                 label: 'Accueil',
               ),
               const BottomNavigationBarItem(
@@ -90,7 +91,7 @@ class CustomBottomNav extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
                         ),
-                        backgroundColor: const Color(0xFFD96B43), // ✅ Badge en Terre Cuite pour l'harmonie
+                        backgroundColor: const Color(0xFFD96B43),
                         child: const Icon(Icons.notifications_rounded),
                       )
                     : const Icon(Icons.notifications_rounded),

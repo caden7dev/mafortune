@@ -140,9 +140,9 @@ class _PinSetupScreenState extends State<PinSetupScreen>
       _tts.parler('Code créé avec succès');
       await _successController.forward();
 
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/securiser_compte');
-      }
+    if (mounted) {
+  Navigator.pushReplacementNamed(context, '/mes_produits');
+}
     } catch (e) {
       if (mounted) {
         setState(() {

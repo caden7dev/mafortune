@@ -40,13 +40,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _quickStats = {};
   List<Map<String, dynamic>> _weekData = [];
   bool _isLoading = true;
-  
+
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
   int _currentIndex = 0;
-  
+
   // ✅ CORRECTION : Le compteur doit être À L'INTÉRIEUR de la classe State
   int _refreshTrigger = 0;
+  bool _isInitialLoad = true;
+  bool _showAdminMessage = true;
+  bool _isBalanceVisible = true;
 
   String _getTitle() {
     switch (_currentIndex) {
@@ -101,7 +104,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
       await Future.wait([
         _loadStatsAndTransactions(forceRefresh),
-        _loadMessagesPreview(), 
+        _loadMessagesPreview(),
       ]);
 
       if (BilanNotificationService.launchedFromBilan) {
@@ -117,7 +120,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _refreshTrigger++; // ✅ Incrémenter le compteur à chaque chargement réussi
+          _isInitialLoad = false; // ✅ Le premier chargement est fini
+          _refreshTrigger++;
         });
       }
     }
@@ -151,7 +155,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           .where('lu', isEqualTo: false)
           .count()
           .get();
-      
+
       if (!mounted) return;
       _unreadMessagesCount = unreadSnap.count ?? 0;
 
@@ -287,6 +291,128 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // ✅ AJOUTÉ : bottom sheet Modifier/Supprimer, ouvert au tap sur une transaction
+  void _afficherOptionsTransaction(TransactionModel transaction) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              transaction.description ?? transaction.categorie,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  transaction.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                  color: transaction.estRecette ? emeraldDark : brickRed,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} FCFA',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: transaction.estRecette ? emeraldDark : brickRed,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _modifierTransaction(transaction);
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.blue.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: Colors.blue.withOpacity(0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.edit_rounded, color: Colors.blue, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text(
+                        "Modifier l'opération",
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: Colors.blue, size: 22),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _supprimerTransaction(transaction);
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: brickRed.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: brickRed.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: brickRed.withOpacity(0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.delete_outline_rounded, color: brickRed, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text(
+                        "Supprimer l'opération",
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: brickRed),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: brickRed, size: 22),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -298,6 +424,48 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 0,
         actions: [
           if (_currentIndex == 0)
+
+           // 🔔 NOTIFICATIONS
+    StreamBuilder<QuerySnapshot>(
+      stream: _currentUser != null
+          ? FirebaseFirestore.instance.collection('notifications')
+              .where('commercantId', isEqualTo: _currentUser!.id)
+              .where('lu', isEqualTo: false)
+              .snapshots()
+          : const Stream.empty(),
+      builder: (context, snapshot) {
+        int unreadCount = 0;
+        if (snapshot.hasData && snapshot.data != null) {
+          unreadCount = snapshot.data!.docs.length;
+        }
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.notifications_outlined),
+              onPressed: () {
+                setState(() => _currentIndex = 3); // bascule vers l'onglet Notifications
+              },
+              tooltip: 'Notifications',
+            ),
+            if (unreadCount > 0)
+              Positioned(
+                right: 8, top: 8,
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                  child: Text(
+                    unreadCount > 9 ? '9+' : '$unreadCount',
+                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    ),
             StreamBuilder<QuerySnapshot>(
               stream: _currentUser != null
                   ? FirebaseFirestore.instance.collection('messages')
@@ -352,7 +520,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         currentIndex: _currentIndex,
         onTap: (index) {
           setState(() => _currentIndex = index);
-          
         },
       ),
       floatingActionButton: _currentIndex == 0
@@ -382,7 +549,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildDashboardContent() {
-    if (_isLoading) {
+    if (_isLoading && _isInitialLoad) {
       return const Center(child: CircularProgressIndicator(color: emeraldDark));
     }
 
@@ -442,17 +609,46 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                        // ✅ Ligne du titre avec l'icône œil à droite
+                        Row(
+                          children: [
+                            const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                            const Spacer(), // Pousse l'icône tout à droite
+                            IconButton(
+                              icon: Icon(
+                                _isBalanceVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                                color: Colors.white70,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isBalanceVisible = !_isBalanceVisible; // Bascule l'affichage
+                                });
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: _isBalanceVisible ? 'Masquer le solde' : 'Afficher le solde',
+                            ),
+                          ],
+                        ),
                         const SizedBox(height: 8),
+
+                        // ✅ Le montant qui change selon l'état
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
-                          child: Text('${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA', style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold)),
+                          child: Text(
+                            _isBalanceVisible
+                                ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'
+                                : '•••••• FCFA', // Texte masqué
+                            style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold),
+                          ),
                         ),
+
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            Expanded(child: _buildMiniStat('📈', 'Vente du jour', '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F', Colors.white)),
+                            Expanded(child: _buildMiniStat('📈', 'Recettes du jour', '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F', Colors.white)),
                             Container(width: 1, height: 40, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 12)),
                             Expanded(child: _buildMiniStat('📉', 'Dépense du jour', '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F', Colors.white.withOpacity(0.9))),
                           ],
@@ -518,54 +714,71 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
 
-          if (_latestAdminMessage != null && _latestAdminMessage!['isFromAdmin'] == true)
+          if (_latestAdminMessage != null &&
+              _latestAdminMessage!['isFromAdmin'] == true &&
+              _showAdminMessage) // ✅ Condition pour l'afficher ou non
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                child: GestureDetector(
-                  onTap: _openMessagesScreen,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle),
-                          child: const Icon(Icons.admin_panel_settings, color: Colors.blue, size: 24),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.blue.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: _openMessagesScreen,
+                          child: Row(
                             children: [
-                              Row(
-                                children: [
-                                  const Text('Message de l\'admin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
-                                  if (_unreadMessagesCount > 0) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: terracotta, borderRadius: BorderRadius.circular(8)),
-                                      child: const Text('Nouveau', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                    ),
-                                  ]
-                                ],
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle),
+                                child: const Icon(Icons.admin_panel_settings, color: Colors.blue, size: 24),
                               ),
-                              const SizedBox(height: 4),
-                              Text(_latestAdminMessage!['message'], maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade700, fontSize: 13, height: 1.3)),
-                              const SizedBox(height: 4),
-                              Text(DateFormat('dd/MM à HH:mm').format(_latestAdminMessage!['date']), style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Text('Message de l\'admin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
+                                        if (_unreadMessagesCount > 0) ...[
+                                          const SizedBox(width: 6),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(color: terracotta, borderRadius: BorderRadius.circular(8)),
+                                            child: const Text('Nouveau', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                                          ),
+                                        ]
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(_latestAdminMessage!['message'], maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey.shade700, fontSize: 13, height: 1.3)),
+                                    const SizedBox(height: 4),
+                                    Text(DateFormat('dd/MM à HH:mm').format(_latestAdminMessage!['date']), style: TextStyle(color: Colors.grey.shade500, fontSize: 11)),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue),
                             ],
                           ),
                         ),
-                        const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.blue),
-                      ],
-                    ),
+                      ),
+                      // ✅ Petit bouton pour fermer le message localement
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                        onPressed: () => setState(() => _showAdminMessage = false),
+                        tooltip: 'Masquer ce message',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -730,6 +943,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // ✅ MODIFIÉ : toute la carte est maintenant cliquable et ouvre le bottom sheet
   Widget _buildTransactionCard(TransactionModel transaction) {
     final theme = Theme.of(context);
     final timeStr = DateFormat('HH:mm').format(transaction.dateCreation);
@@ -744,75 +958,52 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (displayDescription == 'Vente rapide') displayDescription = 'Vente';
     if (displayDescription == 'Dépense rapide') displayDescription = 'Dépense';
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        borderRadius: BorderRadius.circular(14),
-        border: Border(
-          left: BorderSide(color: transaction.estRecette ? emeraldDark : brickRed, width: 4),
+    return GestureDetector(
+      onTap: () => _afficherOptionsTransaction(transaction),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: theme.cardColor,
+          borderRadius: BorderRadius.circular(14),
+          border: Border(
+            left: BorderSide(color: transaction.estRecette ? emeraldDark : brickRed, width: 4),
+          ),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
         ),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48, height: 48,
-            decoration: BoxDecoration(
-              color: transaction.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Center(child: Text(_getCategoryIcon(transaction.categorie), style: const TextStyle(fontSize: 24))),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(displayDescription, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)), maxLines: 1, overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 3),
-                Text(displayDate, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: transaction.estRecette ? emeraldDark : brickRed),
-                ),
+        child: Row(
+          children: [
+            Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: transaction.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
               ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisSize: MainAxisSize.min,
+              child: Center(child: Text(_getCategoryIcon(transaction.categorie), style: const TextStyle(fontSize: 24))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  GestureDetector(
-                    onTap: () => _modifierTransaction(transaction),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-                      child: const Text('✏️ Modifier', style: TextStyle(color: Colors.blue, fontSize: 11, fontWeight: FontWeight.w500)),
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  GestureDetector(
-                    onTap: () => _supprimerTransaction(transaction),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(color: brickRed.withOpacity(0.1), borderRadius: BorderRadius.circular(6)),
-                      child: const Text('🗑 Supprimer', style: TextStyle(color: brickRed, fontSize: 11, fontWeight: FontWeight.w500)),
-                    ),
-                  ),
+                  Text(displayDescription, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2937)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                  const SizedBox(height: 3),
+                  Text(displayDate, style: const TextStyle(fontSize: 12, color: Color(0xFF6B7280))),
                 ],
               ),
-            ],
-          ),
-        ],
+            ),
+            const SizedBox(width: 8),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: transaction.estRecette ? emeraldDark : brickRed),
+              ),
+            ),
+            const SizedBox(width: 4),
+            const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),
+          ],
+        ),
       ),
     );
   }

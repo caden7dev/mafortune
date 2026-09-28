@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
+import 'modifier_transaction_screen.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure, Recettes)
@@ -49,12 +50,15 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
     super.dispose();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadData({bool forceRefresh = false}) async {
     setState(() => _isLoading = true);
     try {
       final user = _authService.currentUser;
       if (user == null) return;
-      final txs = await _transactionService.getTransactionsByCommercant(user.uid);
+      final txs = await _transactionService.getTransactionsByCommercant(
+        user.uid,
+        forceRefresh: forceRefresh,
+      );
       // Plus récentes en premier
       txs.sort((a, b) => b.date.compareTo(a.date));
       _allTransactions = txs;
@@ -124,6 +128,219 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
     return items;
   }
 
+  // ✅ AJOUTÉ : Modifier une transaction
+  Future<void> _modifierTransaction(TransactionModel transaction) async {
+    final result = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => ModifierTransactionSheet(transaction: transaction),
+    );
+    if (result == true) await _loadData(forceRefresh: true);
+  }
+
+  // ✅ AJOUTÉ : Confirmer et supprimer une transaction
+  Future<void> _supprimerTransaction(TransactionModel transaction) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(24),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.warning_amber_rounded, size: 40, color: brickRed),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Supprimer cette transaction ?',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Montant : ${_fmt(transaction.montant)} FCFA\nCette action est irréversible.',
+              style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: brickRed,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Oui, supprimer', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 44,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: textDark,
+                  side: BorderSide(color: Colors.grey[300]!),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: const Text('Annuler', style: TextStyle(fontSize: 15)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirm == true) {
+      setState(() => _isLoading = true);
+      try {
+        await _transactionService.deleteTransaction(transaction.id, transaction.commercantId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ Transaction supprimée'), backgroundColor: emeraldDark),
+          );
+          await _loadData(forceRefresh: true);
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('❌ Erreur: $e'), backgroundColor: brickRed),
+          );
+          setState(() => _isLoading = false);
+        }
+      }
+    }
+  }
+
+  // ✅ AJOUTÉ : Bottom sheet Modifier/Supprimer, ouvert au tap sur une transaction
+  void _afficherOptionsTransaction(TransactionModel transaction) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Container(
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              transaction.description?.isNotEmpty == true ? transaction.description! : transaction.categorie,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(
+                  transaction.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                  color: transaction.estRecette ? emeraldDark : brickRed,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${transaction.estRecette ? '+' : '-'}${_fmt(transaction.montant)} FCFA',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: transaction.estRecette ? emeraldDark : brickRed,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  DateFormat('dd/MM/yyyy • HH:mm').format(transaction.date),
+                  style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _modifierTransaction(transaction);
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: emeraldDark.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: emeraldDark.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: emeraldDark.withOpacity(0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.edit_rounded, color: emeraldDark, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text("Modifier l'opération", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark)),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: emeraldDark, size: 22),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _supprimerTransaction(transaction);
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: brickRed.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: brickRed.withOpacity(0.2)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: brickRed.withOpacity(0.15), shape: BoxShape.circle),
+                      child: const Icon(Icons.delete_outline_rounded, color: brickRed, size: 20),
+                    ),
+                    const SizedBox(width: 14),
+                    const Expanded(
+                      child: Text("Supprimer l'opération", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: brickRed)),
+                    ),
+                    const Icon(Icons.chevron_right_rounded, color: brickRed, size: 22),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
@@ -153,7 +370,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: emeraldDark))
           : RefreshIndicator(
-              onRefresh: _loadData,
+              onRefresh: () => _loadData(forceRefresh: true),
               color: emeraldDark,
               child: Column(
                 children: [
@@ -230,7 +447,7 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
 
   Widget _buildFiltreBtn(String label, String value) {
     final selected = _filtre == value;
-    
+
     // ✅ 1. FILTRE ACTIF : Vert Émeraude pour 'tous' et 'recettes', Rouge Brique pour 'depenses'
     Color activeColor = emeraldDark;
     if (value == 'depenses') activeColor = brickRed;
@@ -348,94 +565,100 @@ class _HistoriqueScreenState extends State<HistoriqueScreen> {
   }
 
   // ─── CARTE TRANSACTION ────────────────────────────────────────────────────────
+  // ✅ MODIFIÉ : toute la carte est maintenant cliquable et ouvre le bottom sheet
   Widget _buildTransactionCard(TransactionModel t) {
     final isRecette = t.estRecette;
-    
+
     // ✅ 2. ICÔNES SYSTÈME ÉPURÉES AVEC FOND À 10% D'OPACITÉ
     final IconData iconData = isRecette ? Icons.trending_up_rounded : Icons.trending_down_rounded;
     final Color iconColor = isRecette ? emeraldDark : brickRed;
     final Color iconBgColor = isRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1);
-    
+
     final label = t.description?.isNotEmpty == true ? t.description! : t.categorie;
     final heure = DateFormat('HH:mm').format(t.date);
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            // ✅ Cercle icône harmonisé (plus d'émoji générique)
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: iconBgColor,
-                shape: BoxShape.circle,
-              ),
-              child: Center(
-                child: Icon(iconData, color: iconColor, size: 24),
-              ),
-            ),
-
-            const SizedBox(width: 14),
-
-            // Description + catégorie + heure
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                      color: textDark,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        t.categorie,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        '• $heure',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 10),
-
-            // ✅ Montant avec la couleur correspondante (Emerald ou BrickRed)
-            Text(
-              '${isRecette ? '+' : '-'}${_fmt(t.montant)} F',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: iconColor,
-              ),
+    return GestureDetector(
+      onTap: () => _afficherOptionsTransaction(t),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
             ),
           ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              // ✅ Cercle icône harmonisé (plus d'émoji générique)
+              Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: iconBgColor,
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: Icon(iconData, color: iconColor, size: 24),
+                ),
+              ),
+
+              const SizedBox(width: 14),
+
+              // Description + catégorie + heure
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: textDark,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          t.categorie,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                        const SizedBox(width: 10),
+                        Text(
+                          '• $heure',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              // ✅ Montant avec la couleur correspondante (Emerald ou BrickRed)
+              Text(
+                '${isRecette ? '+' : '-'}${_fmt(t.montant)} F',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: iconColor,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 18),
+            ],
+          ),
         ),
       ),
     );

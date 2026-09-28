@@ -64,6 +64,8 @@ dependencies:
   
   # QR Code pour les produits
   qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
+  
   # qr_code_scanner: ^1.0.1  # ← Désactivé temporairement
   
   # UI supplémentaires
@@ -71,6 +73,8 @@ dependencies:
   flutter_svg: ^2.0.9
   shimmer: ^3.0.0
   lottie: ^2.7.0
+
+  
   
   # Partage et export
   share_plus: ^7.2.1
@@ -97,3 +101,4 @@ flutter:
 
   assets:
     - assets/image/commercant1.jpeg
+    - assets/image/googleLogo.jpeg

@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+<string>MaFortune a besoin de la caméra pour scanner les QR codes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>MaFortune a besoin de l'accès à la photothèque pour enregistrer les images.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>MaFortune a besoin de l'accès à la photothèque pour enregistrer les images.</string>
 </dict>
 </plist>

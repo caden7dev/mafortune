@@ -16,7 +16,6 @@ import 'services/bilan_notification_service.dart';
 import 'providers/auth_provider.dart';
 
 // Screens Auth
-import 'screens/auth/securiser_compte_screen.dart';
 import 'screens/auth/welcome_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/signup_screen.dart';
@@ -33,8 +32,9 @@ import 'screens/commercant/profil_screen.dart';
 import 'screens/commercant/theme_screen.dart';
 import 'screens/commercant/budget_screen.dart';
 import 'screens/commercant/mes_produits_screen.dart';
+import 'screens/commercant/lier_email_screen.dart'; // ✅ AJOUTÉ (pour cohérence, même si appelé via Navigator.push)
 
-// ✅ Alias pour éviter le conflit entre les deux dashboard_screen.dart
+// Admin
 import 'screens/admin/dashboard_screen.dart' as admin_dashboard;
 import 'screens/admin/users_screen.dart';
 import 'screens/admin/stats_screen.dart';
@@ -59,8 +59,6 @@ void main() async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
- 
-
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {
     FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
@@ -77,6 +75,7 @@ void main() async {
 
   await BilanNotificationService.initialize();
 
+  // ✅ Le ThemeService est déjà un ChangeNotifier avec ValueNotifier
   final themeService = ThemeService();
   await themeService.loadTheme();
 
@@ -87,9 +86,7 @@ void main() async {
         Provider<AuthService>(create: (_) => AuthService()),
         Provider<LocalAuthService>(create: (_) => LocalAuthService()),
         Provider<ThemeService>.value(value: themeService),
-        ChangeNotifierProvider<AuthProvider>(
-          create: (_) => AuthProvider(),
-        ),
+        ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
       ],
       child: const MyApp(),
     ),
@@ -103,6 +100,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     final themeService = Provider.of<ThemeService>(context, listen: false);
 
+    // ✅ ValueListenableBuilder écoute les changements de thème et reconstruit TOUTE l'app
     return ValueListenableBuilder<bool>(
       valueListenable: themeService.themeNotifier,
       builder: (context, isDarkMode, child) {
@@ -116,9 +114,9 @@ class MyApp extends StatelessWidget {
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: MediaQuery.of(context).textScaler.clamp(
-                    minScaleFactor: 0.85,
-                    maxScaleFactor: 1.1,
-                  ),
+                minScaleFactor: 0.85,
+                maxScaleFactor: 1.1,
+              ),
             ),
             child: ScreenshotWrapper(child: child!),
           ),
@@ -127,30 +125,28 @@ class MyApp extends StatelessWidget {
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ],
           routes: {
-            '/welcome':               (context) => const WelcomeScreen(),
-            '/login':                 (context) => const LoginScreen(),
-            '/signup':                (context) => const SignupScreen(),
-            '/pin_setup':             (context) => const PinSetupScreen(),
-            '/pin_verify':            (context) => const PinVerifyScreen(),
-            '/dashboard':             (context) => const commercant_dashboard.DashboardScreen(),
-            '/bilans':                (context) => const BilansScreen(),
-            '/rapports':              (context) => const RapportsScreen(),
-            '/profil':                (context) => const ProfilScreen(),
-            '/theme':                 (context) => const ThemeScreen(),
-            '/budget':                (context) => const BudgetScreen(),
-            // ✅ Dashboard et écrans administration
-            '/admin/dashboard':       (context) => const admin_dashboard.AdminDashboardScreen(),
-            '/messages':              (context) => const MessagesScreen(),
-            '/admin/users':           (context) => const AdminUsersScreen(),
-            '/admin/stats':           (context) => const AdminStatsScreen(),
-            '/admin/settings':        (context) => const AdminSettingsScreen(),
-            '/admin/notifications':   (context) => const AdminNotificationsScreen(),
-            '/reset_pin':             (context) => const ResetPinScreen(),
-            '/onboarding':            (context) => const OnboardingScreen(),
-            '/securiser_compte':      (context) => const SecuriserCompteScreen(),
-            
-            '/mes_produits':           (context) => const MesProduitsScreen(isOnboarding: true),
-            '/mes_produits_gestion':   (context) => const MesProduitsScreen(isOnboarding: false),
+            '/welcome': (context) => const WelcomeScreen(),
+            '/login': (context) => const LoginScreen(),
+            '/signup': (context) => const SignupScreen(),
+            '/pin_setup': (context) => const PinSetupScreen(),
+            '/pin_verify': (context) => const PinVerifyScreen(),
+            '/dashboard': (context) => const commercant_dashboard.DashboardScreen(),
+            '/bilans': (context) => const BilansScreen(),
+            '/rapports': (context) => const RapportsScreen(),
+            '/profil': (context) => const ProfilScreen(),
+            '/theme': (context) => const ThemeScreen(),
+            '/budget': (context) => const BudgetScreen(),
+            '/admin/dashboard': (context) => const admin_dashboard.AdminDashboardScreen(),
+            '/messages': (context) => const MessagesScreen(),
+            '/admin/users': (context) => const AdminUsersScreen(),
+            '/admin/stats': (context) => const AdminStatsScreen(),
+            '/admin/settings': (context) => const AdminSettingsScreen(),
+            '/admin/notifications': (context) => const AdminNotificationsScreen(),
+            '/reset_pin': (context) => const ResetPinScreen(),
+            '/onboarding': (context) => const OnboardingScreen(),
+          
+            '/mes_produits': (context) => const MesProduitsScreen(isOnboarding: true),
+            '/mes_produits_gestion': (context) => const MesProduitsScreen(isOnboarding: false),
           },
         );
       },

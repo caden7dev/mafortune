@@ -14,8 +14,11 @@ import 'changer_mot_de_passe_screen.dart';
 import 'gestion_categories_screen.dart';
 import 'budget_screen.dart';
 import 'mes_produits_screen.dart';
-import '../auth/securiser_compte_screen.dart';
 import 'messages_screen.dart';
+import 'mon_qr_code_screen.dart';
+import 'scanner_qr_screen.dart';
+import 'changer_code_pin_screen.dart';
+import 'lier_email_screen.dart'; // ✅ Import de la page de liaison
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
@@ -39,6 +42,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
   bool _isAdmin = false;
+  bool _isBalanceVisible = true;
 
   @override
   void initState() {
@@ -52,7 +56,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  // ✅ CORRECTION MAGIQUE : Met à jour l'écran instantanément si le Dashboard rafraîchit les données
   @override
   void didUpdateWidget(ProfilScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -85,6 +88,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
+  // ✅ Vérifie si l'email est un vrai email et pas le numéro déguisé
+  String _getDisplayedEmail() {
+    final email = _currentUser?.email;
+    final phone = _currentUser?.telephone;
+
+    if (email == null || email.isEmpty || (phone != null && email.contains(phone))) {
+      return 'Non lié (Optionnel)';
+    }
+    return email;
+  }
+
+  bool get _hasRealEmail {
+    final email = _currentUser?.email;
+    final phone = _currentUser?.telephone;
+    return email != null && email.isNotEmpty && (phone == null || !email.contains(phone));
+  }
+
   Future<void> _modifierProfil() async {
     if (_currentUser == null) return;
     final result = await Navigator.push(context, MaterialPageRoute(builder: (_) => ModifierProfilScreen(currentUser: _currentUser!)));
@@ -95,16 +115,37 @@ class _ProfilScreenState extends State<ProfilScreen> {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const MesProduitsScreen(isOnboarding: false)));
   }
 
-  Future<void> _securiserCompte() async {
-    await Navigator.push(context, MaterialPageRoute(builder: (_) => const SecuriserCompteScreen(isOnboarding: false)));
-  }
-
   Future<void> _changerMotDePasse() async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const ChangerMotDePasseScreen()));
   }
 
   Future<void> _changerPin() async {
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('🔧 Bientôt disponible', style: TextStyle(fontSize: 16)), backgroundColor: terracotta));
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChangerCodePinScreen()),
+    );
+    if (result == true && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Code PIN mis à jour avec succès'),
+          backgroundColor: emeraldDark,
+        ),
+      );
+    }
+  }
+
+  // ✅ MÉTHODE SIMPLIFIÉE : Ouvre directement la page sans vérification PIN
+  Future<void> _lierEmail() async {
+    if (_currentUser == null) return;
+    
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const LierEmailScreen()),
+    );
+    
+    if (result == true && mounted) {
+      await _loadProfile(forceRefresh: true);
+    }
   }
 
   Future<void> _gestionCategories() async {
@@ -113,6 +154,93 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   Future<void> _budgetMensuel() async {
     await Navigator.push(context, MaterialPageRoute(builder: (_) => const BudgetScreen()));
+  }
+
+  void _showQrOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40, height: 4,
+                  decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('Code QR', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark)),
+              const SizedBox(height: 16),
+              _buildQrOption(
+                icon: Icons.qr_code_rounded,
+                title: 'Mon code QR',
+                subtitle: 'Partagez vos coordonnées',
+                color: emeraldDark,
+                onTap: () {
+                  Navigator.pop(context);
+                  if (_currentUser != null) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => MonQrCodeScreen(user: _currentUser!)));
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              _buildQrOption(
+                icon: Icons.qr_code_scanner_rounded,
+                title: 'Scanner un code',
+                subtitle: 'Scannez le code de quelqu\'un',
+                color: terracotta,
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ScannerQrScreen()));
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildQrOption({required IconData icon, required String title, required String subtitle, required Color color, required VoidCallback onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: color.withOpacity(0.15), shape: BoxShape.circle),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark)),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right_rounded, color: color, size: 22),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _deconnexion() async {
@@ -158,6 +286,58 @@ class _ProfilScreenState extends State<ProfilScreen> {
       Navigator.of(context).pushReplacementNamed('/login');
     }
   }
+
+  Future<void> _changerDeCompte() async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      contentPadding: const EdgeInsets.all(28),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(color: terracotta.withOpacity(0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.switch_account_rounded, size: 48, color: terracotta),
+          ),
+          const SizedBox(height: 16),
+          const Text('Changer de compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
+          const SizedBox(height: 10),
+          Text(
+            'Vous allez être déconnecté de ce compte pour vous connecter avec un autre.',
+            style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 28),
+          SizedBox(
+            width: double.infinity, height: 56,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(backgroundColor: terracotta, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity, height: 52,
+            child: OutlinedButton(
+              onPressed: () => Navigator.pop(context, false),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+              child: const Text('Annuler', style: TextStyle(fontSize: 17)),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (confirm == true) {
+    await _authService.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed('/login');
+  }
+}
 
   Future<void> _supprimerCompte() async {
     final confirm = await showDialog<bool>(
@@ -347,7 +527,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       body: SafeArea(
-        // ✅ Ajout du RefreshIndicator pour permettre un rafraîchissement manuel du profil
         child: RefreshIndicator(
           onRefresh: () => _loadProfile(forceRefresh: true),
           color: emeraldDark,
@@ -357,48 +536,69 @@ class _ProfilScreenState extends State<ProfilScreen> {
               children: [
                 Container(
                   width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(24, 30, 24, 28),
+                  padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
                   decoration: const BoxDecoration(color: emeraldDark),
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Container(
-                        width: 100, height: 100,
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3)),
-                        child: ClipOval(
-                          child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
-                              ? Image.network(_currentUser!.photo!, width: 100, height: 100, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Center(child: Text(_getInitial(), style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white))))
-                              : Center(child: Text(_getInitial(), style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.white))),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(_currentUser!.nomComplet, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Stack(
+                        clipBehavior: Clip.none,
                         children: [
-                          const Icon(Icons.phone_rounded, size: 16, color: Colors.white70),
-                          const SizedBox(width: 6),
-                          Text(_currentUser!.telephone, style: TextStyle(color: Colors.white.withOpacity(0.9), fontSize: 15)),
+                          Container(
+                            width: 88,
+                            height: 88,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: ClipOval(
+                              child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
+                                  ? Image.network(
+                                      _currentUser!.photo!,
+                                      width: 88,
+                                      height: 88,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (_, __, ___) => Center(
+                                        child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                                      ),
+                                    )
+                                  : Center(
+                                      child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                                    ),
+                            ),
+                          ),
+                          Positioned(
+                            bottom: -2,
+                            right: -2,
+                            child: GestureDetector(
+                              onTap: _showQrOptions,
+                              child: Container(
+                                padding: const EdgeInsets.all(7),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: emeraldDark, width: 2.5),
+                                ),
+                                child: const Icon(Icons.qr_code_rounded, size: 18, color: Colors.black),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 14),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(24)),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.storefront_rounded, size: 16, color: Colors.white),
-                            const SizedBox(width: 6),
-                            Text(_currentUser!.typeActivite ?? 'Commerçant', style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)),
-                          ],
-                        ),
+                      Text(
+                        _currentUser!.nomComplet,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ],
                   ),
                 ),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -417,11 +617,36 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           children: [
                             Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle), child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 18)),
                             const SizedBox(width: 8),
-                             const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                            const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 15)),
+                            const Spacer(),
+                            IconButton(
+                              icon: Icon(
+                                _isBalanceVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                                color: Colors.white70,
+                                size: 22,
+                              ),
+                              onPressed: () {
+                                setState(() {
+                                  _isBalanceVisible = !_isBalanceVisible;
+                                });
+                              },
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              tooltip: _isBalanceVisible ? 'Masquer le solde' : 'Afficher le solde',
+                            ),
                           ],
                         ),
                         const SizedBox(height: 8),
-                        Text('${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA', style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            _isBalanceVisible 
+                                ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA' 
+                                : '•••••• FCFA',
+                            style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5),
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -429,20 +654,58 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                 const SizedBox(height: 24),
 
+                // ✅ SECTION INFORMATIONS CORRIGÉE
                 _buildSection('Mes informations', [
-                  _buildInfoCard(Icons.email_outlined, 'Email', _currentUser!.email),
-                  _buildInfoCard(Icons.location_on_outlined, 'Adresse', _currentUser!.adresse ?? 'Non renseignée'),
-                  _buildInfoCard(Icons.storefront_outlined, 'Activité', _currentUser!.typeActivite ?? 'Non renseignée'),
+                  _buildInfoCard(
+                    icon: Icons.phone_outlined,
+                    label: 'Numéro de téléphone',
+                    value: _currentUser!.telephone ?? 'Non renseigné',
+                  ),
+                  GestureDetector(
+                    onTap: !_hasRealEmail ? _lierEmail : null,
+                    child: _buildInfoCard(
+                      icon: Icons.email_outlined,
+                      label: 'Adresse e-mail',
+                      value: _getDisplayedEmail(),
+                      trailing: !_hasRealEmail
+                          ? const Text('Lier', style: TextStyle(color: emeraldDark, fontSize: 13, fontWeight: FontWeight.bold))
+                          : null,
+                    ),
+                  ),
+                  _buildInfoCard(
+                    icon: Icons.storefront_outlined,
+                    label: 'Activité',
+                    value: _currentUser!.typeActivite ?? 'Non renseignée',
+                  ),
                 ]),
 
                 const SizedBox(height: 24),
 
+                // ✅ SECTION MON COMPTE NETTOYÉE (Sécuriser mon compte supprimé)
                 _buildSection('Mon compte', [
                   _buildMenuItem(icon: Icons.edit_outlined, title: 'Modifier mon profil', onTap: _modifierProfil),
                   _buildMenuItem(icon: Icons.inventory_2_outlined, title: 'Mes produits & services', onTap: _mesProduits),
-                  _buildMenuItem(icon: Icons.shield_outlined, title: 'Sécuriser mon compte', onTap: _securiserCompte),
                   _buildMenuItem(icon: Icons.lock_outline, title: 'Changer le mot de passe', onTap: _changerMotDePasse),
                   _buildMenuItem(icon: Icons.pin_outlined, title: 'Changer le code PIN', onTap: _changerPin),
+                  _buildMenuItem(icon: Icons.switch_account_rounded, title: 'Changer de compte', onTap: _changerDeCompte),
+                  _buildMenuItem(
+                    icon: Icons.qr_code_rounded, 
+                    title: 'Mon QR Code', 
+                    subtitle: 'Partagez vos coordonnées',
+                    onTap: () {
+                      if (_currentUser != null) {
+                        Navigator.push(context, MaterialPageRoute(builder: (_) => MonQrCodeScreen(user: _currentUser!)));
+                      }
+                    },
+                  ),
+                  _buildMenuItem(
+                    icon: Icons.qr_code_scanner_rounded, 
+                    title: 'Scanner un code', 
+                    subtitle: 'Scannez le code de quelqu\'un',
+                    onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const ScannerQrScreen()));
+                    },
+                  ),
                 ]),
 
                 const SizedBox(height: 24),
@@ -517,21 +780,55 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
   }
 
-  Widget _buildInfoCard(IconData icon, String label, String value) {
+  Widget _buildInfoCard({
+    required IconData icon,
+    required String label,
+    required String value,
+    Widget? trailing,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))]),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Row(
         children: [
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle), child: Icon(icon, color: emeraldDark, size: 22)),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: emeraldDark.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: emeraldDark, size: 22),
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])), const SizedBox(height: 4), Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: textDark))],
+              children: [
+                Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: textDark,
+                  ),
+                ),
+              ],
             ),
           ),
+          if (trailing != null) trailing,
         ],
       ),
     );

@@ -204,16 +204,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Row(
-          children: [
-            Icon(Icons.notifications_none_rounded, size: 22, color: Colors.white),
-            SizedBox(width: 8),
-            Text(
-              'Notifications',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-            ),
-          ],
-        ),
+       title: const Text(
+  'Notifications',
+  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+),
         actions: [
           TextButton(
             onPressed: _isMarkingAll ? null : _markAllAsRead,

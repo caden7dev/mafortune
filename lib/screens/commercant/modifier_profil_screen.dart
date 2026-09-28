@@ -6,10 +6,10 @@ import '../../services/auth_service.dart';
 import '../../models/utilisateur_model.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
-const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
-const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
-const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
-const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
+const Color emeraldDark = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color brickRed = Color(0xFFB91C1C);
+const Color textDark = Color(0xFF222222);
 
 class ModifierProfilScreen extends StatefulWidget {
   final UtilisateurModel currentUser;
@@ -29,6 +29,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   late TextEditingController _nomController;
   late TextEditingController _prenomController;
   late TextEditingController _telephoneController;
+  late TextEditingController _emailController; // ✅ Ajouté
   late TextEditingController _adresseController;
   late TextEditingController _typeActiviteController;
 
@@ -46,6 +47,16 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     _adresseController = TextEditingController(text: widget.currentUser.adresse ?? '');
     _typeActiviteController = TextEditingController(text: widget.currentUser.typeActivite ?? '');
     _profileImageUrl = widget.currentUser.photo;
+
+    // ✅ CORRECTION : Si l'email est le faux email (contient le numéro), on laisse le champ vide
+    final email = widget.currentUser.email;
+    final phone = widget.currentUser.telephone;
+    
+    if (email != null && email.isNotEmpty && (phone == null || !email.contains(phone))) {
+      _emailController = TextEditingController(text: email); // Vrai email
+    } else {
+      _emailController = TextEditingController(text: ''); // Champ vide pour inciter à mettre le vrai
+    }
   }
 
   @override
@@ -53,6 +64,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     _nomController.dispose();
     _prenomController.dispose();
     _telephoneController.dispose();
+    _emailController.dispose(); // ✅ Ajouté
     _adresseController.dispose();
     _typeActiviteController.dispose();
     super.dispose();
@@ -74,7 +86,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Erreur: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: brickRed, // ✅ Couleur harmonisée
+            backgroundColor: brickRed,
           ),
         );
       }
@@ -103,12 +115,11 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Choisir une photo', // ✅ Suppression de l'émoji
+                'Choisir une photo',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark),
               ),
               const SizedBox(height: 20),
 
-              // ✅ Icônes épurées avec fond à 10% d'opacité
               _buildSheetOption(
                 icon: Icons.camera_alt_rounded,
                 label: 'Prendre une photo',
@@ -134,7 +145,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                 _buildSheetOption(
                   icon: Icons.delete_outline_rounded,
                   label: 'Supprimer la photo',
-                  color: brickRed, // ✅ Rouge Brique pour la suppression
+                  color: brickRed,
                   onTap: () {
                     Navigator.pop(context);
                     _deleteImage();
@@ -160,7 +171,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         width: double.infinity,
         height: 60,
         decoration: BoxDecoration(
-          color: color.withOpacity(0.1), // ✅ Règle des 10% d'opacité
+          color: color.withOpacity(0.1),
           borderRadius: BorderRadius.circular(14),
           border: Border.all(color: color.withOpacity(0.2)),
         ),
@@ -206,7 +217,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Photo supprimée', style: TextStyle(fontSize: 16)),
-            backgroundColor: terracotta, // ✅ Couleur harmonisée
+            backgroundColor: terracotta,
           ),
         );
       }
@@ -262,6 +273,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         nom: _nomController.text.trim(),
         prenom: _prenomController.text.trim(),
         telephone: _telephoneController.text.trim(),
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(), // ✅ Sauvegarde du vrai email
         adresse: _adresseController.text.trim().isEmpty ? null : _adresseController.text.trim(),
         typeActivite: _typeActiviteController.text.trim().isEmpty ? null : _typeActiviteController.text.trim(),
         photo: newPhotoUrl,
@@ -273,7 +285,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('✅ Profil mis à jour', style: TextStyle(fontSize: 16)),
-            backgroundColor: emeraldDark, // ✅ Couleur harmonisée
+            backgroundColor: emeraldDark,
             duration: Duration(seconds: 2),
           ),
         );
@@ -296,9 +308,9 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: emeraldDark, // ✅ Vert Émeraude Sombre
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
@@ -306,7 +318,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Modifier mon profil', // ✅ Suppression de l'émoji
+          'Modifier mon profil',
           style: TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
         ),
         actions: [
@@ -351,6 +363,15 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                 keyboardType: TextInputType.phone,
                 required: true,
               ),
+              // ✅ Champ Email ajouté ici pour permettre de le lier facilement
+              _buildField(
+                controller: _emailController,
+                icon: Icons.email_outlined,
+                label: 'Adresse e-mail',
+                keyboardType: TextInputType.emailAddress,
+                required: false,
+                helperText: 'Lier un e-mail permet de sécuriser votre compte et de recevoir vos rapports PDF.',
+              ),
               _buildField(
                 controller: _adresseController,
                 icon: Icons.location_on_outlined,
@@ -368,7 +389,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
 
             const SizedBox(height: 24),
 
-            _buildSectionTitle(Icons.info_outline, 'Informations fixes'),
+            _buildSectionTitle(Icons.info_outline, 'Informations du compte'),
             const SizedBox(height: 14),
             Container(
               padding: const EdgeInsets.all(20),
@@ -377,16 +398,10 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8)],
               ),
-              child: Column(
-                children: [
-                  _buildInfoRow(Icons.email_outlined, 'Email', widget.currentUser.email),
-                  const SizedBox(height: 14),
-                  _buildInfoRow(
-                    Icons.calendar_today_outlined,
-                    'Membre depuis',
-                    _formatDate(widget.currentUser.dateCreation),
-                  ),
-                ],
+              child: _buildInfoRow(
+                Icons.calendar_today_outlined,
+                'Membre depuis',
+                _formatDate(widget.currentUser.dateCreation),
               ),
             ),
 
@@ -398,7 +413,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
               child: ElevatedButton(
                 onPressed: (_isLoading || _isUploading) ? null : _enregistrer,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: emeraldDark, // ✅ Couleur harmonisée
+                  backgroundColor: emeraldDark,
                   foregroundColor: Colors.white,
                   disabledBackgroundColor: emeraldDark.withOpacity(0.5),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -413,7 +428,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                     : const Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.save_rounded, size: 22), // ✅ Icône système épurée
+                          Icon(Icons.save_rounded, size: 22),
                           SizedBox(width: 10),
                           Text(
                             'Enregistrer',
@@ -458,7 +473,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: emeraldDark, width: 3), // ✅ Couleur harmonisée
+                    border: Border.all(color: emeraldDark, width: 3),
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.08),
@@ -476,7 +491,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                     width: 38,
                     height: 38,
                     decoration: const BoxDecoration(
-                      color: emeraldDark, // ✅ Couleur harmonisée
+                      color: emeraldDark,
                       shape: BoxShape.circle,
                     ),
                     child: Center(
@@ -486,7 +501,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                               height: 18,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20), // ✅ Icône système
+                          : const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 20),
                     ),
                   ),
                 ),
@@ -499,7 +514,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
             child: const Text(
               'Changer la photo',
               style: TextStyle(
-                color: emeraldDark, // ✅ Couleur harmonisée
+                color: emeraldDark,
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
               ),
@@ -538,6 +553,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     );
   }
 
+  // ✅ Ajout du paramètre helperText pour afficher le message d'aide sous le champ email
   Widget _buildField({
     required TextEditingController controller,
     required IconData icon,
@@ -545,40 +561,55 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     TextInputType? keyboardType,
     bool required = true,
     bool isLast = false,
+    String? helperText,
   }) {
     return Column(
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-          child: TextFormField(
-            controller: controller,
-            keyboardType: keyboardType,
-            enabled: !_isLoading,
-            style: const TextStyle(fontSize: 17, color: textDark),
-            decoration: InputDecoration(
-              labelText: '$label${required ? ' *' : ' (optionnel)'}', // ✅ Étoile pour requis, plus propre
-              labelStyle: TextStyle(fontSize: 14, color: Colors.grey[600]),
-              // ✅ Icône de champ avec fond à 10% d'opacité
-              prefixIcon: Container(
-                margin: const EdgeInsets.all(8),
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
-                child: Icon(icon, color: emeraldDark, size: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: controller,
+                keyboardType: keyboardType,
+                enabled: !_isLoading,
+                style: const TextStyle(fontSize: 17, color: textDark),
+                decoration: InputDecoration(
+                  labelText: '$label${required ? ' *' : ' (optionnel)'}',
+                  labelStyle: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                  prefixIcon: Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: emeraldDark.withOpacity(0.1), shape: BoxShape.circle),
+                    child: Icon(icon, color: emeraldDark, size: 20),
+                  ),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: emeraldDark, width: 2),
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFFF8F9FA),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                ),
+                validator: required ? (v) => (v == null || v.isEmpty) ? '$label requis' : null : null,
               ),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Colors.grey[300]!),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: emeraldDark, width: 2), // ✅ Couleur harmonisée
-              ),
-              filled: true,
-              fillColor: const Color(0xFFF8F9FA),
-              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            ),
-            validator: required ? (v) => (v == null || v.isEmpty) ? '$label requis' : null : null,
+              if (helperText != null && controller.text.isEmpty) ...[
+                const SizedBox(height: 6),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16),
+                  child: Text(
+                    helperText,
+                    style: TextStyle(color: emeraldDark.withOpacity(0.8), fontSize: 12),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         if (!isLast) Divider(height: 1, color: Colors.grey[200], indent: 16, endIndent: 16),
@@ -654,14 +685,14 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   Widget _buildDefaultAvatar() {
     final initial = widget.currentUser.nom.isNotEmpty ? widget.currentUser.nom[0].toUpperCase() : '?';
     return Container(
-      color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10% d'opacité
+      color: emeraldDark.withOpacity(0.1),
       child: Center(
         child: Text(
           initial,
           style: const TextStyle(
             fontSize: 44,
             fontWeight: FontWeight.bold,
-            color: emeraldDark, // ✅ Couleur harmonisée
+            color: emeraldDark,
           ),
         ),
       ),

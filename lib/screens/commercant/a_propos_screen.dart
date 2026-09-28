@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../core/constants/app_colors.dart';
 import '../../widgets/custom_bottom_nav.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
+const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
+const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Erreurs)
+const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
 
 class AProposScreen extends StatefulWidget {
   const AProposScreen({super.key});
@@ -13,13 +18,14 @@ class AProposScreen extends StatefulWidget {
 class _AProposScreenState extends State<AProposScreen> {
   int _currentIndex = 4;
 
-  final List<String> _features = [
-    '📊 Suivi de vos recettes et dépenses',
-    '📈 Tableau de bord avec vos statistiques',
-    '📑 Génération de rapports PDF',
-    '🔔 Alertes et notifications',
-    '🎯 Budget mensuel',
-    '👤 Gestion du profil commerçant',
+  // ✅ Remplacement des émojis par des icônes Material Design
+  final List<Map<String, dynamic>> _features = [
+    {'icon': Icons.analytics_outlined, 'text': 'Suivi de vos recettes et dépenses'},
+    {'icon': Icons.bar_chart_rounded, 'text': 'Tableau de bord avec vos statistiques'},
+    {'icon': Icons.picture_as_pdf_outlined, 'text': 'Génération de rapports PDF'},
+    {'icon': Icons.notifications_active_outlined, 'text': 'Alertes et notifications'},
+    {'icon': Icons.flag_outlined, 'text': 'Budget mensuel'},
+    {'icon': Icons.person_outline, 'text': 'Gestion du profil commerçant'},
   ];
 
   Future<void> _openUrl(String url) async {
@@ -29,32 +35,39 @@ class _AProposScreenState extends State<AProposScreen> {
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('❌ Impossible d\'ouvrir la page',
-                style: TextStyle(fontSize: 16)),
-            backgroundColor: Colors.red,
+          SnackBar(
+            content: const Text('Impossible d\'ouvrir la page', style: TextStyle(fontSize: 16)),
+            backgroundColor: brickRed,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            margin: const EdgeInsets.all(16),
           ),
         );
       }
     }
   }
 
-  // ─── BUILD PRINCIPAL ────────────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair
       appBar: AppBar(
-        backgroundColor: AppColors.primaryGreen,
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, size: 22),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'ℹ️ À propos',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        title: const Row(
+          children: [
+            Icon(Icons.info_outline, size: 22, color: Colors.white),
+            SizedBox(width: 8),
+            Text(
+              'À propos',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
       ),
       body: SingleChildScrollView(
@@ -65,7 +78,7 @@ class _AProposScreenState extends State<AProposScreen> {
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
               decoration: BoxDecoration(
-                color: AppColors.primaryGreen.withOpacity(0.08),
+                color: emeraldDark.withOpacity(0.08),
               ),
               child: Column(
                 children: [
@@ -73,18 +86,18 @@ class _AProposScreenState extends State<AProposScreen> {
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: AppColors.primaryGreen,
+                      color: emeraldDark,
                       borderRadius: BorderRadius.circular(24),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.primaryGreen.withOpacity(0.3),
+                          color: emeraldDark.withOpacity(0.3),
                           blurRadius: 16,
                           offset: const Offset(0, 6),
                         ),
                       ],
                     ),
                     child: const Center(
-                      child: Text('💰', style: TextStyle(fontSize: 52)),
+                      child: Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 52),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -93,15 +106,14 @@ class _AProposScreenState extends State<AProposScreen> {
                     style: TextStyle(
                       fontSize: 30,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.primaryGreen,
+                      color: emeraldDark,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: AppColors.primaryGreen.withOpacity(0.12),
+                      color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10%
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
@@ -109,7 +121,7 @@ class _AProposScreenState extends State<AProposScreen> {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.primaryGreen,
+                        color: emeraldDark,
                       ),
                     ),
                   ),
@@ -126,7 +138,7 @@ class _AProposScreenState extends State<AProposScreen> {
 
             // ── À propos ─────────────────────────────────────────────────────
             _buildSection(
-              emoji: 'ℹ️',
+              icon: Icons.info_outline,
               title: 'À propos de MaFortune',
               child: Column(
                 children: [
@@ -145,10 +157,13 @@ class _AProposScreenState extends State<AProposScreen> {
 
             // ── Fonctionnalités ───────────────────────────────────────────────
             _buildSection(
-              emoji: '⭐',
+              icon: Icons.star_outline,
               title: 'Fonctionnalités',
               child: Column(
-                children: _features.map((f) => _buildFeatureItem(f)).toList(),
+                children: _features.map((f) => _buildFeatureItem(
+                  icon: f['icon'] as IconData,
+                  text: f['text'] as String,
+                )).toList(),
               ),
             ),
 
@@ -156,26 +171,24 @@ class _AProposScreenState extends State<AProposScreen> {
 
             // ── Liens utiles ─────────────────────────────────────────────────
             _buildSection(
-              emoji: '🔗',
+              icon: Icons.link,
               title: 'Liens utiles',
               child: Column(
                 children: [
                   _buildLinkItem(
-                    emoji: '🌐',
+                    icon: Icons.language_outlined,
                     title: 'Site web',
                     onTap: () => _openUrl('https://www.mafortune.tg'),
                   ),
                   _buildLinkItem(
-                    emoji: '🔒',
+                    icon: Icons.privacy_tip_outlined,
                     title: 'Politique de confidentialité',
-                    onTap: () =>
-                        _openUrl('https://www.mafortune.tg/confidentialite'),
+                    onTap: () => _openUrl('https://www.mafortune.tg/confidentialite'),
                   ),
                   _buildLinkItem(
-                    emoji: '📄',
+                    icon: Icons.description_outlined,
                     title: 'Conditions d\'utilisation',
-                    onTap: () =>
-                        _openUrl('https://www.mafortune.tg/conditions'),
+                    onTap: () => _openUrl('https://www.mafortune.tg/conditions'),
                     isLast: true,
                   ),
                 ],
@@ -186,14 +199,14 @@ class _AProposScreenState extends State<AProposScreen> {
 
             // ── Informations légales ─────────────────────────────────────────
             _buildSection(
-              emoji: '⚖️',
+              icon: Icons.gavel_outlined,
               title: 'Informations légales',
               child: Column(
                 children: [
-                  _buildInfoRow('👨‍💻', 'Développeur', 'MaFortune Team'),
-                  _buildInfoRow('📧', 'Email', 'contact@mafortune.tg'),
-                  _buildInfoRow('📞', 'Téléphone', '+228 90 00 00 00'),
-                  _buildInfoRow('📅', 'Année', '2024'),
+                  _buildInfoRow(icon: Icons.code_rounded, label: 'Développeur', value: 'MaFortune Team'),
+                  _buildInfoRow(icon: Icons.email_outlined, label: 'Email', value: 'contact@mafortune.tg'),
+                  _buildInfoRow(icon: Icons.phone_outlined, label: 'Téléphone', value: '+228 90 00 00 00'),
+                  _buildInfoRow(icon: Icons.calendar_today_outlined, label: 'Année', value: '2024', isLast: true),
                 ],
               ),
             ),
@@ -202,13 +215,13 @@ class _AProposScreenState extends State<AProposScreen> {
 
             // ── Crédits ──────────────────────────────────────────────────────
             _buildSection(
-              emoji: '👏',
+              icon: Icons.volunteer_activism_outlined,
               title: 'Crédits',
               child: Column(
                 children: [
-                  _buildCreditItem('Flutter', '📱', 'Framework de développement'),
-                  _buildCreditItem('Firebase', '🔥', 'Base de données et auth'),
-                  _buildCreditItem('fl_chart', '📊', 'Graphiques'),
+                  _buildCreditItem(name: 'Flutter', icon: Icons.smartphone_rounded, role: 'Framework de développement'),
+                  _buildCreditItem(name: 'Firebase', icon: Icons.local_fire_department_outlined, role: 'Base de données et auth'),
+                  _buildCreditItem(name: 'fl_chart', icon: Icons.pie_chart_outline, role: 'Graphiques', isLast: true),
                   const SizedBox(height: 12),
                   const Divider(),
                   const SizedBox(height: 12),
@@ -235,20 +248,11 @@ class _AProposScreenState extends State<AProposScreen> {
         onTap: (index) {
           setState(() => _currentIndex = index);
           switch (index) {
-            case 0:
-              Navigator.pushReplacementNamed(context, '/dashboard');
-              break;
-            case 1:
-              Navigator.pushReplacementNamed(context, '/bilans');
-              break;
-            case 2:
-              Navigator.pushReplacementNamed(context, '/rapports');
-              break;
-            case 3:
-              Navigator.pushReplacementNamed(context, '/alertes');
-              break;
-            case 4:
-              break;
+            case 0: Navigator.pushReplacementNamed(context, '/dashboard'); break;
+            case 1: Navigator.pushReplacementNamed(context, '/bilans'); break;
+            case 2: Navigator.pushReplacementNamed(context, '/rapports'); break;
+            case 3: Navigator.pushReplacementNamed(context, '/alertes'); break;
+            case 4: break;
           }
         },
       ),
@@ -257,7 +261,7 @@ class _AProposScreenState extends State<AProposScreen> {
 
   // ─── SECTION WRAPPER ─────────────────────────────────────────────────────────
   Widget _buildSection({
-    required String emoji,
+    required IconData icon,
     required String title,
     required Widget child,
   }) {
@@ -269,7 +273,7 @@ class _AProposScreenState extends State<AProposScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withOpacity(0.04),
             blurRadius: 10,
           ),
         ],
@@ -279,14 +283,22 @@ class _AProposScreenState extends State<AProposScreen> {
         children: [
           Row(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 22)),
-              const SizedBox(width: 10),
+              // ✅ Icône de section avec règle des 10%
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: emeraldDark.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: emeraldDark, size: 20),
+              ),
+              const SizedBox(width: 12),
               Text(
                 title,
                 style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: Colors.black87,
+                  color: textDark,
                 ),
               ),
             ],
@@ -311,24 +323,32 @@ class _AProposScreenState extends State<AProposScreen> {
   }
 
   // ─── FEATURE ITEM ────────────────────────────────────────────────────────────
-  Widget _buildFeatureItem(String feature) {
+  Widget _buildFeatureItem({required IconData icon, required String text}) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            feature.substring(0, 2), // emoji
-            style: const TextStyle(fontSize: 22),
+          // ✅ Icône avec règle des 10%
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: emeraldDark.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: emeraldDark, size: 20),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
-            child: Text(
-              feature.substring(2).trim(),
-              style: const TextStyle(
-                fontSize: 15,
-                color: Colors.black87,
-                height: 1.4,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: textDark,
+                  height: 1.4,
+                ),
               ),
             ),
           ),
@@ -339,7 +359,7 @@ class _AProposScreenState extends State<AProposScreen> {
 
   // ─── LIEN ────────────────────────────────────────────────────────────────────
   Widget _buildLinkItem({
-    required String emoji,
+    required IconData icon,
     required String title,
     required VoidCallback onTap,
     bool isLast = false,
@@ -352,7 +372,14 @@ class _AProposScreenState extends State<AProposScreen> {
             padding: const EdgeInsets.symmetric(vertical: 14),
             child: Row(
               children: [
-                Text(emoji, style: const TextStyle(fontSize: 22)),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: terracotta.withOpacity(0.1), // ✅ Règle des 10% (Terre Cuite pour les liens)
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(icon, color: terracotta, size: 20),
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(
@@ -360,12 +387,11 @@ class _AProposScreenState extends State<AProposScreen> {
                     style: const TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: Colors.black87,
+                      color: textDark,
                     ),
                   ),
                 ),
-                Icon(Icons.arrow_forward_ios,
-                    size: 16, color: Colors.grey[400]),
+                Icon(Icons.chevron_right_rounded, size: 20, color: Colors.grey[400]),
               ],
             ),
           ),
@@ -376,57 +402,84 @@ class _AProposScreenState extends State<AProposScreen> {
   }
 
   // ─── INFO ROW ────────────────────────────────────────────────────────────────
-  Widget _buildInfoRow(String emoji, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Row(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
-          const SizedBox(width: 12),
-          Text(
-            label,
-            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+  Widget _buildInfoRow({
+    required IconData icon, 
+    required String label, 
+    required String value,
+    bool isLast = false,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: Colors.grey[600]),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+              ),
+              const Spacer(),
+              Text(
+                value,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: textDark,
+                ),
+              ),
+            ],
           ),
-          const Spacer(),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-        ],
-      ),
+        ),
+        if (!isLast) Divider(height: 1, color: Colors.grey[100]),
+      ],
     );
   }
 
   // ─── CREDIT ITEM ─────────────────────────────────────────────────────────────
-  Widget _buildCreditItem(String name, String emoji, String role) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        children: [
-          Text(emoji, style: const TextStyle(fontSize: 22)),
-          const SizedBox(width: 12),
-          Text(
-            name,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
-            ),
+  Widget _buildCreditItem({
+    required String name, 
+    required IconData icon, 
+    required String role,
+    bool isLast = false,
+  }) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: emeraldDark.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: emeraldDark, size: 18),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                  color: textDark,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  '— $role',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              '— $role',
-              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ),
+        ),
+        if (!isLast) Divider(height: 1, color: Colors.grey[100]),
+      ],
     );
   }
 }
