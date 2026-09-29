@@ -28,15 +28,15 @@ class _AProposScreenState extends State<AProposScreen> {
     {'icon': Icons.person_outline, 'text': 'Gestion du profil commerçant'},
   ];
 
-  Future<void> _openUrl(String url) async {
+  Future<void> _openUrl(String url, String title) async {
     final Uri uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      await launchUrl(uri, mode: LaunchMode.inAppWebView);
     } else {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Impossible d\'ouvrir la page', style: TextStyle(fontSize: 16)),
+            content: Text('Impossible d\'ouvrir la page : $title', style: const TextStyle(fontSize: 16)),
             backgroundColor: brickRed,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -178,17 +178,25 @@ class _AProposScreenState extends State<AProposScreen> {
                   _buildLinkItem(
                     icon: Icons.language_outlined,
                     title: 'Site web',
-                    onTap: () => _openUrl('https://www.mafortune.tg'),
+                    onTap: () => _openUrl('https://www.mafortune.tg', 'Site web'),
                   ),
                   _buildLinkItem(
                     icon: Icons.privacy_tip_outlined,
                     title: 'Politique de confidentialité',
-                    onTap: () => _openUrl('https://www.mafortune.tg/confidentialite'),
+                    // ✅ VRAI LIEN NOTION MIS À JOUR (sans le ?source=copy_link pour faire plus propre)
+                    onTap: () => _openUrl(
+                      'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70', 
+                      'Politique de confidentialité'
+                    ),
                   ),
                   _buildLinkItem(
                     icon: Icons.description_outlined,
                     title: 'Conditions d\'utilisation',
-                    onTap: () => _openUrl('https://www.mafortune.tg/conditions'),
+                    // ✅ Utilise le même lien pour l'instant pour éviter les erreurs
+                    onTap: () => _openUrl(
+                      'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70', 
+                      'Conditions d\'utilisation'
+                    ),
                     isLast: true,
                   ),
                 ],
@@ -204,8 +212,9 @@ class _AProposScreenState extends State<AProposScreen> {
               child: Column(
                 children: [
                   _buildInfoRow(icon: Icons.code_rounded, label: 'Développeur', value: 'MaFortune Team'),
-                  _buildInfoRow(icon: Icons.email_outlined, label: 'Email', value: 'contact@mafortune.tg'),
-                  _buildInfoRow(icon: Icons.phone_outlined, label: 'Téléphone', value: '+228 90 00 00 00'),
+                  // ✅ EMAIL PERSONNEL MIS À JOUR
+                  _buildInfoRow(icon: Icons.email_outlined, label: 'Email', value: 'ahadzicaden7@gmail.com'),
+                  // ✅ LIGNE TÉLÉPHONE SUPPRIMÉE POUR PROTÉGER TA VIE PRIVÉE
                   _buildInfoRow(icon: Icons.calendar_today_outlined, label: 'Année', value: '2024', isLast: true),
                 ],
               ),

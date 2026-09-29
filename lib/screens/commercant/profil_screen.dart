@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Ajouté pour Firestore
+import 'package:firebase_storage/firebase_storage.dart'; // ✅ Ajouté pour le stockage image
+import 'package:image_picker/image_picker.dart'; // ✅ Ajouté pour la galerie
+import 'dart:io'; // ✅ Ajouté pour manipuler le fichier image
+
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
 import '../../services/delete_account_service.dart';
@@ -18,7 +23,7 @@ import 'messages_screen.dart';
 import 'mon_qr_code_screen.dart';
 import 'scanner_qr_screen.dart';
 import 'changer_code_pin_screen.dart';
-import 'lier_email_screen.dart'; // ✅ Import de la page de liaison
+import 'lier_email_screen.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
@@ -88,11 +93,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  // ✅ Vérifie si l'email est un vrai email et pas le numéro déguisé
   String _getDisplayedEmail() {
     final email = _currentUser?.email;
     final phone = _currentUser?.telephone;
-
     if (email == null || email.isEmpty || (phone != null && email.contains(phone))) {
       return 'Non lié (Optionnel)';
     }
@@ -134,17 +137,74 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  // ✅ MÉTHODE SIMPLIFIÉE : Ouvre directement la page sans vérification PIN
   Future<void> _lierEmail() async {
     if (_currentUser == null) return;
-    
     final result = await Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const LierEmailScreen()),
     );
-    
     if (result == true && mounted) {
       await _loadProfile(forceRefresh: true);
+    }
+  }
+
+  // ✅ NOUVELLE MÉTHODE : Changer la photo de profil
+  Future<void> _changerPhotoProfil() async {
+    if (_currentUser == null) return;
+
+    // 1. Ouvrir la galerie
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80, // Compresse l'image pour un upload plus rapide
+    );
+
+    if (image == null) return; // L'utilisateur a annulé
+
+    // 2. Afficher un indicateur de chargement
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        content: Row(
+          children: [
+            CircularProgressIndicator(color: emeraldDark),
+            SizedBox(width: 20),
+            Text('Mise à jour de la photo...', style: TextStyle(fontSize: 16, color: textDark)),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // 3. Upload vers Firebase Storage
+      final String fileName = 'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final ref = FirebaseStorage.instance.ref().child('users_photos').child(fileName);
+      
+      final uploadTask = await ref.putFile(File(image.path));
+      final String downloadUrl = await uploadTask.ref.getDownloadURL();
+
+      // 4. Mettre à jour le champ 'photo' dans Firestore
+      await FirebaseFirestore.instance.collection('utilisateurs').doc(_currentUser!.id).update({
+        'photo': downloadUrl,
+      });
+
+      // 5. Fermer le chargement et rafraîchir l'interface
+      if (mounted) {
+        Navigator.of(context).pop(); // Ferme le dialogue
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Photo de profil mise à jour'), backgroundColor: emeraldDark),
+        );
+        await _loadProfile(forceRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Ferme le dialogue en cas d'erreur
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur lors de la mise à jour : $e'), backgroundColor: brickRed),
+        );
+      }
     }
   }
 
@@ -288,56 +348,56 @@ class _ProfilScreenState extends State<ProfilScreen> {
   }
 
   Future<void> _changerDeCompte() async {
-  final confirm = await showDialog<bool>(
-    context: context,
-    builder: (context) => AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      contentPadding: const EdgeInsets.all(28),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: terracotta.withOpacity(0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.switch_account_rounded, size: 48, color: terracotta),
-          ),
-          const SizedBox(height: 16),
-          const Text('Changer de compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
-          const SizedBox(height: 10),
-          Text(
-            'Vous allez être déconnecté de ce compte pour vous connecter avec un autre.',
-            style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 28),
-          SizedBox(
-            width: double.infinity, height: 56,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context, true),
-              style: ElevatedButton.styleFrom(backgroundColor: terracotta, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(28),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: terracotta.withOpacity(0.1), shape: BoxShape.circle),
+              child: const Icon(Icons.switch_account_rounded, size: 48, color: terracotta),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity, height: 52,
-            child: OutlinedButton(
-              onPressed: () => Navigator.pop(context, false),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-              child: const Text('Annuler', style: TextStyle(fontSize: 17)),
+            const SizedBox(height: 16),
+            const Text('Changer de compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
+            const SizedBox(height: 10),
+            Text(
+              'Vous allez être déconnecté de ce compte pour vous connecter avec un autre.',
+              style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4),
+              textAlign: TextAlign.center,
             ),
-          ),
-        ],
+            const SizedBox(height: 28),
+            SizedBox(
+              width: double.infinity, height: 56,
+              child: ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: terracotta, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity, height: 52,
+              child: OutlinedButton(
+                onPressed: () => Navigator.pop(context, false),
+                style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
+                child: const Text('Annuler', style: TextStyle(fontSize: 17)),
+              ),
+            ),
+          ],
+        ),
       ),
-    ),
-  );
+    );
 
-  if (confirm == true) {
-    await _authService.signOut();
-    if (!mounted) return;
-    Navigator.of(context).pushReplacementNamed('/login');
+    if (confirm == true) {
+      await _authService.signOut();
+      if (!mounted) return;
+      Navigator.of(context).pushReplacementNamed('/login');
+    }
   }
-}
 
   Future<void> _supprimerCompte() async {
     final confirm = await showDialog<bool>(
@@ -568,19 +628,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
                                     ),
                             ),
                           ),
+                          // ✅ REMPLACEMENT DE L'ICÔNE QR PAR UNE CAMÉRA
                           Positioned(
                             bottom: -2,
                             right: -2,
                             child: GestureDetector(
-                              onTap: _showQrOptions,
+                              onTap: _changerPhotoProfil, // ✅ Appelle la nouvelle méthode
                               child: Container(
-                                padding: const EdgeInsets.all(7),
+                                padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: emeraldDark, // Fond vert pour matcher la charte
                                   shape: BoxShape.circle,
-                                  border: Border.all(color: emeraldDark, width: 2.5),
+                                  border: Border.all(color: Colors.white, width: 2.5),
+                                  boxShadow: [
+                                    BoxShadow(color: Colors.black.withOpacity(0.2), blurRadius: 4, offset: const Offset(0, 2)),
+                                  ],
                                 ),
-                                child: const Icon(Icons.qr_code_rounded, size: 18, color: Colors.black),
+                                child: const Icon(Icons.camera_alt_rounded, size: 20, color: Colors.white),
                               ),
                             ),
                           ),
@@ -654,7 +718,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                 const SizedBox(height: 24),
 
-                // ✅ SECTION INFORMATIONS CORRIGÉE
                 _buildSection('Mes informations', [
                   _buildInfoCard(
                     icon: Icons.phone_outlined,
@@ -681,7 +744,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                 const SizedBox(height: 24),
 
-                // ✅ SECTION MON COMPTE NETTOYÉE (Sécuriser mon compte supprimé)
                 _buildSection('Mon compte', [
                   _buildMenuItem(icon: Icons.edit_outlined, title: 'Modifier mon profil', onTap: _modifierProfil),
                   _buildMenuItem(icon: Icons.inventory_2_outlined, title: 'Mes produits & services', onTap: _mesProduits),

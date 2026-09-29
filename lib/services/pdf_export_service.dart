@@ -10,13 +10,14 @@ class PdfExportService {
   final DateFormat _dateFormat = DateFormat('dd/MM/yyyy', 'fr_FR');
   final DateFormat _timeFormat = DateFormat('HH:mm', 'fr_FR');
 
-  static const PdfColor _green = PdfColor.fromInt(0xFF2E7D32);
-  static const PdfColor _lightGreen = PdfColor.fromInt(0xFFE8F5E9);
-  static const PdfColor _red = PdfColor.fromInt(0xFFC62828);
-  static const PdfColor _lightRed = PdfColor.fromInt(0xFFFFEBEE);
-  static const PdfColor _grey = PdfColor.fromInt(0xFF757575);
-  static const PdfColor _lightGrey = PdfColor.fromInt(0xFFF5F5F5);
-  static const PdfColor _darkText = PdfColor.fromInt(0xFF1A1A1A);
+  // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Exactement comme dans l'app Flutter)
+  static const PdfColor _emeraldDark = PdfColor.fromInt(0xFF0B4F36);   // Vert Émeraude Sombre
+  static const PdfColor _emeraldLight = PdfColor.fromInt(0xFFE0F2F1);  // Fond vert très clair (Règle des 10%)
+  static const PdfColor _brickRed = PdfColor.fromInt(0xFFB91C1C);      // Rouge Brique (Dépenses)
+  static const PdfColor _brickLight = PdfColor.fromInt(0xFFFDE8E8);    // Fond rouge très clair
+  static const PdfColor _textDark = PdfColor.fromInt(0xFF222222);      // Gris anthracite (Texte principal)
+  static const PdfColor _grey = PdfColor.fromInt(0xFF757575);          // Gris secondaire
+  static const PdfColor _lightGrey = PdfColor.fromInt(0xFFF5F5F5);     // Fond gris clair (alternance tableau)
 
   String _fmt(double v) => '${_currencyFormat.format(v)} FCFA';
 
@@ -28,20 +29,15 @@ class PdfExportService {
   }) async {
     final pdf = pw.Document();
 
-    final totalRecettes = transactions
-        .where((t) => t.estRecette)
-        .fold(0.0, (s, t) => s + t.montant);
-    final totalDepenses = transactions
-        .where((t) => !t.estRecette)
-        .fold(0.0, (s, t) => s + t.montant);
+    final totalRecettes = transactions.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
+    final totalDepenses = transactions.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
     final benefice = totalRecettes - totalDepenses;
 
     final Map<String, double> parCategorie = {};
     for (var t in transactions.where((t) => !t.estRecette)) {
       parCategorie[t.categorie] = (parCategorie[t.categorie] ?? 0) + t.montant;
     }
-    final topCategories = parCategorie.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final topCategories = parCategorie.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     pdf.addPage(
       pw.MultiPage(
@@ -55,16 +51,16 @@ class PdfExportService {
           pw.SizedBox(height: 12),
           pw.Row(
             children: [
-              pw.Expanded(child: _summaryCard('Total Recettes', _fmt(totalRecettes), _green, _lightGreen, '+')),
+              pw.Expanded(child: _summaryCard('Total Recettes', _fmt(totalRecettes), _emeraldDark, _emeraldLight, '+')),
               pw.SizedBox(width: 10),
-              pw.Expanded(child: _summaryCard('Total Dépenses', _fmt(totalDepenses), _red, _lightRed, '-')),
+              pw.Expanded(child: _summaryCard('Total Dépenses', _fmt(totalDepenses), _brickRed, _brickLight, '-')),
               pw.SizedBox(width: 10),
               pw.Expanded(
                 child: _summaryCard(
                   'Bénéfice Net',
                   _fmt(benefice.abs()),
-                  benefice >= 0 ? _green : _red,
-                  benefice >= 0 ? _lightGreen : _lightRed,
+                  benefice >= 0 ? _emeraldDark : _brickRed,
+                  benefice >= 0 ? _emeraldLight : _brickLight,
                   benefice >= 0 ? '+' : '-',
                 ),
               ),
@@ -84,10 +80,10 @@ class PdfExportService {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text(e.key, style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text(e.key, style: const pw.TextStyle(fontSize: 10, color: _textDark)),
                         pw.Text(
                           '${_fmt(e.value)}  (${(pct * 100).toStringAsFixed(1)}%)',
-                          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+                          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: _textDark),
                         ),
                       ],
                     ),
@@ -105,7 +101,7 @@ class PdfExportService {
                           height: 6,
                           width: 400 * pct,
                           decoration: pw.BoxDecoration(
-                            color: _red,
+                            color: _brickRed, // ✅ Rouge Brique pour les dépenses
                             borderRadius: pw.BorderRadius.circular(3),
                           ),
                         ),
@@ -121,7 +117,7 @@ class PdfExportService {
           pw.SizedBox(height: 10),
           pw.Container(
             decoration: pw.BoxDecoration(
-              color: _green,
+              color: _emeraldDark, // ✅ Vert Émeraude Sombre pour l'en-tête du tableau
               borderRadius: pw.BorderRadius.circular(6),
             ),
             padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -145,7 +141,7 @@ class PdfExportService {
                 _td(
                   t.estRecette ? 'Recette' : 'Dépense',
                   flex: 1,
-                  color: t.estRecette ? _green : _red,
+                  color: t.estRecette ? _emeraldDark : _brickRed, // ✅ Couleurs dynamiques
                   bold: true,
                 ),
                 _td(t.categorie, flex: 2),
@@ -154,7 +150,7 @@ class PdfExportService {
                   '${t.estRecette ? '+' : '-'} ${_fmt(t.montant)}',
                   flex: 2,
                   align: pw.TextAlign.right,
-                  color: t.estRecette ? _green : _red,
+                  color: t.estRecette ? _emeraldDark : _brickRed, // ✅ Couleurs dynamiques
                   bold: true,
                 ),
               ]),
@@ -181,9 +177,7 @@ class PdfExportService {
     final reste = budgetMensuel - depensesActuelles;
     final pct = budgetMensuel > 0 ? depensesActuelles / budgetMensuel : 0.0;
 
-    // ✅ Tri fait ici, en dehors du build
-    final sortedCategories = depensesParCategorie.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+    final sortedCategories = depensesParCategorie.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
 
     pdf.addPage(
       pw.MultiPage(
@@ -203,19 +197,19 @@ class PdfExportService {
           pw.SizedBox(height: 16),
           pw.Row(children: [
             pw.Expanded(
-              child: _summaryCard('Budget prévu', _fmt(budgetMensuel), _green, _lightGreen, ''),
+              child: _summaryCard('Budget prévu', _fmt(budgetMensuel), _emeraldDark, _emeraldLight, ''),
             ),
             pw.SizedBox(width: 10),
             pw.Expanded(
-              child: _summaryCard('Dépenses', _fmt(depensesActuelles), _red, _lightRed, '-'),
+              child: _summaryCard('Dépenses', _fmt(depensesActuelles), _brickRed, _brickLight, '-'),
             ),
             pw.SizedBox(width: 10),
             pw.Expanded(
               child: _summaryCard(
                 reste >= 0 ? 'Reste disponible' : 'Dépassement',
                 _fmt(reste.abs()),
-                reste >= 0 ? _green : _red,
-                reste >= 0 ? _lightGreen : _lightRed,
+                reste >= 0 ? _emeraldDark : _brickRed,
+                reste >= 0 ? _emeraldLight : _brickLight,
                 reste >= 0 ? '' : '!',
               ),
             ),
@@ -235,11 +229,7 @@ class PdfExportService {
               height: 20,
               width: 530 * pct.clamp(0.0, 1.0),
               decoration: pw.BoxDecoration(
-                color: pct >= 1
-                    ? _red
-                    : pct >= 0.75
-                        ? PdfColor.fromInt(0xFFFF9800)
-                        : _green,
+                color: pct >= 1 ? _brickRed : _emeraldDark, // ✅ Vert si OK, Rouge si dépassé
                 borderRadius: pw.BorderRadius.circular(10),
               ),
             ),
@@ -258,13 +248,12 @@ class PdfExportService {
           ]),
           pw.SizedBox(height: 20),
 
-          // ✅ SECTION CORRIGÉE
           if (sortedCategories.isNotEmpty) ...[
             _sectionTitle('DÉPENSES PAR CATÉGORIE'),
             pw.SizedBox(height: 10),
             pw.Container(
               decoration: pw.BoxDecoration(
-                color: _green,
+                color: _emeraldDark,
                 borderRadius: pw.BorderRadius.circular(6),
               ),
               padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -277,8 +266,7 @@ class PdfExportService {
             ...sortedCategories.asMap().entries.map((entry) {
               final i = entry.key;
               final e = entry.value;
-              final catPct =
-                  budgetMensuel > 0 ? (e.value / budgetMensuel * 100) : 0.0;
+              final catPct = budgetMensuel > 0 ? (e.value / budgetMensuel * 100) : 0.0;
               return pw.Container(
                 color: i % 2 == 0 ? PdfColors.white : _lightGrey,
                 padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -289,7 +277,7 @@ class PdfExportService {
                     '${catPct.toStringAsFixed(1)}%',
                     flex: 2,
                     align: pw.TextAlign.right,
-                    color: catPct > 30 ? _red : _grey,
+                    color: catPct > 30 ? _brickRed : _grey,
                   ),
                 ]),
               );
@@ -305,30 +293,28 @@ class PdfExportService {
     );
   }
 
-  pw.Widget _buildHeader(
-      UtilisateurModel user, DateTime dateDebut, DateTime dateFin) {
+  pw.Widget _buildHeader(UtilisateurModel user, DateTime dateDebut, DateTime dateFin) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 12),
       decoration: const pw.BoxDecoration(
-        border: pw.Border(bottom: pw.BorderSide(color: _green, width: 2)),
+        border: pw.Border(bottom: pw.BorderSide(color: _emeraldDark, width: 2)), // ✅ Vert Émeraude
       ),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
             pw.Text('MaFortune',
-                style: pw.TextStyle(
-                    fontSize: 20, fontWeight: pw.FontWeight.bold, color: _green)),
+                style: pw.TextStyle(fontSize: 20, fontWeight: pw.FontWeight.bold, color: _emeraldDark)), // ✅ Vert Émeraude
             pw.Text('Gestion financière des commerçants du Togo',
                 style: const pw.TextStyle(fontSize: 9, color: _grey)),
           ]),
           pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.end, children: [
             pw.Text(user.nomComplet,
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-            pw.Text(user.email,
+                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: _textDark)),
+            pw.Text(user.email ?? 'Non renseigné',
                 style: const pw.TextStyle(fontSize: 9, color: _grey)),
             pw.Text(
-              '${_dateFormat.format(dateDebut)} → ${_dateFormat.format(dateFin)}',
+              '${_dateFormat.format(dateDebut)} - ${_dateFormat.format(dateFin)}',
               style: const pw.TextStyle(fontSize: 9, color: _grey),
             ),
           ]),
@@ -363,20 +349,17 @@ class PdfExportService {
     return pw.Container(
       padding: const pw.EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: pw.BoxDecoration(
-        color: _lightGreen,
-        borderRadius: pw.BorderRadius.circular(6),
-        border: const pw.Border(left: pw.BorderSide(color: _green, width: 3)),
+        color: _emeraldLight, // ✅ Fond vert très clair (règle des 10%)
+        border: const pw.Border(left: pw.BorderSide(color: _emeraldDark, width: 4)), // ✅ Bordure Vert Émeraude Sombre
       ),
       child: pw.Text(
         title,
-        style: pw.TextStyle(
-            fontSize: 12, fontWeight: pw.FontWeight.bold, color: _darkText),
+        style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold, color: _textDark),
       ),
     );
   }
 
-  pw.Widget _summaryCard(
-      String title, String value, PdfColor color, PdfColor bg, String prefix) {
+  pw.Widget _summaryCard(String title, String value, PdfColor color, PdfColor bg, String prefix) {
     return pw.Container(
       padding: const pw.EdgeInsets.all(12),
       decoration: pw.BoxDecoration(
@@ -391,37 +374,28 @@ class PdfExportService {
           pw.SizedBox(height: 6),
           pw.Text(
             '$prefix $value',
-            style: pw.TextStyle(
-                fontSize: 12, fontWeight: pw.FontWeight.bold, color: color),
+            style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold, color: color),
           ),
         ],
       ),
     );
   }
 
-  pw.Widget _th(String text,
-      {int flex = 1, pw.TextAlign align = pw.TextAlign.left}) {
+  pw.Widget _th(String text, {int flex = 1, pw.TextAlign align = pw.TextAlign.left}) {
     return pw.Expanded(
       flex: flex,
       child: pw.Text(text,
-          style: pw.TextStyle(
-              color: PdfColors.white,
-              fontWeight: pw.FontWeight.bold,
-              fontSize: 9),
+          style: pw.TextStyle(color: PdfColors.white, fontWeight: pw.FontWeight.bold, fontSize: 9),
           textAlign: align),
     );
   }
 
-  pw.Widget _td(String text,
-      {int flex = 1,
-      pw.TextAlign align = pw.TextAlign.left,
-      PdfColor? color,
-      bool bold = false}) {
+  pw.Widget _td(String text, {int flex = 1, pw.TextAlign align = pw.TextAlign.left, PdfColor? color, bool bold = false}) {
     return pw.Expanded(
       flex: flex,
       child: pw.Text(text,
           style: pw.TextStyle(
-              color: color ?? _darkText,
+              color: color ?? _textDark, // ✅ Texte par défaut en Gris Anthracite
               fontSize: 9,
               fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal),
           textAlign: align),

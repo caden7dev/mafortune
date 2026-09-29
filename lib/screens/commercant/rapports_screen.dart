@@ -544,9 +544,9 @@ class _RapportsScreenState extends State<RapportsScreen>
             child: Row(
               children: [
                 _buildFilterPill(
-                  label: _dateRange != null
-                      ? '${DateFormat('dd/MM').format(_dateRange!.start)} → ${DateFormat('dd/MM').format(_dateRange!.end)}'
-                      : 'Période',
+                label: _dateRange != null
+    ? '${DateFormat('dd/MM').format(_dateRange!.start)} - ${DateFormat('dd/MM').format(_dateRange!.end)}'
+    : 'Période',
                   active: _dateRange != null,
                   onTap: _selectDateRange,
                   icon: Icons.calendar_today_rounded,

@@ -8,7 +8,6 @@ class TransactionService {
   // ─── CACHE MÉMOIRE ───────────────────────────────────────────────────────────
   final Map<String, List<TransactionModel>> _cache = {};
   final Map<String, DateTime> _cacheTimestamps = {};
-  final Set<String> _forceServerNext = {};
   static const Duration _cacheDuration = Duration(minutes: 2);
 
   bool _isCacheValid(String key) {
@@ -25,11 +24,9 @@ class TransactionService {
   void invalidateCache(String commercantId) {
     _cache.removeWhere((key, _) => key.contains(commercantId));
     _cacheTimestamps.removeWhere((key, _) => key.contains(commercantId));
-    _forceServerNext.add(commercantId);
   }
 
-
-   // ─── RECALCUL DU SOLDE (Pour garantir la cohérence) ─────────────────────
+  // ─── RECALCUL DU SOLDE (Pour garantir la cohérence) ─────────────────────
   /// Recalcule le soldeActuel en faisant la somme de TOUTES les transactions
   /// Cette méthode garantit que le solde est toujours cohérent avec les données réelles
   Future<double> recalculerSolde(String commercantId) async {
@@ -38,23 +35,26 @@ class TransactionService {
         commercantId,
         forceRefresh: true,
       );
-      
+
       double solde = 0;
       for (var t in transactions) {
         solde += t.impactSolde; // impactSolde = +montant pour recette, -montant pour dépense
       }
-      
-      // Mise à jour directe du champ soldeActuel
-      await _db.collection('utilisateurs').doc(commercantId).update({
+
+      // ✅ Ne bloque pas sur l'accusé de réception serveur (voir addTransaction)
+      _db.collection('utilisateurs').doc(commercantId).update({
         'soldeActuel': solde,
+      }).catchError((e) {
+        debugPrint('⚠️ Écriture solde en attente de sync réseau: $e');
       });
-      
+
       return solde;
     } catch (e) {
       debugPrint('Erreur recalculSolde: $e');
       return 0;
     }
   }
+
   // ─── ADD TRANSACTION ─────────────────────────────────────────────────────────
   Future<TransactionModel> addTransaction(TransactionModel transaction) async {
     try {
@@ -64,7 +64,16 @@ class TransactionService {
         dateModification: DateTime.now(),
       );
 
-      await docRef.set(transactionEnregistree.toFirestore());
+      // ✅ CORRIGÉ : ne PAS attendre (await) l'accusé de réception du serveur.
+      // Firestore écrit déjà la donnée dans le cache local de façon durable et
+      // instantanée dès l'appel de set() — c'est ce qui permet aux autres lectures
+      // (historique, dashboard) de la voir tout de suite. Mais le Future renvoyé par
+      // set()/update()/delete() ne se termine, lui, qu'une fois le serveur confirmé —
+      // ce qui reste bloqué indéfiniment hors-ligne. On ne bloque donc plus l'UI dessus,
+      // et on se contente de logger une erreur si la sync échoue plus tard.
+      docRef.set(transactionEnregistree.toFirestore()).catchError((e) {
+        debugPrint('⚠️ Écriture transaction en attente de sync réseau: $e');
+      });
 
       // ✅ Invalidation du cache pour forcer le rafraîchissement de l'UI
       invalidateCache(transactionEnregistree.commercantId);
@@ -103,22 +112,15 @@ class TransactionService {
     }
 
     try {
-      final forceServer = forceRefresh || _forceServerNext.contains(commercantId);
-      if (_forceServerNext.contains(commercantId)) {
-        _forceServerNext.remove(commercantId);
-      }
-
       QuerySnapshot<Map<String, dynamic>> snapshot;
       try {
+        // serverAndCache : essaie le serveur, retombe vite sur le cache local si hors-ligne
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
             .orderBy('dateCreation', descending: true)
-            .get(GetOptions(
-              source: forceServer ? Source.server : Source.serverAndCache,
-            ));
+            .get(const GetOptions(source: Source.serverAndCache));
       } catch (_) {
-        // Fallback sur le cache en cas de perte de connexion
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
@@ -152,8 +154,6 @@ class TransactionService {
       final startOfDay = DateTime(now.year, now.month, now.day, 0, 0, 0);
       final endOfDay = DateTime(now.year, now.month, now.day, 23, 59, 59);
 
-      final forceServer = forceRefresh || _forceServerNext.contains(commercantId);
-
       QuerySnapshot<Map<String, dynamic>> snapshot;
       try {
         snapshot = await _db
@@ -161,9 +161,7 @@ class TransactionService {
             .where('commercantId', isEqualTo: commercantId)
             .where('date', isGreaterThanOrEqualTo: Timestamp.fromDate(startOfDay))
             .where('date', isLessThanOrEqualTo: Timestamp.fromDate(endOfDay))
-            .get(GetOptions(
-              source: forceServer ? Source.server : Source.serverAndCache,
-            ));
+            .get(const GetOptions(source: Source.serverAndCache));
       } catch (_) {
         snapshot = await _db
             .collection('transactions')
@@ -220,7 +218,7 @@ class TransactionService {
       final all = await getTransactionsByCommercant(commercantId);
       final debut = DateTime(dateDebut.year, dateDebut.month, dateDebut.day, 0, 0, 0);
       final fin = DateTime(dateFin.year, dateFin.month, dateFin.day, 23, 59, 59);
-      
+
       return all.where((t) => !t.date.isBefore(debut) && !t.date.isAfter(fin)).toList()
         ..sort((a, b) => b.date.compareTo(a.date));
     }
@@ -367,14 +365,18 @@ class TransactionService {
 
       final old = TransactionModel.fromFirestore(oldDoc);
       final updatedTransaction = transaction.copyWith(dateModification: DateTime.now());
-      
+
       // Calcul de la différence pour ajuster le solde correctement
       final delta = updatedTransaction.impactSolde - old.impactSolde;
 
-      await _db
+      // ✅ CORRIGÉ : ne bloque plus sur l'accusé de réception serveur
+      _db
           .collection('transactions')
           .doc(updatedTransaction.id)
-          .set(updatedTransaction.toFirestore(), SetOptions(merge: true));
+          .set(updatedTransaction.toFirestore(), SetOptions(merge: true))
+          .catchError((e) {
+        debugPrint('⚠️ Mise à jour transaction en attente de sync réseau: $e');
+      });
 
       invalidateCache(updatedTransaction.commercantId);
 
@@ -394,10 +396,14 @@ class TransactionService {
       if (!doc.exists) throw Exception('Transaction introuvable');
 
       final transaction = TransactionModel.fromFirestore(doc);
-      await _db.collection('transactions').doc(transactionId).delete();
+
+      // ✅ CORRIGÉ : ne bloque plus sur l'accusé de réception serveur
+      _db.collection('transactions').doc(transactionId).delete().catchError((e) {
+        debugPrint('⚠️ Suppression transaction en attente de sync réseau: $e');
+      });
 
       invalidateCache(commercantId);
-      
+
       // On annule l'impact de la transaction supprimée sur le solde
       _updateCommercantSolde(commercantId, -transaction.impactSolde);
     } catch (e) {
@@ -409,8 +415,9 @@ class TransactionService {
   // ─── MISE À JOUR DU SOLDE (Le cœur de la correction) ───────────────────────
   void _updateCommercantSolde(String commercantId, double montant) {
     if (montant == 0) return;
-    
+
     // FieldValue.increment est atomique et gère parfaitement les écritures simultanées
+    // (fonctionne aussi hors-ligne : appliqué optimistiquement au cache local, puis synchronisé)
     _db.collection('utilisateurs').doc(commercantId).update({
       'soldeActuel': FieldValue.increment(montant),
     }).catchError((e) {

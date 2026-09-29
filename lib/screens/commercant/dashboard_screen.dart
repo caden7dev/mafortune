@@ -6,7 +6,6 @@ import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 import '../../widgets/custom_bottom_nav.dart';
-import '../../widgets/offline_banner.dart';
 import 'saisie_rapide_screen.dart';
 import 'modifier_transaction_screen.dart';
 import 'bilans_screen.dart';
@@ -15,7 +14,7 @@ import 'notifications_screen.dart';
 import 'profil_screen.dart';
 import 'messages_screen.dart';
 import 'historique_screen.dart';
-import '../../services/tts_service.dart';
+// ✅ SUPPRIMÉ : import '../../services/tts_service.dart';
 import '../../services/bilan_notification_service.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
@@ -107,13 +106,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _loadMessagesPreview(),
       ]);
 
+      // ✅ SUPPRIMÉ : Le bloc qui déclenchait la voix (TtsService) a été retiré.
+      // On garde juste la réinitialisation du flag au cas où il serait utilisé ailleurs.
       if (BilanNotificationService.launchedFromBilan) {
         BilanNotificationService.launchedFromBilan = false;
-        final recettes = (_quickStats['todayIncome'] ?? 0).toDouble();
-        final depenses = (_quickStats['todayExpense'] ?? 0).toDouble();
-        await Future.delayed(const Duration(milliseconds: 600));
-        TtsService().bilanDuJour(recettes, depenses);
       }
+
     } catch (e) {
       debugPrint('Erreur chargement: $e');
     } finally {
@@ -424,48 +422,47 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 0,
         actions: [
           if (_currentIndex == 0)
-
            // 🔔 NOTIFICATIONS
-    StreamBuilder<QuerySnapshot>(
-      stream: _currentUser != null
-          ? FirebaseFirestore.instance.collection('notifications')
-              .where('commercantId', isEqualTo: _currentUser!.id)
-              .where('lu', isEqualTo: false)
-              .snapshots()
-          : const Stream.empty(),
-      builder: (context, snapshot) {
-        int unreadCount = 0;
-        if (snapshot.hasData && snapshot.data != null) {
-          unreadCount = snapshot.data!.docs.length;
-        }
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.notifications_outlined),
-              onPressed: () {
-                setState(() => _currentIndex = 3); // bascule vers l'onglet Notifications
+            StreamBuilder<QuerySnapshot>(
+              stream: _currentUser != null
+                  ? FirebaseFirestore.instance.collection('notifications')
+                      .where('commercantId', isEqualTo: _currentUser!.id)
+                      .where('lu', isEqualTo: false)
+                      .snapshots()
+                  : const Stream.empty(),
+              builder: (context, snapshot) {
+                int unreadCount = 0;
+                if (snapshot.hasData && snapshot.data != null) {
+                  unreadCount = snapshot.data!.docs.length;
+                }
+                return Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_outlined),
+                      onPressed: () {
+                        setState(() => _currentIndex = 3); // bascule vers l'onglet Notifications
+                      },
+                      tooltip: 'Notifications',
+                    ),
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8, top: 8,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          child: Text(
+                            unreadCount > 9 ? '9+' : '$unreadCount',
+                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      ),
+                  ],
+                );
               },
-              tooltip: 'Notifications',
             ),
-            if (unreadCount > 0)
-              Positioned(
-                right: 8, top: 8,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
-                  constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                  child: Text(
-                    unreadCount > 9 ? '9+' : '$unreadCount',
-                    style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    ),
             StreamBuilder<QuerySnapshot>(
               stream: _currentUser != null
                   ? FirebaseFirestore.instance.collection('messages')
@@ -510,12 +507,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
         ],
       ),
-      body: Column(
-        children: [
-          const OfflineBanner(),
-          Expanded(child: _buildCurrentTab()),
-        ],
-      ),
+      body: _buildCurrentTab(),
       bottomNavigationBar: CustomBottomNav(
         currentIndex: _currentIndex,
         onTap: (index) {
