@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
-import '../../services/tts_service.dart';
+// ✅ SUPPRIMÉ : import '../../services/tts_service.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color terracotta = Color(0xFFD96B43);    // Vente / Action chaleureuse
@@ -168,8 +168,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     });
   }
 
-  // ✅ CORRECTION : Suppression de la mise à jour manuelle du solde ici.
-  // TransactionService.addTransaction s'en occupe déjà automatiquement et une seule fois.
   Future<void> _valider() async {
     final user = _authService.currentUser;
     if (user == null) return;
@@ -224,7 +222,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             produitNom: produit['nom'],
           );
           
-          // ✅ Le service enregistre la transaction ET met à jour le solde automatiquement
           await _transactionService.addTransaction(tx);
         }
       } else {
@@ -242,19 +239,14 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           categorie: _isVente ? 'Ventes' : 'Achats',
         );
         
-        // ✅ Le service enregistre la transaction ET met à jour le solde automatiquement
         await _transactionService.addTransaction(tx);
       }
 
       HapticFeedback.heavyImpact();
       if (mounted) {
-        // ✅ Ferme la page et déclenche le rafraîchissement du Dashboard
+        // ✅ CORRECTION : Suppression totale du bloc TtsService ici.
+        // On ferme juste la page et on renvoie 'true' pour rafraîchir le Dashboard.
         Navigator.pop(context, true); 
-        
-        final total = _mode == 'produits' ? _totalPanier : double.parse(_montantStr);
-        final tts = TtsService();
-        if (_isVente) tts.confirmerVente(total);
-        else tts.confirmerDepense(total);
       }
     } catch (e) {
       debugPrint('Erreur validation: $e');
