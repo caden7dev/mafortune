@@ -14,7 +14,7 @@ import 'notifications_screen.dart';
 import 'profil_screen.dart';
 import 'messages_screen.dart';
 import 'historique_screen.dart';
-// ✅ SUPPRIMÉ : import '../../services/tts_service.dart';
+import 'compte_en_suppression_screen.dart';
 import '../../services/bilan_notification_service.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
@@ -44,7 +44,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic>? _latestAdminMessage;
   int _currentIndex = 0;
 
-  // ✅ CORRECTION : Le compteur doit être À L'INTÉRIEUR de la classe State
   int _refreshTrigger = 0;
   bool _isInitialLoad = true;
   bool _showAdminMessage = true;
@@ -81,12 +80,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
+    // ✅ CORRIGÉ : on ne vide plus _recentTransactions/_weekData/_quickStats ici.
+    // Les vider avant d'avoir les nouvelles données faisait clignoter la liste
+    // (ancien contenu → vide → nouveau contenu) à chaque rafraîchissement.
+    // On se contente de signaler le chargement ; le contenu affiché reste
+    // l'ancien jusqu'à ce que les nouvelles données remplacent tout d'un coup.
     if (mounted) {
       setState(() {
         _isLoading = true;
-        _recentTransactions = [];
-        _weekData = [];
-        _quickStats = {};
       });
     }
 
@@ -94,10 +95,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _currentUser = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
       if (_currentUser == null) return;
 
-      // ✅ RECALCUL AUTOMATIQUE : Garantit que le solde est cohérent avec les transactions
+      // Redirige vers l'écran de récupération si suppression en attente
+      if (_currentUser!.suppressionDemandee) {
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (_) => CompteEnSuppressionScreen(user: _currentUser!)),
+          );
+        }
+        return; // On arrête le chargement du dashboard
+      }
+
+      // Recalcul automatique : garantit que le solde est cohérent avec les transactions
       if (forceRefresh) {
         await _transactionService.recalculerSolde(_currentUser!.id);
-        // Recharger l'utilisateur pour récupérer le nouveau solde
         _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
       }
 
@@ -106,8 +116,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _loadMessagesPreview(),
       ]);
 
-      // ✅ SUPPRIMÉ : Le bloc qui déclenchait la voix (TtsService) a été retiré.
-      // On garde juste la réinitialisation du flag au cas où il serait utilisé ailleurs.
       if (BilanNotificationService.launchedFromBilan) {
         BilanNotificationService.launchedFromBilan = false;
       }
@@ -118,7 +126,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isInitialLoad = false; // ✅ Le premier chargement est fini
+          _isInitialLoad = false;
           _refreshTrigger++;
         });
       }
@@ -135,6 +143,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allTransactions = results[1] as List<TransactionModel>;
     allTransactions.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
 
+    // ✅ Un seul setState qui REMPLACE directement l'ancienne liste par la
+    // nouvelle (déjà complète : anciennes + nouvelle transaction) — jamais
+    // de passage par une liste vide entre les deux.
     if (mounted) {
       setState(() {
         _quickStats = stats;
@@ -203,6 +214,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     }
 
+    // ✅ Idem : remplace directement, pas de passage par une liste vide avant.
     if (mounted) setState(() => _weekData = weekData);
   }
 
@@ -230,15 +242,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-  Future<void> _ouvrirSaisie({required bool isVente}) async {
+   Future<void> _ouvrirSaisie({required bool isVente}) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => SaisieRapideScreen(isVenteInitial: isVente),
     );
+    
     if (result == true) {
-      _transactionService.invalidateCache(_currentUser!.id);
+      // 1. Vider le cache du service
+      if (_currentUser != null) {
+        _transactionService.invalidateCache(_currentUser!.id);
+      }
+      
+      // 2. Incrémenter le trigger pour prévenir les écrans Rapports/Bilans
+      setState(() {
+        _refreshTrigger++; 
+      });
+      
+      // 3. Recharger les données du Dashboard
       await _loadData(forceRefresh: true);
     }
     _loadMessagesPreview();
@@ -289,7 +312,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // ✅ AJOUTÉ : bottom sheet Modifier/Supprimer, ouvert au tap sur une transaction
   void _afficherOptionsTransaction(TransactionModel transaction) {
     showModalBottomSheet(
       context: context,
@@ -422,7 +444,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         elevation: 0,
         actions: [
           if (_currentIndex == 0)
-           // 🔔 NOTIFICATIONS
             StreamBuilder<QuerySnapshot>(
               stream: _currentUser != null
                   ? FirebaseFirestore.instance.collection('notifications')
@@ -441,7 +462,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     IconButton(
                       icon: const Icon(Icons.notifications_outlined),
                       onPressed: () {
-                        setState(() => _currentIndex = 3); // bascule vers l'onglet Notifications
+                        setState(() => _currentIndex = 3);
                       },
                       tooltip: 'Notifications',
                     ),
@@ -526,7 +547,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ✅ CORRECTION : Passage du trigger aux écrans enfants
   Widget _buildCurrentTab() {
     return IndexedStack(
       index: _currentIndex,
@@ -601,11 +621,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // ✅ Ligne du titre avec l'icône œil à droite
                         Row(
                           children: [
                             const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                            const Spacer(), // Pousse l'icône tout à droite
+                            const Spacer(),
                             IconButton(
                               icon: Icon(
                                 _isBalanceVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
@@ -614,7 +633,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               ),
                               onPressed: () {
                                 setState(() {
-                                  _isBalanceVisible = !_isBalanceVisible; // Bascule l'affichage
+                                  _isBalanceVisible = !_isBalanceVisible;
                                 });
                               },
                               padding: EdgeInsets.zero,
@@ -624,19 +643,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ],
                         ),
                         const SizedBox(height: 8),
-
-                        // ✅ Le montant qui change selon l'état
                         FittedBox(
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: Text(
                             _isBalanceVisible
                                 ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'
-                                : '•••••• FCFA', // Texte masqué
+                                : '•••••• FCFA',
                             style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold),
                           ),
                         ),
-
                         const SizedBox(height: 16),
                         Row(
                           children: [
@@ -708,7 +724,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
           if (_latestAdminMessage != null &&
               _latestAdminMessage!['isFromAdmin'] == true &&
-              _showAdminMessage) // ✅ Condition pour l'afficher ou non
+              _showAdminMessage)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -762,7 +778,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ),
-                      // ✅ Petit bouton pour fermer le message localement
                       IconButton(
                         icon: const Icon(Icons.close, size: 18, color: Colors.grey),
                         onPressed: () => setState(() => _showAdminMessage = false),
@@ -935,7 +950,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // ✅ MODIFIÉ : toute la carte est maintenant cliquable et ouvre le bottom sheet
   Widget _buildTransactionCard(TransactionModel transaction) {
     final theme = Theme.of(context);
     final timeStr = DateFormat('HH:mm').format(transaction.dateCreation);

@@ -1,9 +1,25 @@
+import 'dart:async'; // ✅ AJOUTÉ POUR LE STREAM
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import '../models/transaction_model.dart';
 
 class TransactionService {
+  // ✅ SINGLETON : indispensable pour que le stream soit partagé entre TOUS
+  // les écrans (Dashboard, SaisieRapide, Bilans, Rapports...). Sans ça,
+  // chaque écran avait sa propre instance avec son propre stream isolé —
+  // notifyListeners() d'un écran n'atteignait jamais les autres.
+  static final TransactionService _instance = TransactionService._internal();
+  factory TransactionService() => _instance;
+  TransactionService._internal();
+
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  final StreamController<void> _transactionUpdatedController = StreamController<void>.broadcast();
+  Stream<void> get transactionUpdatedStream => _transactionUpdatedController.stream;
+
+  void notifyListeners() {
+    _transactionUpdatedController.add(null);
+  }
 
   // ─── CACHE MÉMOIRE ───────────────────────────────────────────────────────────
   final Map<String, List<TransactionModel>> _cache = {};
@@ -27,8 +43,6 @@ class TransactionService {
   }
 
   // ─── RECALCUL DU SOLDE (Pour garantir la cohérence) ─────────────────────
-  /// Recalcule le soldeActuel en faisant la somme de TOUTES les transactions
-  /// Cette méthode garantit que le solde est toujours cohérent avec les données réelles
   Future<double> recalculerSolde(String commercantId) async {
     try {
       final transactions = await getTransactionsByCommercant(
@@ -38,10 +52,9 @@ class TransactionService {
 
       double solde = 0;
       for (var t in transactions) {
-        solde += t.impactSolde; // impactSolde = +montant pour recette, -montant pour dépense
+        solde += t.impactSolde; 
       }
 
-      // ✅ Ne bloque pas sur l'accusé de réception serveur (voir addTransaction)
       _db.collection('utilisateurs').doc(commercantId).update({
         'soldeActuel': solde,
       }).catchError((e) {
@@ -64,21 +77,13 @@ class TransactionService {
         dateModification: DateTime.now(),
       );
 
-      // ✅ CORRIGÉ : ne PAS attendre (await) l'accusé de réception du serveur.
-      // Firestore écrit déjà la donnée dans le cache local de façon durable et
-      // instantanée dès l'appel de set() — c'est ce qui permet aux autres lectures
-      // (historique, dashboard) de la voir tout de suite. Mais le Future renvoyé par
-      // set()/update()/delete() ne se termine, lui, qu'une fois le serveur confirmé —
-      // ce qui reste bloqué indéfiniment hors-ligne. On ne bloque donc plus l'UI dessus,
-      // et on se contente de logger une erreur si la sync échoue plus tard.
       docRef.set(transactionEnregistree.toFirestore()).catchError((e) {
         debugPrint('⚠️ Écriture transaction en attente de sync réseau: $e');
       });
 
-      // ✅ Invalidation du cache pour forcer le rafraîchissement de l'UI
       invalidateCache(transactionEnregistree.commercantId);
+      notifyListeners(); // ✅ CRUCIAL : Prévenir les écrans qu'il y a une nouvelle transaction
 
-      // ✅ Mise à jour atomique du solde de l'utilisateur
       _updateCommercantSolde(
         transactionEnregistree.commercantId,
         transactionEnregistree.impactSolde,
@@ -91,7 +96,7 @@ class TransactionService {
     }
   }
 
-  // ─── GET ALL TRANSACTIONS ────────────────────────────────────────────────────
+  // ─── GET ALL TRANSACTIONS (✅ CORRIGÉ : Sans orderBy pour éviter l'erreur d'index) ──
   Future<List<TransactionModel>> getTransactionsByCommercant(
     String commercantId, {
     int? limit,
@@ -114,11 +119,10 @@ class TransactionService {
     try {
       QuerySnapshot<Map<String, dynamic>> snapshot;
       try {
-        // serverAndCache : essaie le serveur, retombe vite sur le cache local si hors-ligne
+        // ✅ MODIFICATION : On retire le .orderBy() pour éviter l'erreur d'index composite manquant
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
-            .orderBy('dateCreation', descending: true)
             .get(const GetOptions(source: Source.serverAndCache));
       } catch (_) {
         snapshot = await _db
@@ -131,16 +135,23 @@ class TransactionService {
           .map((doc) => TransactionModel.fromFirestore(doc))
           .toList();
 
-      list.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+      // ✅ MODIFICATION : On trie en Dart (évite les crashs si 'dateCreation' manque ou index manquant)
+      list.sort((a, b) {
+        final dateA = a.dateCreation ?? DateTime(2000);
+        final dateB = b.dateCreation ?? DateTime(2000);
+        return dateB.compareTo(dateA); // Décroissant (le plus récent en premier)
+      });
+
       _setCache(cacheKey, list);
+      debugPrint('✅ [Service] ${list.length} transactions chargées pour $commercantId');
 
       if (limit != null && limit < list.length) {
         return list.sublist(0, limit);
       }
       return list;
     } catch (e) {
-      debugPrint('Erreur getTransactionsByCommercant: $e');
-      rethrow;
+      debugPrint('❌ [Service] Erreur getTransactionsByCommercant: $e');
+      return _cache[cacheKey] ?? [];
     }
   }
 
@@ -366,10 +377,8 @@ class TransactionService {
       final old = TransactionModel.fromFirestore(oldDoc);
       final updatedTransaction = transaction.copyWith(dateModification: DateTime.now());
 
-      // Calcul de la différence pour ajuster le solde correctement
       final delta = updatedTransaction.impactSolde - old.impactSolde;
 
-      // ✅ CORRIGÉ : ne bloque plus sur l'accusé de réception serveur
       _db
           .collection('transactions')
           .doc(updatedTransaction.id)
@@ -379,6 +388,7 @@ class TransactionService {
       });
 
       invalidateCache(updatedTransaction.commercantId);
+      notifyListeners(); // ✅ CRUCIAL : Prévenir les écrans qu'une transaction a été modifiée
 
       if (delta != 0) {
         _updateCommercantSolde(updatedTransaction.commercantId, delta);
@@ -397,14 +407,13 @@ class TransactionService {
 
       final transaction = TransactionModel.fromFirestore(doc);
 
-      // ✅ CORRIGÉ : ne bloque plus sur l'accusé de réception serveur
       _db.collection('transactions').doc(transactionId).delete().catchError((e) {
         debugPrint('⚠️ Suppression transaction en attente de sync réseau: $e');
       });
 
       invalidateCache(commercantId);
+      notifyListeners(); // ✅ CRUCIAL : Prévenir les écrans qu'une transaction a été supprimée
 
-      // On annule l'impact de la transaction supprimée sur le solde
       _updateCommercantSolde(commercantId, -transaction.impactSolde);
     } catch (e) {
       debugPrint('Erreur deleteTransaction: $e');
@@ -412,12 +421,10 @@ class TransactionService {
     }
   }
 
-  // ─── MISE À JOUR DU SOLDE (Le cœur de la correction) ───────────────────────
+  // ─── MISE À JOUR DU SOLDE ───────────────────────
   void _updateCommercantSolde(String commercantId, double montant) {
     if (montant == 0) return;
 
-    // FieldValue.increment est atomique et gère parfaitement les écritures simultanées
-    // (fonctionne aussi hors-ligne : appliqué optimistiquement au cache local, puis synchronisé)
     _db.collection('utilisateurs').doc(commercantId).update({
       'soldeActuel': FieldValue.increment(montant),
     }).catchError((e) {

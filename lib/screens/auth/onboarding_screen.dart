@@ -1,7 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../core/constants/app_colors.dart';
 import '../../widgets/screenshot_wrapper.dart';
+
+// 🎨 CHARTE GRAPHIQUE MA FORTUNE
+const Color emeraldGreen = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color brickRed = Color(0xFFB91C1C);
+const Color textDark = Color(0xFF222222);
+const Color textMedium = Color(0xFF555555);
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -19,29 +25,29 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'emoji': '👋',
       'titre': 'Bienvenue sur MaFortune',
       'texte': 'Ton assistant pour gérer\nton argent au marché',
-      'couleur': const Color(0xFF2E7D32),
-      'couleurClaire': const Color(0xFFE8F5E9),
+      'couleur': emeraldGreen,
+      'couleurClaire': emeraldGreen.withOpacity(0.1), // ✅ Fond léger cohérent
     },
     {
       'emoji': '💰',
       'titre': "J'ai vendu",
-      'texte': 'Quand tu vends quelque chose,\nappuie sur le bouton vert',
-      'couleur': const Color(0xFF2E7D32),
-      'couleurClaire': const Color(0xFFE8F5E9),
+      'texte': 'Quand tu vends quelque chose,\nappuie sur le bouton Terre Cuite',
+      'couleur': terracotta,
+      'couleurClaire': terracotta.withOpacity(0.1),
     },
     {
       'emoji': '🛒',
       'titre': "J'ai dépensé",
-      'texte': 'Quand tu achètes quelque chose,\nappuie sur le bouton rouge',
-      'couleur': const Color(0xFFD32F2F),
-      'couleurClaire': const Color(0xFFFFEBEE),
+      'texte': 'Quand tu achètes quelque chose,\nappuie sur le bouton Rouge Brique',
+      'couleur': brickRed,
+      'couleurClaire': brickRed.withOpacity(0.1),
     },
     {
       'emoji': '📊',
       'titre': 'Vois ton argent',
       'texte': 'Regarde combien tu as gagné\net dépensé chaque jour',
-      'couleur': const Color(0xFF1565C0),
-      'couleurClaire': const Color(0xFFE3F2FD),
+      'couleur': emeraldGreen, // ✅ On revient à l'Émeraude pour le bilan (confiance)
+      'couleurClaire': emeraldGreen.withOpacity(0.1),
     },
   ];
 
@@ -87,8 +93,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   child: Text(
                     'Passer',
                     style: TextStyle(
-                      color: Colors.grey[500],
+                      color: textMedium, // ✅ Couleur de texte secondaire
                       fontSize: 15,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -99,8 +106,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             Expanded(
               child: PageView.builder(
                 controller: _pageController,
-                onPageChanged: (index) =>
-                    setState(() => _currentPage = index),
+                onPageChanged: (index) => setState(() => _currentPage = index),
                 itemCount: _pages.length,
                 itemBuilder: (context, index) {
                   final page = _pages[index];
@@ -124,7 +130,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     decoration: BoxDecoration(
                       color: _currentPage == index
                           ? _pages[_currentPage]['couleur'] as Color
-                          : Colors.grey[300],
+                          : Colors.grey.shade300, // ✅ Gris clair standardisé
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -146,8 +152,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: ElevatedButton(
                   onPressed: _pageSuivante,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        _pages[_currentPage]['couleur'] as Color,
+                    backgroundColor: _pages[_currentPage]['couleur'] as Color,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
@@ -204,8 +209,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             page['titre'] as String,
             style: TextStyle(
               fontSize: 28,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800, // ✅ Plus gras pour l'impact
               color: couleur,
+              letterSpacing: -0.5,
             ),
             textAlign: TextAlign.center,
           ),
@@ -216,9 +222,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           Text(
             page['texte'] as String,
             style: TextStyle(
-              fontSize: 20,
-              color: Colors.grey[700],
+              fontSize: 18, // ✅ Légèrement ajusté pour une meilleure lisibilité
+              color: textMedium, // ✅ Gris anthracite moyen de la charte
               height: 1.6,
+              fontWeight: FontWeight.w500,
             ),
             textAlign: TextAlign.center,
           ),

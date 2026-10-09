@@ -68,8 +68,8 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
-  // ─── Connexion avec Google ───────────────────────────────────────────────
-  Future<bool> loginWithGoogle() async {
+  // ─── Connexion / Inscription avec Google ─────────────────────────────────
+  Future<bool> signInWithGoogle() async { // ✅ RENOMMÉ pour correspondre à l'appel dans SignupScreen
     _setLoading(true);
     _clearErrors();
     try {
@@ -209,6 +209,21 @@ class AuthProvider with ChangeNotifier {
     _userModel = null;
     notifyListeners();
   }
+
+  Future<bool> lierTelephone(String telephone) async {
+  try {
+    _isLoading = true;
+    notifyListeners();
+    await _authService.lierTelephoneAuCompte(telephone);
+    return true;
+  } catch (e) {
+    _errorMessage = e.toString();
+    return false;
+  } finally {
+    _isLoading = false;
+    notifyListeners();
+  }
+}
 
   // ─── Reset mot de passe ───────────────────────────────────────────────────
   Future<bool> sendPasswordReset(String email) async {

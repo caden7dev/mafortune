@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // ✅ Ajouté pour Firestore
-import 'package:firebase_storage/firebase_storage.dart'; // ✅ Ajouté pour le stockage image
-import 'package:image_picker/image_picker.dart'; // ✅ Ajouté pour la galerie
-import 'dart:io'; // ✅ Ajouté pour manipuler le fichier image
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
 
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
@@ -24,6 +24,7 @@ import 'mon_qr_code_screen.dart';
 import 'scanner_qr_screen.dart';
 import 'changer_code_pin_screen.dart';
 import 'lier_email_screen.dart';
+import 'admin_suppressions_screen.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
@@ -93,19 +94,34 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
+  // ✅ MODIFIÉ : Gestion intelligente de l'affichage de l'email (Google vs Temporaire)
   String _getDisplayedEmail() {
+    // Si le compte est lié à Google, l'email est officiel et vérifié
+    if (_currentUser?.googleLie == true) {
+      return _currentUser!.email ?? 'Email non disponible';
+    }
+
     final email = _currentUser?.email;
     final phone = _currentUser?.telephone;
-    if (email == null || email.isEmpty || (phone != null && email.contains(phone))) {
+    
+    // Si c'est un email temporaire généré par l'app ou vide
+    if (email == null || email.isEmpty || email.contains('temp.mafortune.com') || (phone != null && email.contains(phone))) {
       return 'Non lié (Optionnel)';
     }
     return email;
   }
 
+  // ✅ MODIFIÉ : Vérification si un vrai email est présent
   bool get _hasRealEmail {
+    // Si lié par Google, on considère que c'est un vrai email
+    if (_currentUser?.googleLie == true) return true;
+
     final email = _currentUser?.email;
     final phone = _currentUser?.telephone;
-    return email != null && email.isNotEmpty && (phone == null || !email.contains(phone));
+    return email != null && 
+           email.isNotEmpty && 
+           !email.contains('temp.mafortune.com') && 
+           (phone == null || !email.contains(phone));
   }
 
   Future<void> _modifierProfil() async {
@@ -148,20 +164,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  // ✅ NOUVELLE MÉTHODE : Changer la photo de profil
   Future<void> _changerPhotoProfil() async {
     if (_currentUser == null) return;
-
-    // 1. Ouvrir la galerie
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 80, // Compresse l'image pour un upload plus rapide
+      imageQuality: 80,
     );
+    if (image == null) return;
 
-    if (image == null) return; // L'utilisateur a annulé
-
-    // 2. Afficher un indicateur de chargement
     if (!mounted) return;
     showDialog(
       context: context,
@@ -178,21 +189,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
     );
 
     try {
-      // 3. Upload vers Firebase Storage
       final String fileName = 'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final ref = FirebaseStorage.instance.ref().child('users_photos').child(fileName);
-      
       final uploadTask = await ref.putFile(File(image.path));
       final String downloadUrl = await uploadTask.ref.getDownloadURL();
 
-      // 4. Mettre à jour le champ 'photo' dans Firestore
       await FirebaseFirestore.instance.collection('utilisateurs').doc(_currentUser!.id).update({
         'photo': downloadUrl,
       });
 
-      // 5. Fermer le chargement et rafraîchir l'interface
       if (mounted) {
-        Navigator.of(context).pop(); // Ferme le dialogue
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('✅ Photo de profil mise à jour'), backgroundColor: emeraldDark),
         );
@@ -200,7 +207,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
       }
     } catch (e) {
       if (mounted) {
-        Navigator.of(context).pop(); // Ferme le dialogue en cas d'erreur
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur lors de la mise à jour : $e'), backgroundColor: brickRed),
         );
@@ -399,6 +406,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
+  // ✅ MODIFIÉ : Logique de suppression douce (30 jours de grâce)
   Future<void> _supprimerCompte() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -410,20 +418,21 @@ class _ProfilScreenState extends State<ProfilScreen> {
           children: [
             Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: brickRed.withOpacity(0.1), shape: BoxShape.circle), child: const Icon(Icons.warning_amber_rounded, size: 48, color: brickRed)),
             const SizedBox(height: 16),
-            const Text('Supprimer le compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
+            const Text('Désactiver le compte ?', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: brickRed.withOpacity(0.07), borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: terracotta.withOpacity(0.07), borderRadius: BorderRadius.circular(12)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Tout sera supprimé définitivement :', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: brickRed)),
+                  Text('Votre compte sera désactivé immédiatement et supprimé définitivement dans 30 jours.', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textDark)),
                   const SizedBox(height: 8),
-                  _buildDeleteItem(Icons.attach_money_rounded, 'Toutes vos transactions'),
-                  _buildDeleteItem(Icons.label_rounded, 'Vos catégories'),
-                  _buildDeleteItem(Icons.person_rounded, 'Votre profil'),
-                  _buildDeleteItem(Icons.image_rounded, 'Votre photo'),
+                  Text('Vous pouvez annuler cette demande à tout moment durant ce délai de grâce.', style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4)),
+                  const SizedBox(height: 12),
+                  _buildDeleteItem(Icons.attach_money_rounded, 'Toutes vos transactions seront effacées'),
+                  _buildDeleteItem(Icons.label_rounded, 'Vos catégories seront effacées'),
+                  _buildDeleteItem(Icons.person_rounded, 'Votre profil sera effacé'),
                 ],
               ),
             ),
@@ -433,7 +442,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                child: const Text('Continuer', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Demander la suppression', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
@@ -465,7 +474,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
           children: [
             const Text('✍️ Confirmation finale', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
             const SizedBox(height: 16),
-            const Text('Tapez le mot SUPPRIMER pour confirmer :', style: TextStyle(fontSize: 15, color: textDark)),
+            const Text('Tapez le mot SUPPRIMER pour confirmer la demande :', style: TextStyle(fontSize: 15, color: textDark)),
             const SizedBox(height: 12),
             TextField(
               controller: confirmController,
@@ -490,7 +499,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   }
                 },
                 style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                child: const Text('Supprimer définitivement', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+                child: const Text('Confirmer la demande', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               ),
             ),
             const SizedBox(height: 12),
@@ -518,28 +527,36 @@ class _ProfilScreenState extends State<ProfilScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: Row(children: [CircularProgressIndicator(color: emeraldDark), SizedBox(width: 20), Text('Suppression en cours...', style: TextStyle(fontSize: 16, color: textDark))]),
+          child: Row(children: [CircularProgressIndicator(color: emeraldDark), SizedBox(width: 20), Text('Traitement de la demande...', style: TextStyle(fontSize: 16, color: textDark))]),
         ),
       ),
     );
 
-    try {
-      await _deleteService.deleteAccount();
+   try {
+      await _deleteService.demanderSuppressionCompte();
+
       if (mounted) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // ferme le dialog "Traitement en cours..."
+
+        // ✅ On navigue AVANT le signOut() : ça démonte le Dashboard proprement 
+        // avant que le token d'auth soit invalidé, évitant l'écran d'erreur rouge.
         Navigator.of(context).pushReplacementNamed('/welcome');
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('✅ Compte supprimé avec succès', style: TextStyle(fontSize: 16)), backgroundColor: emeraldDark));
+        await _authService.signOut();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('✅ Demande de suppression enregistrée. Vous avez 30 jours pour l\'annuler.'),
+            backgroundColor: emeraldDark,
+            duration: Duration(seconds: 4),
+          ),
+        );
       }
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
-        if (e.toString().contains('requires-recent-login')) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reconnectez-vous d\'abord pour supprimer votre compte.', style: const TextStyle(fontSize: 16)), backgroundColor: terracotta, duration: const Duration(seconds: 5)));
-          await _authService.signOut();
-          if (mounted) Navigator.of(context).pushReplacementNamed('/login');
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)), backgroundColor: brickRed));
-        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)), backgroundColor: brickRed),
+        );
       }
     }
   }
@@ -628,16 +645,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
                                     ),
                             ),
                           ),
-                          // ✅ REMPLACEMENT DE L'ICÔNE QR PAR UNE CAMÉRA
                           Positioned(
                             bottom: -2,
                             right: -2,
                             child: GestureDetector(
-                              onTap: _changerPhotoProfil, // ✅ Appelle la nouvelle méthode
+                              onTap: _changerPhotoProfil,
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: emeraldDark, // Fond vert pour matcher la charte
+                                  color: emeraldDark,
                                   shape: BoxShape.circle,
                                   border: Border.all(color: Colors.white, width: 2.5),
                                   boxShadow: [
@@ -797,6 +813,12 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   const SizedBox(height: 24),
                   _buildSection('Administration', [
                     _buildMenuItem(icon: Icons.admin_panel_settings_outlined, title: 'Tableau de bord Admin', onTap: () => Navigator.pushNamed(context, '/admin/dashboard')),
+                    _buildMenuItem(
+                      icon: Icons.warning_amber_rounded, 
+                      title: 'Comptes en suppression', 
+                      subtitle: 'Gérer les demandes de suppression',
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSuppressionsScreen())),
+                    ),
                   ]),
                 ],
 
@@ -932,7 +954,16 @@ class _ProfilScreenState extends State<ProfilScreen> {
   Widget _buildDeleteItem(IconData icon, String text) {
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Row(children: [Icon(icon, size: 18, color: brickRed), const SizedBox(width: 8), Text(text, style: const TextStyle(fontSize: 14, color: textDark, height: 1.4))]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: brickRed),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(text, style: const TextStyle(fontSize: 14, color: textDark, height: 1.4)),
+          ),
+        ],
+      ),
     );
   }
 }

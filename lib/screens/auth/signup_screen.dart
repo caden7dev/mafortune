@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/utilisateur_model.dart';
 import '../../widgets/screenshot_wrapper.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -87,6 +88,199 @@ class _SignupScreenState extends State<SignupScreen> {
   String _genererPassword(String telephone) {
     final tel = telephone.replaceAll(RegExp(r'[^\d]'), '');
     return 'MF_${tel}_Fortune2024!';
+  }
+
+  // ✅ Vérification de l'activité + Demande de téléphone si nouveau compte Google
+  Future<void> _inscrireAvecGoogle() async {
+    if (_selectedActivity == null) {
+      setState(() {
+        _activiteError = 'Choisis d\'abord ton activité ci-dessus 👆';
+        _etape = 3;
+      });
+      _scrollToKey(_activiteKey);
+      HapticFeedback.mediumImpact();
+      return;
+    }
+
+    _reinitialiserErreurs();
+    final authProvider = context.read<AuthProvider>();
+
+    final success = await authProvider.signInWithGoogle();
+
+    if (success && mounted) {
+      final user = await authProvider.getCurrentUser();
+
+      // ✅ Si l'utilisateur vient de s'inscrire et n'a pas de numéro valide, on le lui demande
+      if (user != null && (user.telephone == null || user.telephone!.isEmpty || user.telephone == '00000000')) {
+        _showPhoneCompletionDialog(user, authProvider);
+      } else {
+        Navigator.pushReplacementNamed(context, '/pin_setup');
+      }
+    } else if (mounted) {
+      setState(() {
+        _globalError = authProvider.errorMessage ?? 'Échec de la connexion Google. Vérifie ta connexion internet.';
+      });
+    }
+  }
+
+  // ✅ Fenêtre de complétion du numéro — lie désormais un vrai credential
+  // email/mot de passe déterministe au compte Google (pas juste un champ Firestore)
+  void _showPhoneCompletionDialog(UtilisateurModel user, AuthProvider authProvider) {
+    final phoneController = TextEditingController();
+    String? phoneError;
+    bool isSubmitting = false;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Presque fini !', textAlign: TextAlign.center),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.phone_android_rounded, size: 40, color: emeraldGreen),
+              const SizedBox(height: 16),
+              const Text(
+                'Votre compte Google est connecté. Pour finaliser, veuillez ajouter votre numéro de téléphone.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 14, color: textMedium),
+              ),
+              const SizedBox(height: 20),
+
+              // ✅ STRUCTURE ROBUSTE : Container + Row (Élimine définitivement la barre jaune)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: phoneError != null ? errorRed : Colors.grey.shade300,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text('🇹🇬', style: TextStyle(fontSize: 20)),
+                              SizedBox(width: 6),
+                              Text('+228', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
+                              SizedBox(width: 8),
+                              Text('|', style: TextStyle(color: Colors.grey, fontSize: 18)),
+                              SizedBox(width: 8),
+                            ],
+                          ),
+                        ),
+                        Expanded(
+                          child: TextField(
+                            controller: phoneController,
+                            keyboardType: TextInputType.phone,
+                            textAlign: TextAlign.left,
+                            maxLength: 8,
+                            enabled: !isSubmitting,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            decoration: const InputDecoration(
+                              counterText: '',
+                              hintText: '90 00 00 00',
+                              hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
+                              border: InputBorder.none,
+                              focusedBorder: InputBorder.none,
+                              errorBorder: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (phoneError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6, left: 4),
+                      child: Text(
+                        phoneError!,
+                        style: const TextStyle(color: errorRed, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () {
+                      Navigator.pop(ctx);
+                      Navigator.pushReplacementNamed(context, '/pin_setup');
+                    },
+              child: const Text('Ignorer', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      final phone = phoneController.text.trim();
+                      if (phone.length != 8) {
+                        setDialogState(() {
+                          phoneError = 'Le numéro doit faire exactement 8 chiffres';
+                        });
+                        HapticFeedback.heavyImpact();
+                        return;
+                      }
+
+                      setDialogState(() => isSubmitting = true);
+
+                      final telephoneComplet = '+228$phone';
+
+                      // ✅ Lie un credential email/mot de passe déterministe à ce
+                      // compte Google, pour que signInWithPhone fonctionne plus tard
+                      final success = await authProvider.lierTelephone(telephoneComplet);
+
+                      if (!success) {
+                        setDialogState(() {
+                          isSubmitting = false;
+                          phoneError = authProvider.errorMessage ?? 'Erreur lors de la liaison du numéro';
+                        });
+                        return;
+                      }
+
+                      // Met à jour le reste du profil (activité choisie, etc.)
+                      final updatedUser = user.copyWith(
+                        telephone: telephoneComplet,
+                        typeActivite: _selectedActivity,
+                      );
+                      await authProvider.updateProfile(updatedUser);
+
+                      if (context.mounted) {
+                        Navigator.pop(ctx);
+                        Navigator.pushReplacementNamed(context, '/pin_setup');
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: emeraldGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Text('Valider'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _creerCompte() async {
@@ -232,10 +426,9 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                 ),
               ),
-              
+
               Expanded(
                 child: SingleChildScrollView(
-                  // ✅ 3. ESPACEMENT : Padding ajusté pour un flux de lecture fluide
                   padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +458,6 @@ class _SignupScreenState extends State<SignupScreen> {
                         const SizedBox(height: 24),
                       ],
 
-                      // ✅ 1 & 2. SIMPLIFICATION : Plus de titres redondants, juste les labels et les icônes internes
                       // ÉTAPE 1 — Nom et prénom
                       Container(
                         key: _prenomKey,
@@ -284,7 +476,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                 setState(() => _etape = 1);
                               },
                             ),
-                            const SizedBox(height: 16), // Espacement compact et harmonieux
+                            const SizedBox(height: 16),
                             _buildChamp(
                               controller: _nomController,
                               label: 'Ton nom (optionnel)',
@@ -294,8 +486,8 @@ class _SignupScreenState extends State<SignupScreen> {
                           ],
                         ),
                       ),
-                      
-                      const SizedBox(height: 24), // Séparation fluide entre les blocs
+
+                      const SizedBox(height: 24),
 
                       // ÉTAPE 2 — Téléphone
                       Container(
@@ -328,10 +520,10 @@ class _SignupScreenState extends State<SignupScreen> {
                           ],
                         ),
                       ),
-                      
-                      const SizedBox(height: 32), // Respiration avant la section importante
 
-                      // ÉTAPE 3 — Activité (Titre et icône conservés comme demandé)
+                      const SizedBox(height: 32),
+
+                      // ÉTAPE 3 — Activité
                       Container(
                         key: _activiteKey,
                         child: Column(
@@ -376,8 +568,8 @@ class _SignupScreenState extends State<SignupScreen> {
                                       color: isSelected ? emeraldGreen.withOpacity(0.08) : Colors.white,
                                       borderRadius: BorderRadius.circular(16),
                                       border: Border.all(
-                                        color: isSelected 
-                                            ? emeraldGreen 
+                                        color: isSelected
+                                            ? emeraldGreen
                                             : (_activiteError != null ? errorRed : Colors.grey.shade300),
                                         width: isSelected ? 2 : 1.5,
                                       ),
@@ -405,10 +597,10 @@ class _SignupScreenState extends State<SignupScreen> {
                           ],
                         ),
                       ),
-                      
+
                       const SizedBox(height: 36),
 
-                      // Bouton principal
+                      // Bouton principal (Inscription manuelle)
                       SizedBox(
                         width: double.infinity,
                         height: 60,
@@ -448,8 +640,72 @@ class _SignupScreenState extends State<SignupScreen> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      
+
+                      const SizedBox(height: 24),
+
+                      // Séparateur "OU" élégant
+                      Row(
+                        children: [
+                          Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: Text(
+                              'OU',
+                              style: TextStyle(color: textMedium, fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                          Expanded(child: Divider(color: Colors.grey.shade300, thickness: 1)),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // Bouton d'inscription Google
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: OutlinedButton(
+                          onPressed: isLoading ? null : _inscrireAvecGoogle,
+                          style: OutlinedButton.styleFrom(
+                            backgroundColor: Colors.white,
+                            side: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: Colors.grey.shade200),
+                                ),
+                                child: const Text(
+                                  'G',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF4285F4), // Bleu Google
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Text(
+                                'Continuer avec Google',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: textDark,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
                       Center(
                         child: TextButton(
                           onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
@@ -475,7 +731,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ✅ Icône de section conservée UNIQUEMENT pour "Qu'est-ce que tu fais ?"
   Widget _buildSectionTitle(IconData icon, String titre) {
     return Row(
       children: [
@@ -502,7 +757,6 @@ class _SignupScreenState extends State<SignupScreen> {
     );
   }
 
-  // ✅ Champs de saisie épurés : icône discrète en préfixe, pas de titre redondant au-dessus
   Widget _buildChamp({
     required TextEditingController controller,
     required String label,
@@ -534,7 +788,7 @@ class _SignupScreenState extends State<SignupScreen> {
           onChanged: onChanged,
           style: const TextStyle(fontSize: 16, color: textDark, fontWeight: FontWeight.w500),
           decoration: InputDecoration(
-            prefixIcon: Icon(icon, color: emeraldGreen, size: 20), // Icône discrète à l'intérieur
+            prefixIcon: Icon(icon, color: emeraldGreen, size: 20),
             hintText: hint,
             hintStyle: const TextStyle(color: Colors.grey),
             errorText: errorText,

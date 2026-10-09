@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TypeTransaction { recette, depense }
-enum ModePaiement { especes, mobileMoney, cheque, virement, autre }
+
+// ✅ AJOUTÉ : flooz et mixxByYas (moyens de paiement mobile money au Togo)
+enum ModePaiement { especes, flooz, mixxByYas, mobileMoney, cheque, virement, autre }
 
 class TransactionModel {
   final String id;
@@ -12,7 +14,7 @@ class TransactionModel {
   final String? description;
   final DateTime date;
   final DateTime dateCreation;
-  final DateTime? dateModification; // ✅ Ajouté
+  final DateTime? dateModification;
   final ModePaiement modePaiement;
   final String categorie;
   final String? produitId;
@@ -27,7 +29,7 @@ class TransactionModel {
     this.description,
     required this.date,
     required this.dateCreation,
-    this.dateModification, // ✅ Ajouté
+    this.dateModification,
     required this.modePaiement,
     required this.categorie,
     this.produitId,
@@ -54,7 +56,7 @@ class TransactionModel {
       dateCreation: _toDateTime(data['dateCreation']),
       dateModification: data['dateModification'] != null
           ? _toDateTime(data['dateModification'])
-          : null, // ✅ Gestion du nullable
+          : null,
       modePaiement: _modeFromString(data['modePaiement'] ?? 'especes'),
       categorie: data['categorie'] ?? '',
       produitId: data['produitId'],
@@ -77,12 +79,10 @@ class TransactionModel {
       'estRecette': estRecette,
     };
 
-    // ✅ Ajoute dateModification si défini
     if (dateModification != null) {
       map['dateModification'] = Timestamp.fromDate(dateModification!);
     }
 
-    // ✅ Ajoute produitId et produitNom seulement si définis
     if (produitId != null) map['produitId'] = produitId;
     if (produitNom != null) map['produitNom'] = produitNom;
 
@@ -99,7 +99,7 @@ class TransactionModel {
     String? description,
     DateTime? date,
     DateTime? dateCreation,
-    DateTime? dateModification, // ✅ Ajouté
+    DateTime? dateModification,
     ModePaiement? modePaiement,
     String? categorie,
     String? produitId,
@@ -146,6 +146,12 @@ class TransactionModel {
       case 'especes':
       case 'espèces':
         return ModePaiement.especes;
+      case 'flooz': // ✅ AJOUTÉ
+        return ModePaiement.flooz;
+      case 'mixxbyyas': // ✅ AJOUTÉ
+      case 'mixx_by_yas':
+      case 'mixx by yas':
+        return ModePaiement.mixxByYas;
       case 'mobilemoney':
       case 'mobile_money':
         return ModePaiement.mobileMoney;

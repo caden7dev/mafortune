@@ -10,7 +10,7 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LocalAuthService _localAuth = LocalAuthService();
-  
+
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ─── CACHE PROFIL ─────────────────────────────────────────────────────────
@@ -36,6 +36,18 @@ class AuthService {
     _cachedUserId = null;
   }
 
+  // ─── NORMALISATION DU NUMÉRO (toujours 8 chiffres, sans indicatif) ──────
+  /// Garantit que l'email/mot de passe générés sont toujours identiques,
+  /// que le numéro soit fourni avec ou sans l'indicatif +228. Sans ça,
+  /// "90010203" et "+22890010203" généraient deux comptes différents.
+  String _normaliserTelephone(String telephone) {
+    String digits = telephone.replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.length > 8) {
+      digits = digits.substring(digits.length - 8); // garde les 8 derniers chiffres
+    }
+    return digits;
+  }
+
   // ─── INSCRIPTION AVEC NUMÉRO DE TÉLÉPHONE ──────────────────────────────
   Future<UtilisateurModel?> signUpWithPhone({
     required String telephone,
@@ -45,8 +57,11 @@ class AuthService {
     String? adresse,
   }) async {
     try {
-      final fakeEmail = '${telephone.replaceAll(' ', '').replaceAll('+', '')}@temp.mafortune.com';
-      final tempPassword = 'Temp@${DateTime.now().millisecondsSinceEpoch}';
+      final cleanTel = _normaliserTelephone(telephone);
+
+      // ✅ Email et mot de passe PRÉVISIBLES (identiques à la connexion)
+      final fakeEmail = '$cleanTel@mafortune.tg';
+      final tempPassword = 'MF_${cleanTel}_Fortune2024!';
 
       final userCredential = await _auth.createUserWithEmailAndPassword(
         email: fakeEmail,
@@ -85,50 +100,91 @@ class AuthService {
     }
   }
 
-  // ─── CONNEXION AVEC NUMÉRO DE TÉLÉPHONE ────────────────────────────────
+  // ─── CONNEXION AVEC NUMÉRO DE TÉLÉPHONE ──────────────────────────────
   Future<UtilisateurModel?> signInWithPhone(String telephone) async {
     try {
-      final query = await _firestore
-          .collection('utilisateurs')
-          .where('telephone', isEqualTo: telephone)
-          .limit(1)
-          .get();
+      final cleanTel = _normaliserTelephone(telephone);
 
-      if (query.docs.isEmpty) {
-        throw 'Aucun compte trouvé avec ce numéro';
-      }
+      // ✅ 1. Générer les identifiants exacts utilisés lors de l'inscription
+      final email = '$cleanTel@mafortune.tg';
+      final password = 'MF_${cleanTel}_Fortune2024!';
 
-      final userId = query.docs.first.id;
-      
-      final doc = await _firestore
-          .collection('utilisateurs')
-          .doc(userId)
-          .get();
+      // ✅ 2. Tenter la connexion Firebase Auth DIRECTEMENT (sans requête Firestore préalable)
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      // ✅ 3. Une fois connecté, on a le droit de lire Firestore (règle isOwner)
+      final doc = await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).get();
 
       if (!doc.exists) {
-        throw 'Utilisateur introuvable';
+        await signOut();
+        throw 'Profil utilisateur introuvable.';
       }
 
       final utilisateur = UtilisateurModel.fromFirestore(doc);
 
-      if (!utilisateur.estActif) {
-        throw 'Votre compte a été désactivé.';
+      if (!utilisateur.estActif && !utilisateur.suppressionDemandee) {
+        await signOut();
+        throw 'Votre compte a été désactivé par un administrateur.';
       }
 
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
 
-      await _firestore
-          .collection('utilisateurs')
-          .doc(utilisateur.id)
-          .update({
-            'derniereConnexion': FieldValue.serverTimestamp(),
-          });
+      // ✅ Ne bloque plus la connexion si cette mise à jour annexe échoue
+      _firestore.collection('utilisateurs').doc(utilisateur.id).update({
+        'derniereConnexion': FieldValue.serverTimestamp(),
+      }).catchError((e) {
+        debugPrint('⚠️ Échec mise à jour derniereConnexion (non bloquant): $e');
+      });
 
       return utilisateur;
+    } on FirebaseAuthException catch (e) {
+      // ✅ 4. Si ça échoue, on affiche un message clair sans faire de requête Firestore interdite
+      if (e.code == 'user-not-found' || e.code == 'wrong-password' || e.code == 'invalid-credential') {
+        throw 'Numéro introuvable ou incorrect. Si vous vous êtes inscrit avec Google, veuillez utiliser le bouton "Continuer avec Google" ou votre adresse email.';
+      }
+      throw _handleAuthException(e);
     } catch (e) {
       throw 'Erreur lors de la connexion : $e';
     }
+  }
+
+  // ─── LIER UN NUMÉRO (credential email/mot de passe) À UN COMPTE EXISTANT ───
+  /// Permet à un compte créé via Google de se connecter plus tard par numéro,
+  /// en liant le même credential déterministe que signUpWithPhone/signInWithPhone
+  /// utilisent. Sans ça, un compte créé via Google n'a aucun provider
+  /// email/password et `signInWithPhone` échoue toujours avec invalid-credential.
+  Future<void> lierTelephoneAuCompte(String telephone) async {
+    final user = _auth.currentUser;
+    if (user == null) throw 'Vous devez être connecté.';
+
+    final cleanTel = _normaliserTelephone(telephone);
+    final email = '$cleanTel@mafortune.tg';
+    final password = 'MF_${cleanTel}_Fortune2024!';
+
+    try {
+      final credential = EmailAuthProvider.credential(email: email, password: password);
+      await user.linkWithCredential(credential);
+      debugPrint('✅ Téléphone lié (credential email/password) avec succès');
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'provider-already-linked') {
+        debugPrint('ℹ️ Un provider email/password est déjà lié à ce compte');
+      } else if (e.code == 'email-already-in-use') {
+        throw 'Ce numéro est déjà utilisé par un autre compte.';
+      } else {
+        throw _handleAuthException(e);
+      }
+    }
+
+    await _firestore.collection('utilisateurs').doc(user.uid).update({
+      'telephone': telephone,
+      'derniereSynchronisation': FieldValue.serverTimestamp(),
+    });
+
+    _cachedUser = await getCurrentUserData(forceRefresh: true);
   }
 
   // ─── 1. LIER GOOGLE A UN COMPTE EXISTANT ──────────────────────────────────
@@ -139,21 +195,17 @@ class AuthService {
     }
 
     try {
-      // 1. 📱 Connexion avec Google
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         throw 'Connexion Google annulée.';
       }
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
         accessToken: googleAuth.accessToken,
       );
 
-      // 2. 📧 Mettre à jour l'email de l'utilisateur Firebase
       try {
         await user.updateEmail(googleUser.email);
         debugPrint('✅ Email mis à jour: ${user.email}');
@@ -167,7 +219,6 @@ class AuthService {
         }
       }
 
-      // 3. 🔗 Lier le compte Google
       try {
         await user.linkWithCredential(credential);
         debugPrint('✅ Compte Google lié avec succès');
@@ -181,7 +232,6 @@ class AuthService {
         }
       }
 
-      // 4. 💾 Mettre à jour Firestore
       final updates = {
         'googleLie': true,
         'emailSecours': googleUser.email,
@@ -193,18 +243,13 @@ class AuthService {
       };
 
       await _firestore.collection('utilisateurs').doc(user.uid).update(updates);
-
-      // 5. 🔄 Mettre à jour le cache
       _cachedUser = await getCurrentUserData(forceRefresh: true);
 
       debugPrint('✅ Compte Google lié avec succès ! Email: ${googleUser.email}');
-
     } on PlatformException catch (e) {
       debugPrint('❌ PlatformException Google: ${e.code} - ${e.message}');
       if (e.code == 'sign_in_failed' || e.code == 'SIGN_IN_FAILED') {
-        throw 'Connexion Google échouée.\n'
-            'Assure-toi d\'avoir une connexion internet stable.\n'
-            'Si le problème persiste, utilise l\'option "Ajouter un email".';
+        throw 'Connexion Google échouée.\nAssure-toi d\'avoir une connexion internet stable.\nSi le problème persiste, utilise l\'option "Ajouter un email".';
       } else if (e.code == 'NETWORK_ERROR') {
         throw 'Problème de réseau. Vérifie ta connexion internet.';
       } else {
@@ -227,15 +272,13 @@ class AuthService {
     }
   }
 
-  // ─── 2. CONNEXION AVEC GOOGLE ─────────────────────────────────────────────
+  // ─── 2. CONNEXION / INSCRIPTION AVEC GOOGLE ─────────────────────────────
   Future<UtilisateurModel?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) return null;
 
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
         accessToken: googleAuth.accessToken,
@@ -277,6 +320,7 @@ class AuthService {
           email: googleUser.email,
           telephone: user.phoneNumber ?? '',
           typeUtilisateur: TypeUtilisateur.commercant,
+          typeActivite: 'Commerce divers',
           estActif: true,
           dateCreation: DateTime.now(),
           soldeActuel: 0.0,
@@ -320,11 +364,11 @@ class AuthService {
           .where('emailSecours', isEqualTo: email)
           .get();
 
-      if (existingUsers.docs.isNotEmpty && 
+      if (existingUsers.docs.isNotEmpty &&
           existingUsers.docs.first.id != user.uid) {
         throw 'Cet email est déjà utilisé par un autre compte.';
       }
-      
+
       try {
         await user.updateEmail(email);
       } catch (e) {
@@ -346,11 +390,7 @@ class AuthService {
       updates['dateEmailSecours'] = null;
     }
 
-    await _firestore
-        .collection('utilisateurs')
-        .doc(user.uid)
-        .update(updates);
-
+    await _firestore.collection('utilisateurs').doc(user.uid).update(updates);
     _cachedUser = await getCurrentUserData(forceRefresh: true);
   }
 
@@ -368,7 +408,6 @@ class AuthService {
       }
 
       await _auth.sendPasswordResetEmail(email: email);
-      
     } on FirebaseAuthException catch (e) {
       if (e.code == 'user-not-found') {
         throw 'Aucun compte Firebase trouvé pour cet email.';
@@ -414,11 +453,7 @@ class AuthService {
         googleLie: false,
       );
 
-      await _firestore
-          .collection('utilisateurs')
-          .doc(userCredential.user!.uid)
-          .set(utilisateur.toFirestore());
-
+      await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).set(utilisateur.toFirestore());
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
 
@@ -441,10 +476,7 @@ class AuthService {
         password: password,
       );
 
-      final doc = await _firestore
-          .collection('utilisateurs')
-          .doc(userCredential.user!.uid)
-          .get();
+      final doc = await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).get();
 
       if (!doc.exists) {
         await signOut();
@@ -453,19 +485,17 @@ class AuthService {
 
       final utilisateur = UtilisateurModel.fromFirestore(doc);
 
-      if (!utilisateur.estActif) {
+      if (!utilisateur.estActif && !utilisateur.suppressionDemandee) {
         await signOut();
-        throw 'Votre compte a été désactivé. Contactez l\'administrateur.';
+        throw 'Votre compte a été désactivé par un administrateur.';
       }
 
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
 
-      _firestore
-          .collection('utilisateurs')
-          .doc(utilisateur.id)
-          .update({'derniereSynchronisation': FieldValue.serverTimestamp()})
-          .catchError((e) => debugPrint("Erreur de mise à jour de la synchro : $e"));
+      _firestore.collection('utilisateurs').doc(utilisateur.id).update({
+        'derniereSynchronisation': FieldValue.serverTimestamp()
+      }).catchError((e) => debugPrint("Erreur de mise à jour de la synchro : $e"));
 
       return utilisateur;
     } on FirebaseAuthException catch (e) {
@@ -485,28 +515,19 @@ class AuthService {
   }
 
   // ─── GET PROFIL ───────────────────────────────────────────────────────────
-  Future<UtilisateurModel?> getCurrentUserData({
-    bool forceRefresh = false,
-  }) async {
+  Future<UtilisateurModel?> getCurrentUserData({bool forceRefresh = false}) async {
     try {
       final user = _auth.currentUser;
       if (user == null) return null;
 
-      if (!forceRefresh &&
-          _cachedUser != null &&
-          _cachedUserId == user.uid) {
+      if (!forceRefresh && _cachedUser != null && _cachedUserId == user.uid) {
         return _cachedUser;
       }
 
-      final doc = await _firestore
-          .collection('utilisateurs')
-          .doc(user.uid)
-          .get();
-
+      final doc = await _firestore.collection('utilisateurs').doc(user.uid).get();
       if (!doc.exists) return null;
 
       final utilisateur = UtilisateurModel.fromFirestore(doc);
-
       _cachedUser = utilisateur;
       _cachedUserId = user.uid;
 
@@ -542,11 +563,7 @@ class AuthService {
         updates['email'] = user.email;
       }
 
-      await _firestore
-          .collection('utilisateurs')
-          .doc(user.id)
-          .update(updates);
-
+      await _firestore.collection('utilisateurs').doc(user.id).update(updates);
       return await getCurrentUserData(forceRefresh: true) ?? user;
     } catch (e) {
       throw 'Erreur lors de la mise à jour du profil : $e';
@@ -592,9 +609,9 @@ class AuthService {
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
       case 'user-not-found':
-        return 'Aucun utilisateur trouvé avec cet email';
+        return 'Email ou mot de passe incorrect';
       case 'wrong-password':
-        return 'Mot de passe incorrect';
+        return 'Email ou mot de passe incorrect';
       case 'email-already-in-use':
         return 'Cet email est déjà utilisé';
       case 'invalid-email':

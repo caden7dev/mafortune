@@ -31,31 +31,31 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1000), // Un peu plus rapide
     );
 
     // 1. Animation du Logo
     _logoScale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.45, curve: Curves.easeOutBack)),
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.4, curve: Curves.easeOutBack)),
     );
     _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.0, 0.35, curve: Curves.easeOut)),
+      CurvedAnimation(parent: _controller, curve: const Interval(0.0, 0.3, curve: Curves.easeOut)),
     );
 
     // 2. Animation du Contenu & Features
-    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.3, 0.75, curve: Curves.easeOutCubic)),
+    _contentSlide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.3, 0.7, curve: Curves.easeOutCubic)),
     );
     _contentFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.3, 0.65, curve: Curves.easeOut)),
+      CurvedAnimation(parent: _controller, curve: const Interval(0.3, 0.6, curve: Curves.easeOut)),
     );
 
     // 3. Animation des Boutons
-    _buttonSlide = Tween<Offset>(begin: const Offset(0, 0.25), end: Offset.zero).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.55, 1.0, curve: Curves.easeOutCubic)),
+    _buttonSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero).animate(
+      CurvedAnimation(parent: _controller, curve: const Interval(0.6, 1.0, curve: Curves.easeOutCubic)),
     );
     _buttonFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Interval(0.55, 0.9, curve: Curves.easeOut)),
+      CurvedAnimation(parent: _controller, curve: const Interval(0.6, 0.9, curve: Curves.easeOut)),
     );
 
     _controller.forward();
@@ -83,232 +83,240 @@ class _WelcomeScreenState extends State<WelcomeScreen>
 
   @override
   Widget build(BuildContext context) {
+    // ✅ Écran compact sans ScrollView pour tout voir d'un coup
     return Scaffold(
-      // ✅ 1. FOND : Blanc pur vers gris très clair (lumineux et accueillant)
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Colors.white, Color(0xFFF8F9FA)],
+      body: Stack(
+        children: [
+          // 1. IMAGE D'ARRIÈRE-PLAN (Remplace 'welcome_bg.jpg' par ton image)
+          Positioned.fill(
+            child: Image.asset(
+              'assets/image/welcome_bg.jpeg', // ⚠️ Mets ton image ici (ex: un marché, un commerçant, ou un fond abstrait vert)
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) {
+                // Fallback si l'image n'existe pas encore : un beau dégradé
+                return Container(
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [Color(0xFFE8F5E9), Colors.white],
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 24.0),
-                    child: IntrinsicHeight(
+
+          // 2. VOILE BLANC pour garantir la lisibilité du texte par-dessus l'image
+          Positioned.fill(
+            child: Container(
+              color: Colors.white.withOpacity(0.88), // Ajuste entre 0.80 et 0.95 selon ton image
+            ),
+          ),
+
+          // 3. CONTENU PRINCIPAL
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center, // Centre tout verticalement
+                children: [
+                  const Spacer(flex: 1),
+
+                  // ── Vrai Logo de l'App ──────────────────────
+                  ScaleTransition(
+                    scale: _logoScale,
+                    child: FadeTransition(
+                      opacity: _logoFade,
+                      child: _buildRealLogo(),
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ── Titre + Accroche ───────────────────────
+                  SlideTransition(
+                    position: _contentSlide,
+                    child: FadeTransition(
+                      opacity: _contentFade,
                       child: Column(
                         children: [
-                          const Spacer(flex: 2),
-
-                          // ── Logo Épuré & Professionnel ──────────────────────
-                          ScaleTransition(
-                            scale: _logoScale,
-                            child: FadeTransition(
-                              opacity: _logoFade,
-                              child: _buildLogo(),
+                          const Text(
+                            'Ma Fortune',
+                            style: TextStyle(
+                              color: emeraldGreen,
+                              fontSize: 32, // Légèrement réduit pour gagner de la place
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.5,
                             ),
                           ),
-
-                          const SizedBox(height: 32),
-
-                          // ── Titre + Accroche ───────────────────────────────
-                          SlideTransition(
-                            position: _contentSlide,
-                            child: FadeTransition(
-                              opacity: _contentFade,
-                              child: Column(
-                                children: [
-                                  // ✅ 3. TEXTES : Titre en Vert Émeraude, gras et grand
-                                  const Text(
-                                    'Ma Fortune',
-                                    style: TextStyle(
-                                      color: emeraldGreen,
-                                      fontSize: 36,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: -0.5,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  // ✅ 3. TEXTES : Sous-titre en gris foncé très lisible
-                                  const Text(
-                                    'Gérez vos finances au quotidien,\nen toute simplicité et sécurité.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: textMedium,
-                                      fontSize: 16,
-                                      height: 1.5,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 40),
-
-                                  // ── Points Forts (Design épuré) ────────────
-                                  _buildFeatureTile(
-                                    icon: Icons.insights_rounded,
-                                    title: 'Suivi des gains',
-                                    subtitle: 'Visualisez vos recettes en un coup d\'œil',
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _buildFeatureTile(
-                                    icon: Icons.record_voice_over_rounded,
-                                    title: 'Rapport vocal',
-                                    subtitle: 'Votre bilan énoncé automatiquement',
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _buildFeatureTile(
-                                    icon: Icons.wifi_off_rounded,
-                                    title: 'Mode hors-ligne',
-                                    subtitle: 'Fonctionne même sans connexion internet',
-                                  ),
-                                ],
-                              ),
+                          const SizedBox(height: 8),
+                          const Text(
+                            'Gérez vos finances au quotidien,\nen toute simplicité et sécurité.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: textMedium,
+                              fontSize: 15,
+                              height: 1.4,
+                              fontWeight: FontWeight.w500,
                             ),
                           ),
-
-                          const Spacer(flex: 3),
                           const SizedBox(height: 24),
 
-                          // ── Boutons d'action (Charte respectée) ────────────
-                          SlideTransition(
-                            position: _buttonSlide,
-                            child: FadeTransition(
-                              opacity: _buttonFade,
-                              child: Column(
-                                children: [
-                                  // ✅ 2. BOUTON PRINCIPAL : Terre Cuite, grand, arrondi
-                                  _PressableButton(
-                                    onTap: () => _navigateTo(
-                                      context,
-                                      '/signup',
-                                      'Redirection vers l\'inscription (/signup)',
-                                    ),
-                                    backgroundColor: terracotta,
-                                    child: const Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          'Créer un compte',
-                                          style: TextStyle(
-                                            color: Colors.white,
-                                            fontSize: 17,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                        SizedBox(width: 8),
-                                        Icon(
-                                          Icons.arrow_forward_rounded,
-                                          color: Colors.white,
-                                          size: 20,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  
-                                  const SizedBox(height: 16),
-                                  
-                                  // ✅ 2. BOUTON SECONDAIRE : Outlined, Vert Émeraude
-                                  _PressableButton(
-                                    onTap: () => _navigateTo(
-                                      context,
-                                      '/login',
-                                      'Redirection vers la connexion (/login)',
-                                    ),
-                                    backgroundColor: Colors.transparent,
-                                    border: Border.all(color: emeraldGreen, width: 1.5),
-                                    child: const Text(
-                                      "J'ai déjà un compte",
-                                      style: TextStyle(
-                                        color: emeraldGreen,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                          // ── Points Forts (Compactés) ────────────
+                          _buildFeatureTile(
+                            icon: Icons.insights_rounded,
+                            title: 'Suivi des gains',
+                            subtitle: 'Visualisez vos recettes en un coup d\'œil',
                           ),
-
-                          const SizedBox(height: 32),
+                          const SizedBox(height: 10),
+                          _buildFeatureTile(
+                            icon: Icons.wifi_off_rounded,
+                            title: 'Mode hors-ligne',
+                            subtitle: 'Fonctionne même sans connexion internet',
+                          ),
+                          const SizedBox(height: 10),
+                          // ✅ REMPLACÉ : "Rapport vocal" supprimé, mis "Sécurité"
+                          _buildFeatureTile(
+                            icon: Icons.shield_outlined,
+                            title: 'Sécurité maximale',
+                            subtitle: 'Vos données sont protégées et chiffrées',
+                          ),
                         ],
                       ),
                     ),
                   ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
-    );
-  }
 
-  // ✅ Logo adapté au fond clair : fond vert 10% opacité, icône verte
-  Widget _buildLogo() {
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: emeraldGreen.withOpacity(0.08), // Règle des 10% d'opacité
-        border: Border.all(color: emeraldGreen.withOpacity(0.15), width: 2),
-        boxShadow: [
-          BoxShadow(
-            color: emeraldGreen.withOpacity(0.08),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+                  const Spacer(flex: 2),
+                  const SizedBox(height: 16),
+
+                  // ── Boutons d'action ─────────────────────────
+                  SlideTransition(
+                    position: _buttonSlide,
+                    child: FadeTransition(
+                      opacity: _buttonFade,
+                      child: Column(
+                        children: [
+                          _PressableButton(
+                            onTap: () => _navigateTo(
+                              context,
+                              '/signup',
+                              'Redirection vers l\'inscription (/signup)',
+                            ),
+                            backgroundColor: terracotta,
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(
+                                  'Créer un compte',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Icon(
+                                  Icons.arrow_forward_rounded,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _PressableButton(
+                            onTap: () => _navigateTo(
+                              context,
+                              '/login',
+                              'Redirection vers la connexion (/login)',
+                            ),
+                            backgroundColor: Colors.transparent,
+                            border: Border.all(color: emeraldGreen, width: 1.5),
+                            child: const Text(
+                              "J'ai déjà un compte",
+                              style: TextStyle(
+                                color: emeraldGreen,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
           ),
         ],
       ),
-      child: const Center(
-        child: Icon(
-          Icons.account_balance_wallet_rounded,
-          size: 48,
-          color: emeraldGreen,
+    );
+  }
+
+  // ✅ VRAI LOGO DE L'APP
+  Widget _buildRealLogo() {
+    return Container(
+      width: 90,
+      height: 90,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        border: Border.all(color: emeraldGreen.withOpacity(0.2), width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: emeraldGreen.withOpacity(0.15),
+            blurRadius: 15,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: ClipOval(
+        child: Image.asset(
+          'assets/icon/logoapp.jpg', // ⚠️ Assure-toi que ce chemin est exact
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) {
+            // Fallback si l'image n'est pas trouvée
+            return const Center(
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                size: 40,
+                color: emeraldGreen,
+              ),
+            );
+          },
         ),
       ),
     );
   }
 
-  // ✅ Tuile d'information : Fond blanc, ombre douce, icône verte sur fond clair
+  // ✅ Tuile d'information compacte
   Widget _buildFeatureTile({
     required IconData icon,
     required String title,
     required String subtitle,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white.withOpacity(0.7),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.grey.shade200, width: 1),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
-          // Icône avec fond arrondi à 10% d'opacité
           Container(
-            padding: const EdgeInsets.all(10),
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
               color: emeraldGreen.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: emeraldGreen, size: 22),
+            child: Icon(icon, color: emeraldGreen, size: 20),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,16 +325,16 @@ class _WelcomeScreenState extends State<WelcomeScreen>
                   title,
                   style: const TextStyle(
                     color: textDark,
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: const TextStyle(
                     color: textMedium,
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w400,
                   ),
                 ),
@@ -395,15 +403,15 @@ class _PressableButtonState extends State<_PressableButton>
         scale: _scale,
         child: Container(
           width: double.infinity,
-          height: 58, // ✅ Bouton légèrement plus grand pour l'ergonomie mobile
+          height: 54, // Légèrement réduit pour gagner de la place verticale
           decoration: BoxDecoration(
             color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(16), // ✅ Arrondi généreux
+            borderRadius: BorderRadius.circular(16),
             border: widget.border,
             boxShadow: widget.border == null
                 ? [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.08), // Ombre douce et moderne
+                      color: Colors.black.withOpacity(0.08),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),

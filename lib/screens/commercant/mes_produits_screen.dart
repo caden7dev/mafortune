@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../services/auth_service.dart';
 import '../../core/data/produits_par_activite.dart';
 
@@ -38,8 +39,11 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final user = _authService.currentUser;
-      if (user == null) return;
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        debugPrint('⚠️ Utilisateur non connecté lors du chargement');
+        return;
+      }
 
       final userDoc = await _db.collection('utilisateurs').doc(user.uid).get();
       _typeActivite = userDoc.data()?['typeActivite'] ?? '';
@@ -56,22 +60,38 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
         _produits = existants;
         if (widget.isOnboarding && existants.isEmpty) {
           _suggestions = ProduitsParActivite.getPourActivite(_typeActivite);
-          _showSuggestions = true;
+          
+          // ✅ FALLBACK : Si l'activité n'est pas reconnue, on propose "Commerce divers"
+          if (_suggestions.isEmpty) {
+            _suggestions = ProduitsParActivite.getPourActivite('Commerce divers');
+          }
+          
+          _showSuggestions = _suggestions.isNotEmpty;
         }
       });
     } catch (e) {
-      debugPrint('Erreur chargement: $e');
+      debugPrint('❌ Erreur chargement: $e');
+      if (mounted) _showSnack('Erreur de chargement des données', isError: true);
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
   Future<void> _confirmerSuggestions(List<Map<String, dynamic>> selected) async {
+    debugPrint('🚀 Tentative de sauvegarde de ${selected.length} produits...');
+    
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      debugPrint('❌ Utilisateur non connecté');
+      if (mounted) {
+        _showSnack('❌ Erreur : Veuillez vous reconnecter', isError: true);
+        setState(() => _isSaving = false);
+      }
+      return;
+    }
+
     setState(() => _isSaving = true);
     try {
-      final user = _authService.currentUser;
-      if (user == null) return;
-
       final batch = _db.batch();
       for (final p in selected) {
         final ref = _db.collection('produits').doc();
@@ -84,13 +104,32 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
           'dateCreation': Timestamp.now(),
         });
       }
+
+      debugPrint('💾 Envoi des données à Firestore...');
       await batch.commit();
-      await _loadData();
-      setState(() => _showSuggestions = false);
+      debugPrint('✅ Données sauvegardées avec succès !');
+
+      if (mounted) {
+        _showSnack('✅ ${selected.length} produit(s) ajouté(s) avec succès !');
+        
+        // ✅ REDIRECTION EXPLICITE VERS LE DASHBOARD SI ONBOARDING
+        if (widget.isOnboarding) {
+          Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (route) => false);
+        } else {
+          await _loadData();
+          setState(() => _showSuggestions = false);
+        }
+      }
     } catch (e) {
-      debugPrint('Erreur confirmation suggestions: $e');
+      debugPrint('❌ Erreur Firestore: $e');
+      if (mounted) {
+        _showSnack('❌ Erreur lors de l\'enregistrement : $e', isError: true);
+      }
     } finally {
-      if (mounted) setState(() => _isSaving = false);
+      debugPrint('🔄 Passage dans le finally pour débloquer le bouton');
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
   }
 
@@ -223,7 +262,7 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
   }) async {
     setState(() => _isSaving = true);
     try {
-      final user = _authService.currentUser;
+      final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
       if (existingId != null) {
@@ -246,7 +285,7 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
         _showSnack(existingId != null ? '✅ "$nom" modifié' : '✅ "$nom" ajouté');
       }
     } catch (e) {
-      debugPrint('Erreur sauvegarde: $e');
+      debugPrint('❌ Erreur sauvegarde: $e');
       if (mounted) _showSnack('❌ Erreur lors de l\'enregistrement', isError: true);
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -532,9 +571,7 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                     borderSide: const BorderSide(color: emeraldDark, width: 2),
                                   ),
                                 ),
-                                onChanged: (val) {
-                                  _suggestions[i]['prix'] = double.tryParse(val);
-                                },
+                                // ✅ SUPPRIMÉ : On ne modifie plus _suggestions directement ici
                               ),
                             ),
                         ],
@@ -560,20 +597,36 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                       onPressed: _isSaving
                           ? null
                           : () {
+                              debugPrint('🔘 Bouton "Confirmer" cliqué !');
+                              
+                              // ✅ CRITIQUE : Créer une NOUVELLE liste modifiable au lieu de modifier _suggestions
+                              final List<Map<String, dynamic>> produitsASauvegarder = [];
+                              
                               for (int i = 0; i < _suggestions.length; i++) {
-                                final val = _prixControllers[i]?.text.trim();
-                                _suggestions[i]['prix'] = val != null && val.isNotEmpty ? double.tryParse(val) : null;
+                                if (_selected[i] ?? true) {
+                                  final val = _prixControllers[i]?.text.trim();
+                                  final double? prixParsed = val != null && val.isNotEmpty 
+                                      ? double.tryParse(val) 
+                                      : null;
+                                  
+                                  // On crée une copie propre du produit
+                                  produitsASauvegarder.add({
+                                    'nom': _suggestions[i]['nom'],
+                                    'emoji': _suggestions[i]['emoji'] ?? '📦',
+                                    'prix': prixParsed,
+                                  });
+                                }
                               }
 
-                              final selectionnes = [
-                                for (int i = 0; i < _suggestions.length; i++)
-                                  if (_selected[i] == true) _suggestions[i]
-                              ];
+                              debugPrint('📦 Nombre de produits à sauvegarder : ${produitsASauvegarder.length}');
 
-                              if (selectionnes.isEmpty) {
-                                setState(() => _showSuggestions = false);
+                              if (produitsASauvegarder.isEmpty) {
+                                if (mounted) {
+                                  setState(() => _showSuggestions = false);
+                                  _showSnack('ℹ️ Aucun produit sélectionné.');
+                                }
                               } else {
-                                _confirmerSuggestions(selectionnes);
+                                _confirmerSuggestions(produitsASauvegarder);
                               }
                             },
                       style: ElevatedButton.styleFrom(
@@ -676,7 +729,7 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10% d'opacité
+                                color: emeraldDark.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Center(
@@ -796,7 +849,6 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
             hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
             suffixText: suffixText,
             suffixStyle: TextStyle(color: Colors.grey[600], fontWeight: FontWeight.w500),
-            // ✅ Icône de champ avec fond à 10% d'opacité
             prefixIcon: Container(
               margin: const EdgeInsets.all(10),
               padding: const EdgeInsets.all(6),

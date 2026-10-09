@@ -1,3 +1,4 @@
+import 'dart:async'; // ✅ AJOUTÉ POUR LE STREAM
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -9,13 +10,12 @@ import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
-const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
-const Color terracotta = Color(0xFFD96B43);    // Terre Cuite
-const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux
-const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
+const Color emeraldDark = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color brickRed = Color(0xFFB91C1C);
+const Color textDark = Color(0xFF222222);
 
 class RapportsScreen extends StatefulWidget {
-  // ✅ Ajout du paramètre refreshTrigger
   final int refreshTrigger;
   const RapportsScreen({super.key, this.refreshTrigger = 0});
 
@@ -31,6 +31,9 @@ class _RapportsScreenState extends State<RapportsScreen>
   final PdfExportService _pdfExportService = PdfExportService();
 
   late TabController _tabController;
+
+  // ✅ NOUVEAU : Abonnement au flux de mise à jour du service
+  StreamSubscription<void>? _transactionSub;
 
   UtilisateurModel? _currentUser;
   List<TransactionModel> _allTransactions = [];
@@ -53,14 +56,8 @@ class _RapportsScreenState extends State<RapportsScreen>
   final TextEditingController _montantMaxController = TextEditingController();
 
   final Map<String, String> _categoryEmojis = {
-    'alimentation': '🍽️',
-    'transport': '🚗',
-    'stock': '📦',
-    'loyer': '🏠',
-    'santé': '💊',
-    'eau': '💧',
-    'électricité': '💡',
-    'téléphone': '📱',
+    'alimentation': '🍽️', 'transport': '🚗', 'stock': '📦', 'loyer': '🏠',
+    'santé': '💊', 'eau': '💧', 'électricité': '💡', 'téléphone': '📱',
   };
 
   @override
@@ -70,25 +67,24 @@ class _RapportsScreenState extends State<RapportsScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _loadData();
     _loadCategories();
     _searchController.addListener(() {
       _searchQuery = _searchController.text;
       _applyFilters();
     });
-  }
 
-  // ✅ CORRECTION : Déclenche le rechargement quand le Dashboard a fini de mettre à jour le solde
-  @override
-  void didUpdateWidget(RapportsScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.refreshTrigger != oldWidget.refreshTrigger) {
-      _loadData();
-    }
+    // ✅ Écoute le Service : dès qu'une transaction est ajoutée, on rafraîchit automatiquement
+    _transactionSub = _transactionService.transactionUpdatedStream.listen((_) {
+      debugPrint('🔄 [Rapports] Nouvelle transaction détectée, rafraîchissement en cours...');
+      _loadData(force: true);
+    });
+
+    _loadData(force: true);
   }
 
   @override
   void dispose() {
+    _transactionSub?.cancel(); // ✅ Très important pour éviter les fuites de mémoire
     _tabController.dispose();
     _searchController.dispose();
     _montantMinController.dispose();
@@ -96,24 +92,43 @@ class _RapportsScreenState extends State<RapportsScreen>
     super.dispose();
   }
 
-   Future<void> _loadData() async {
-    if (_allTransactions.isEmpty) {
+  @override
+void didUpdateWidget(RapportsScreen oldWidget) {
+  super.didUpdateWidget(oldWidget);
+  if (widget.refreshTrigger != oldWidget.refreshTrigger) {
+    _loadData(force: true);
+  }
+}
+
+  // ✅ CORRECTION : Ajout du paramètre 'force' pour contourner le cache
+  Future<void> _loadData({bool force = false}) async {
+    // Si on a déjà des données et qu'on ne force pas, on ne fait rien (évite les clignotements)
+    if (!force && _allTransactions.isNotEmpty) return;
+
+    // Si on force, on affiche le chargement seulement si on n'a aucune donnée (pour ne pas bloquer l'écran inutilement)
+    if (_allTransactions.isEmpty && mounted) {
       setState(() => _isLoading = true);
     }
     
     try {
-      _currentUser = await _authService.getCurrentUserData();
+      _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
       if (_currentUser == null) return;
       
-      // ✅ APRÈS
-      _allTransactions = await _transactionService.getTransactionsByCommercant(
+      // On force le service à aller chercher les toutes dernières données
+      final freshTransactions = await _transactionService.getTransactionsByCommercant(
         _currentUser!.id,
         forceRefresh: true,
       );
-      _applyFilters();
+      
+      if (mounted) {
+        setState(() {
+          _allTransactions = freshTransactions;
+          _isLoading = false;
+        });
+        _applyFilters(); // Met à jour la liste filtrée immédiatement
+      }
     } catch (e) {
       debugPrint('Erreur rapports: $e');
-    } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -122,7 +137,6 @@ class _RapportsScreenState extends State<RapportsScreen>
     try {
       final snap = await FirebaseFirestore.instance.collection('categories').get();
       List<String> fetched = snap.docs.map((d) => d['nom'] as String).toList();
-      
       if (mounted) {
         setState(() {
           _categories = fetched.isEmpty 
@@ -131,7 +145,6 @@ class _RapportsScreenState extends State<RapportsScreen>
         });
       }
     } catch (e) {
-      debugPrint('Erreur chargement catégories: $e');
       if (mounted) {
         setState(() {
           _categories = ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre'];
@@ -144,46 +157,29 @@ class _RapportsScreenState extends State<RapportsScreen>
     var list = List<TransactionModel>.from(_allTransactions);
 
     if (_dateRange != null) {
-      list = list.where((t) =>
-          t.date.isAfter(_dateRange!.start) &&
-          t.date.isBefore(_dateRange!.end.add(const Duration(days: 1)))).toList();
+      list = list.where((t) => t.date.isAfter(_dateRange!.start) && t.date.isBefore(_dateRange!.end.add(const Duration(days: 1)))).toList();
     }
-
     if (_selectedType != 'Tous') {
-      list = list.where((t) => t.estRecette
-          ? _selectedType == 'Recettes'
-          : _selectedType == 'Dépenses').toList();
+      list = list.where((t) => t.estRecette ? _selectedType == 'Recettes' : _selectedType == 'Dépenses').toList();
     }
-
     if (_selectedCategorie != 'Toutes') {
       list = list.where((t) => t.categorie == _selectedCategorie).toList();
     }
-
     if (_searchQuery.isNotEmpty) {
       list = list.where((t) {
         final desc = (t.description ?? t.categorie).toLowerCase();
         return desc.contains(_searchQuery.toLowerCase());
       }).toList();
     }
-
-    if (_montantMin > 0) {
-      list = list.where((t) => t.montant >= _montantMin).toList();
-    }
-    if (_montantMax != double.infinity && _montantMax > 0) {
-      list = list.where((t) => t.montant <= _montantMax).toList();
-    }
+    if (_montantMin > 0) list = list.where((t) => t.montant >= _montantMin).toList();
+    if (_montantMax != double.infinity && _montantMax > 0) list = list.where((t) => t.montant <= _montantMax).toList();
 
     list.sort((a, b) {
       int cmp;
       switch (_sortBy) {
-        case 'montant':
-          cmp = a.montant.compareTo(b.montant);
-          break;
-        case 'type':
-          cmp = a.estRecette.toString().compareTo(b.estRecette.toString());
-          break;
-        default:
-          cmp = a.date.compareTo(b.date);
+        case 'montant': cmp = a.montant.compareTo(b.montant); break;
+        case 'type': cmp = a.estRecette.toString().compareTo(b.estRecette.toString()); break;
+        default: cmp = a.date.compareTo(b.date);
       }
       return _sortDescending ? -cmp : cmp;
     });
@@ -193,39 +189,26 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   void _resetFilters() {
     setState(() {
-      _dateRange = null;
-      _selectedType = 'Tous';
-      _selectedCategorie = 'Toutes';
-      _searchQuery = '';
-      _searchController.clear();
-      _montantMin = 0;
-      _montantMax = double.infinity;
-      _montantMinController.clear();
-      _montantMaxController.clear();
-      _sortBy = 'date';
-      _sortDescending = true;
+      _dateRange = null; _selectedType = 'Tous'; _selectedCategorie = 'Toutes';
+      _searchQuery = ''; _searchController.clear();
+      _montantMin = 0; _montantMax = double.infinity;
+      _montantMinController.clear(); _montantMaxController.clear();
+      _sortBy = 'date'; _sortDescending = true;
     });
     _applyFilters();
   }
 
   Future<void> _selectDateRange() async {
     final picked = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
+      context: context, firstDate: DateTime(2020), lastDate: DateTime.now(),
       initialDateRange: _dateRange,
       builder: (context, child) => Theme(
-        data: Theme.of(context).copyWith(
-          colorScheme: const ColorScheme.light(primary: emeraldDark),
-        ),
+        data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: emeraldDark)),
         child: child!,
       ),
     );
     if (picked != null) {
-      setState(() {
-        _dateRange = picked;
-        _applyFilters();
-      });
+      setState(() { _dateRange = picked; _applyFilters(); });
     }
   }
 
@@ -249,33 +232,23 @@ class _RapportsScreenState extends State<RapportsScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
-              controller: _montantMinController,
-              keyboardType: TextInputType.number,
+              controller: _montantMinController, keyboardType: TextInputType.number,
               style: const TextStyle(fontSize: 18, color: textDark),
               decoration: InputDecoration(
-                labelText: 'Montant minimum (FCFA)',
-                labelStyle: const TextStyle(fontSize: 15),
+                labelText: 'Montant minimum (FCFA)', labelStyle: const TextStyle(fontSize: 15),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: emeraldDark, width: 2),
-                ),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: emeraldDark, width: 2)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
             const SizedBox(height: 16),
             TextField(
-              controller: _montantMaxController,
-              keyboardType: TextInputType.number,
+              controller: _montantMaxController, keyboardType: TextInputType.number,
               style: const TextStyle(fontSize: 18, color: textDark),
               decoration: InputDecoration(
-                labelText: 'Montant maximum (FCFA)',
-                labelStyle: const TextStyle(fontSize: 15),
+                labelText: 'Montant maximum (FCFA)', labelStyle: const TextStyle(fontSize: 15),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: emeraldDark, width: 2),
-                ),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: emeraldDark, width: 2)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
             ),
@@ -283,14 +256,9 @@ class _RapportsScreenState extends State<RapportsScreen>
         ),
         actions: [
           SizedBox(
-            width: double.infinity,
-            height: 52,
+            width: double.infinity, height: 52,
             child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: emeraldDark,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: emeraldDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               onPressed: () {
                 setState(() {
                   _montantMin = double.tryParse(_montantMinController.text) ?? 0;
@@ -304,15 +272,10 @@ class _RapportsScreenState extends State<RapportsScreen>
           ),
           const SizedBox(height: 8),
           SizedBox(
-            width: double.infinity,
-            height: 48,
+            width: double.infinity, height: 48,
             child: OutlinedButton(
               onPressed: () => Navigator.pop(ctx),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.grey[700],
-                side: BorderSide(color: Colors.grey[300]!),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.grey[700], side: BorderSide(color: Colors.grey[300]!), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
               child: const Text('Annuler', style: TextStyle(fontSize: 16)),
             ),
           ),
@@ -343,19 +306,11 @@ class _RapportsScreenState extends State<RapportsScreen>
               const Divider(height: 24),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: Colors.grey[100],
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
                 child: SwitchListTile(
                   title: const Text('Du plus récent au plus ancien', style: TextStyle(fontSize: 14, color: textDark)),
-                  value: _sortDescending,
-                  activeColor: emeraldDark,
-                  onChanged: (v) {
-                    setLocal(() => _sortDescending = v);
-                    setState(() {});
-                    _applyFilters();
-                  },
+                  value: _sortDescending, activeColor: emeraldDark,
+                  onChanged: (v) { setLocal(() => _sortDescending = v); setState(() {}); _applyFilters(); },
                 ),
               ),
             ],
@@ -363,10 +318,7 @@ class _RapportsScreenState extends State<RapportsScreen>
           actions: [
             SizedBox(
               width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Fermer', style: TextStyle(fontSize: 16, color: textDark)),
-              ),
+              child: TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Fermer', style: TextStyle(fontSize: 16, color: textDark))),
             ),
           ],
         ),
@@ -377,37 +329,18 @@ class _RapportsScreenState extends State<RapportsScreen>
   Widget _buildSortOption(BuildContext ctx, StateSetter setLocal, String label, String value) {
     final selected = _sortBy == value;
     return GestureDetector(
-      onTap: () {
-        setLocal(() => _sortBy = value);
-        setState(() {});
-        _applyFilters();
-        Navigator.pop(ctx);
-      },
+      onTap: () { setLocal(() => _sortBy = value); setState(() {}); _applyFilters(); Navigator.pop(ctx); },
       child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: selected ? emeraldDark.withOpacity(0.1) : Colors.grey[50],
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? emeraldDark : Colors.grey[200]!,
-            width: selected ? 2 : 1,
-          ),
+          border: Border.all(color: selected ? emeraldDark : Colors.grey[200]!, width: selected ? 2 : 1),
         ),
         child: Row(
           children: [
-            Expanded(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  color: selected ? emeraldDark : textDark,
-                ),
-              ),
-            ),
-            if (selected)
-              const Icon(Icons.check_circle_rounded, color: emeraldDark, size: 22),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 16, fontWeight: selected ? FontWeight.bold : FontWeight.normal, color: selected ? emeraldDark : textDark))),
+            if (selected) const Icon(Icons.check_circle_rounded, color: emeraldDark, size: 22),
           ],
         ),
       ),
@@ -416,12 +349,7 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   Future<void> _exportPDF() async {
     if (_filteredTransactions.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Aucune transaction à exporter', style: TextStyle(fontSize: 16)),
-          backgroundColor: terracotta,
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Aucune transaction à exporter'), backgroundColor: terracotta));
       return;
     }
     setState(() => _isLoading = true);
@@ -434,12 +362,7 @@ class _RapportsScreenState extends State<RapportsScreen>
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur export: $e', style: const TextStyle(fontSize: 16)),
-            backgroundColor: brickRed,
-          ),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erreur export: $e'), backgroundColor: brickRed));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -455,13 +378,7 @@ class _RapportsScreenState extends State<RapportsScreen>
     return '📌';
   }
 
-  bool get _hasActiveFilters =>
-      _dateRange != null ||
-      _selectedType != 'Tous' ||
-      _selectedCategorie != 'Toutes' ||
-      _searchQuery.isNotEmpty ||
-      _montantMin > 0 ||
-      _montantMax != double.infinity;
+  bool get _hasActiveFilters => _dateRange != null || _selectedType != 'Tous' || _selectedCategorie != 'Toutes' || _searchQuery.isNotEmpty || _montantMin > 0 || _montantMax != double.infinity;
 
   @override
   Widget build(BuildContext context) {
@@ -469,7 +386,9 @@ class _RapportsScreenState extends State<RapportsScreen>
 
     final totalRecettes = _filteredTransactions.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
     final totalDepenses = _filteredTransactions.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
-    final solde = totalRecettes - totalDepenses;
+    
+    // ✅ MODIFICATION : Utiliser le soldeActuel du profil pour être 100% identique au Dashboard
+    final solde = _currentUser?.soldeActuel ?? 0.0;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -483,26 +402,17 @@ class _RapportsScreenState extends State<RapportsScreen>
                 Container(
                   color: Colors.white,
                   child: TabBar(
-                    controller: _tabController,
-                    labelColor: emeraldDark,
-                    unselectedLabelColor: Colors.grey,
-                    indicatorColor: emeraldDark,
-                    indicatorWeight: 3,
+                    controller: _tabController, labelColor: emeraldDark, unselectedLabelColor: Colors.grey,
+                    indicatorColor: emeraldDark, indicatorWeight: 3,
                     labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     unselectedLabelStyle: const TextStyle(fontSize: 14),
-                    tabs: const [
-                      Tab(text: 'Liste'),
-                      Tab(text: 'Graphique'),
-                    ],
+                    tabs: const [Tab(text: 'Liste'), Tab(text: 'Graphique')],
                   ),
                 ),
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
-                    children: [
-                      _buildTransactionList(),
-                      _buildChartView(totalRecettes, totalDepenses),
-                    ],
+                    children: [_buildTransactionList(), _buildChartView(totalRecettes, totalDepenses)],
                   ),
                 ),
               ],
@@ -512,30 +422,18 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   Widget _buildFilterSection() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
+      color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
       child: Column(
         children: [
           TextField(
-            controller: _searchController,
-            style: const TextStyle(fontSize: 16, color: textDark),
+            controller: _searchController, style: const TextStyle(fontSize: 16, color: textDark),
             decoration: InputDecoration(
-              hintText: 'Rechercher...',
-              hintStyle: const TextStyle(fontSize: 15, color: Colors.grey),
+              hintText: 'Rechercher...', hintStyle: const TextStyle(fontSize: 15, color: Colors.grey),
               prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
-              filled: true,
-              fillColor: const Color(0xFFF8F9FA),
+              filled: true, fillColor: const Color(0xFFF8F9FA),
               contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear_rounded, color: Colors.grey),
-                      onPressed: () => _searchController.clear(),
-                    )
-                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+              suffixIcon: _searchQuery.isNotEmpty ? IconButton(icon: const Icon(Icons.clear_rounded, color: Colors.grey), onPressed: () => _searchController.clear()) : null,
             ),
           ),
           const SizedBox(height: 12),
@@ -544,20 +442,11 @@ class _RapportsScreenState extends State<RapportsScreen>
             child: Row(
               children: [
                 _buildFilterPill(
-                label: _dateRange != null
-    ? '${DateFormat('dd/MM').format(_dateRange!.start)} - ${DateFormat('dd/MM').format(_dateRange!.end)}'
-    : 'Période',
-                  active: _dateRange != null,
-                  onTap: _selectDateRange,
-                  icon: Icons.calendar_today_rounded,
+                  label: _dateRange != null ? '${DateFormat('dd/MM').format(_dateRange!.start)} - ${DateFormat('dd/MM').format(_dateRange!.end)}' : 'Période',
+                  active: _dateRange != null, onTap: _selectDateRange, icon: Icons.calendar_today_rounded,
                 ),
                 const SizedBox(width: 8),
-                _buildFilterPill(
-                  label: 'Montant',
-                  active: _montantMin > 0 || _montantMax != double.infinity,
-                  onTap: _showMontantFilter,
-                  icon: Icons.attach_money_rounded,
-                ),
+                _buildFilterPill(label: 'Montant', active: _montantMin > 0 || _montantMax != double.infinity, onTap: _showMontantFilter, icon: Icons.attach_money_rounded),
                 const SizedBox(width: 8),
                 ..._buildTypeFilters(),
               ],
@@ -565,17 +454,11 @@ class _RapportsScreenState extends State<RapportsScreen>
           ),
           const SizedBox(height: 10),
           Container(
-            height: 52,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey[200]!),
-              borderRadius: BorderRadius.circular(14),
-              color: Colors.white,
-            ),
+            height: 52, padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(border: Border.all(color: Colors.grey[200]!), borderRadius: BorderRadius.circular(14), color: Colors.white),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
-                value: _selectedCategorie,
-                isExpanded: true,
+                value: _selectedCategorie, isExpanded: true,
                 hint: const Text('Choisir une catégorie', style: TextStyle(color: Colors.grey)),
                 icon: const Icon(Icons.arrow_drop_down_rounded, color: Colors.grey),
                 style: const TextStyle(fontSize: 15, color: textDark, fontWeight: FontWeight.w500),
@@ -583,24 +466,13 @@ class _RapportsScreenState extends State<RapportsScreen>
                   const DropdownMenuItem(value: 'Toutes', child: Text('🏷️  Toutes les catégories')),
                   ..._categories.map((c) => DropdownMenuItem(value: c, child: Text('${_getCatEmoji(c)}  $c'))),
                 ],
-                onChanged: (v) {
-                  if (v != null) {
-                    setState(() => _selectedCategorie = v);
-                    _applyFilters();
-                  }
-                },
+                onChanged: (v) { if (v != null) { setState(() => _selectedCategorie = v); _applyFilters(); } },
               ),
             ),
           ),
           if (_filteredTransactions.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: Text(
-                '${_filteredTransactions.length} transaction${_filteredTransactions.length > 1 ? 's' : ''}',
-                style: TextStyle(color: Colors.grey[500], fontSize: 13),
-              ),
-            ),
+            Align(alignment: Alignment.centerRight, child: Text('${_filteredTransactions.length} transaction${_filteredTransactions.length > 1 ? 's' : ''}', style: TextStyle(color: Colors.grey[500], fontSize: 13))),
           ],
         ],
       ),
@@ -611,32 +483,16 @@ class _RapportsScreenState extends State<RapportsScreen>
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 14),
         decoration: BoxDecoration(
-          color: active ? emeraldDark : Colors.grey[100],
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(
-            color: active ? emeraldDark : Colors.grey[300]!,
-            width: active ? 1.5 : 1,
-          ),
+          color: active ? emeraldDark : Colors.grey[100], borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: active ? emeraldDark : Colors.grey[300]!, width: active ? 1.5 : 1),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (icon != null) ...[
-              Icon(icon, size: 16, color: active ? Colors.white : Colors.grey[700]),
-              const SizedBox(width: 6),
-            ],
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 14,
-                color: active ? Colors.white : Colors.grey[700],
-                fontWeight: active ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
+            if (icon != null) ...[Icon(icon, size: 16, color: active ? Colors.white : Colors.grey[700]), const SizedBox(width: 6)],
+            Text(label, style: TextStyle(fontSize: 14, color: active ? Colors.white : Colors.grey[700], fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
           ],
         ),
       ),
@@ -653,35 +509,16 @@ class _RapportsScreenState extends State<RapportsScreen>
       return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: GestureDetector(
-          onTap: () {
-            setState(() => _selectedType = label);
-            _applyFilters();
-          },
+          onTap: () { setState(() => _selectedType = label); _applyFilters(); },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            height: 44,
-            padding: const EdgeInsets.symmetric(horizontal: 14),
+            duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 14),
             decoration: BoxDecoration(
-              color: selected ? activeColor : Colors.grey[100],
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(
-                color: selected ? activeColor : Colors.grey[300]!,
-                width: selected ? 1.5 : 1,
-              ),
+              color: selected ? activeColor : Colors.grey[100], borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: selected ? activeColor : Colors.grey[300]!, width: selected ? 1.5 : 1),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: selected ? Colors.white : Colors.grey[700],
-                    fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-              ],
-            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(label, style: TextStyle(fontSize: 14, color: selected ? Colors.white : Colors.grey[700], fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+            ]),
           ),
         ),
       );
@@ -692,33 +529,17 @@ class _RapportsScreenState extends State<RapportsScreen>
     final isPositif = solde >= 0;
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
       child: Row(
         children: [
-          _buildSummaryCell(
-            icon: Icons.arrow_upward_rounded,
-            value: _fmt(recettes),
-            label: 'Reçu',
-            iconColor: emeraldDark,
-            bgColor: emeraldDark.withOpacity(0.1),
-          ),
+          _buildSummaryCell(icon: Icons.arrow_upward_rounded, value: _fmt(recettes), label: 'Reçu', iconColor: emeraldDark, bgColor: emeraldDark.withOpacity(0.1)),
           _buildCellDivider(),
-          _buildSummaryCell(
-            icon: Icons.arrow_downward_rounded,
-            value: _fmt(depenses),
-            label: 'Dépensé',
-            iconColor: brickRed,
-            bgColor: brickRed.withOpacity(0.1),
-          ),
+          _buildSummaryCell(icon: Icons.arrow_downward_rounded, value: _fmt(depenses), label: 'Dépensé', iconColor: brickRed, bgColor: brickRed.withOpacity(0.1)),
           _buildCellDivider(),
           _buildSummaryCell(
             icon: isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded,
             value: _fmt(solde),
-            label: 'Résultat',
+            label: 'Solde total',
             iconColor: isPositif ? emeraldDark : brickRed,
             bgColor: isPositif ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
           ),
@@ -733,19 +554,9 @@ class _RapportsScreenState extends State<RapportsScreen>
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Column(
           children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle),
-              child: Icon(icon, color: iconColor, size: 20),
-            ),
+            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle), child: Icon(icon, color: iconColor, size: 20)),
             const SizedBox(height: 8),
-            Text(
-              '$value F',
-              style: TextStyle(fontWeight: FontWeight.bold, color: iconColor, fontSize: 14),
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            Text('$value F', style: TextStyle(fontWeight: FontWeight.bold, color: iconColor, fontSize: 14), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
             Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
           ],
@@ -758,71 +569,26 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   Widget _buildActionBar() {
     return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
+      color: Colors.white, padding: const EdgeInsets.fromLTRB(16, 6, 16, 12),
       child: Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: ElevatedButton(
-              onPressed: _filteredTransactions.isEmpty ? null : _exportPDF,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: terracotta,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.picture_as_pdf_rounded, size: 18),
-                  SizedBox(width: 6),
-                  Text('Exporter PDF', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                ],
-              ),
-            ),
-          ),
+          Expanded(flex: 2, child: ElevatedButton(
+            onPressed: _filteredTransactions.isEmpty ? null : _exportPDF,
+            style: ElevatedButton.styleFrom(backgroundColor: terracotta, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.picture_as_pdf_rounded, size: 18), SizedBox(width: 6), Text('Exporter PDF', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))]),
+          )),
           const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _showSortDialog,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: emeraldDark,
-                side: const BorderSide(color: emeraldDark, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.sort_rounded, size: 18),
-                  SizedBox(width: 4),
-                  Text('Trier', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: OutlinedButton(
+            onPressed: _showSortDialog,
+            style: OutlinedButton.styleFrom(foregroundColor: emeraldDark, side: const BorderSide(color: emeraldDark, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sort_rounded, size: 18), SizedBox(width: 4), Text('Trier', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
+          )),
           const SizedBox(width: 8),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _hasActiveFilters ? _resetFilters : null,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: _hasActiveFilters ? textDark : Colors.grey[500],
-                side: BorderSide(color: _hasActiveFilters ? textDark : Colors.grey[300]!, width: 1.5),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.refresh_rounded, size: 18),
-                  SizedBox(width: 4),
-                  Text('Reset', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
-          ),
+          Expanded(child: OutlinedButton(
+            onPressed: _hasActiveFilters ? _resetFilters : null,
+            style: OutlinedButton.styleFrom(foregroundColor: _hasActiveFilters ? textDark : Colors.grey[500], side: BorderSide(color: _hasActiveFilters ? textDark : Colors.grey[300]!, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.refresh_rounded, size: 18), SizedBox(width: 4), Text('Reset', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
+          )),
         ],
       ),
     );
@@ -830,40 +596,21 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   Widget _buildTransactionList() {
     return RefreshIndicator(
-      onRefresh: _loadData,
-      color: emeraldDark,
+      onRefresh: () => _loadData(force: true), color: emeraldDark,
       child: _filteredTransactions.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.6,
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.search_off_rounded, size: 56, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
-                        const SizedBox(height: 8),
-                        Text('Tirez vers le bas pour actualiser\nou changez les filtres.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
-                        const SizedBox(height: 24),
-                        ElevatedButton(
-                          onPressed: _resetFilters,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: emeraldDark,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            )
+          ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.6, child: Center(
+                child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  const Icon(Icons.search_off_rounded, size: 56, color: Colors.grey),
+                  const SizedBox(height: 16),
+                  const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                  const SizedBox(height: 8),
+                  Text('Tirez vers le bas pour actualiser\nou changez les filtres.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
+                  const SizedBox(height: 24),
+                  ElevatedButton(onPressed: _resetFilters, style: ElevatedButton.styleFrom(backgroundColor: emeraldDark, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                ]),
+              )),
+            ])
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
               itemCount: _filteredTransactions.length,
@@ -872,61 +619,33 @@ class _RapportsScreenState extends State<RapportsScreen>
                 final catEmoji = _getCatEmoji(t.categorie);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))],
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     child: Row(
                       children: [
                         Container(
-                          width: 50,
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: t.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Icon(
-                              t.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
-                              color: t.estRecette ? emeraldDark : brickRed,
-                              size: 24,
-                            ),
-                          ),
+                          width: 50, height: 50,
+                          decoration: BoxDecoration(color: t.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1), shape: BoxShape.circle),
+                          child: Center(child: Icon(t.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: t.estRecette ? emeraldDark : brickRed, size: 24)),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(
-                                t.description ?? t.categorie,
-                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              Text(t.description ?? t.categorie, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 4),
-                              Row(
-                                children: [
-                                  Text(DateFormat('dd/MM/yyyy').format(t.date), style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                                  const SizedBox(width: 8),
-                                  Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                                ],
-                              ),
+                              Row(children: [
+                                Text(DateFormat('dd/MM/yyyy').format(t.date), style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                                const SizedBox(width: 8),
+                                Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                              ]),
                             ],
                           ),
                         ),
                         const SizedBox(width: 10),
-                        Text(
-                          '${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                            color: t.estRecette ? emeraldDark : brickRed,
-                          ),
-                        ),
+                        Text('${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: t.estRecette ? emeraldDark : brickRed)),
                       ],
                     ),
                   ),
@@ -938,30 +657,13 @@ class _RapportsScreenState extends State<RapportsScreen>
 
   Widget _buildChartView(double totalRecettes, double totalDepenses) {
     return RefreshIndicator(
-      onRefresh: _loadData,
-      color: emeraldDark,
+      onRefresh: () => _loadData(force: true), color: emeraldDark,
       child: _filteredTransactions.isEmpty
-          ? ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              children: [
-                SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.6,
-                  child: const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            )
+          ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
+              SizedBox(height: MediaQuery.of(context).size.height * 0.6, child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey), SizedBox(height: 16), Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey))])))
+            ])
           : SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+              physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
               child: Column(
                 children: [
                   Row(
@@ -979,11 +681,8 @@ class _RapportsScreenState extends State<RapportsScreen>
                       final Map<String, double> dailyData = {};
                       for (var t in _filteredTransactions) {
                         final key = DateFormat('dd/MM').format(t.date);
-                        if (t.estRecette) {
-                          dailyData[key] = (dailyData[key] ?? 0) + t.montant;
-                        } else {
-                          dailyData[key] = (dailyData[key] ?? 0) - t.montant;
-                        }
+                        if (t.estRecette) dailyData[key] = (dailyData[key] ?? 0) + t.montant;
+                        else dailyData[key] = (dailyData[key] ?? 0) - t.montant;
                       }
                       final sortedKeys = dailyData.keys.toList()..sort();
                       final spots = List.generate(sortedKeys.length, (i) => FlSpot(i.toDouble(), dailyData[sortedKeys[i]]!));
@@ -997,31 +696,18 @@ class _RapportsScreenState extends State<RapportsScreen>
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Row(
-                                    children: [
-                                      Icon(Icons.trending_up_rounded, size: 22, color: textDark),
-                                      SizedBox(width: 10),
-                                      Text('Évolution du résultat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
-                                    ],
-                                  ),
+                                  const Row(children: [Icon(Icons.trending_up_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Évolution du résultat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark))]),
                                   const SizedBox(height: 20),
                                   SizedBox(
                                     height: 200,
                                     child: LineChart(
                                       LineChartData(
-                                        minY: minY * 1.2,
-                                        maxY: maxY > 0 ? maxY * 1.2 : 100,
+                                        minY: minY * 1.2, maxY: maxY > 0 ? maxY * 1.2 : 100,
                                         lineBarsData: [
                                           LineChartBarData(
-                                            spots: spots,
-                                            isCurved: true,
-                                            color: emeraldDark,
-                                            barWidth: 3,
+                                            spots: spots, isCurved: true, color: emeraldDark, barWidth: 3,
                                             belowBarData: BarAreaData(show: true, color: emeraldDark.withOpacity(0.1)),
-                                            dotData: FlDotData(
-                                              show: spots.length <= 10,
-                                              getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: emeraldDark),
-                                            ),
+                                            dotData: FlDotData(show: spots.length <= 10, getDotPainter: (spot, _, __, ___) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 2, strokeColor: emeraldDark)),
                                           ),
                                         ],
                                         titlesData: FlTitlesData(
@@ -1030,15 +716,11 @@ class _RapportsScreenState extends State<RapportsScreen>
                                           topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                                           bottomTitles: AxisTitles(
                                             sideTitles: SideTitles(
-                                              showTitles: true,
-                                              interval: (spots.length / 5).ceilToDouble(),
+                                              showTitles: true, interval: (spots.length / 5).ceilToDouble(),
                                               getTitlesWidget: (value, meta) {
                                                 final i = value.toInt();
                                                 if (i < 0 || i >= sortedKeys.length) return const SizedBox.shrink();
-                                                return Padding(
-                                                  padding: const EdgeInsets.only(top: 6),
-                                                  child: Text(sortedKeys[i], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-                                                );
+                                                return Padding(padding: const EdgeInsets.only(top: 6), child: Text(sortedKeys[i], style: const TextStyle(fontSize: 10, color: Colors.grey)));
                                               },
                                             ),
                                           ),
@@ -1071,31 +753,13 @@ class _RapportsScreenState extends State<RapportsScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark),
-                              SizedBox(width: 10),
-                              Text('Répartition de la sélection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark)),
-                            ],
-                          ),
+                          const Row(children: [Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Répartition de la sélection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark))]),
                           const SizedBox(height: 20),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(
-                                children: [
-                                  const Icon(Icons.trending_up_rounded, color: emeraldDark, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text('${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 14)),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  const Icon(Icons.trending_down_rounded, color: brickRed, size: 18),
-                                  const SizedBox(width: 6),
-                                  Text('${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 14)),
-                                ],
-                              ),
+                              Row(children: [const Icon(Icons.trending_up_rounded, color: emeraldDark, size: 18), const SizedBox(width: 6), Text('${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 14))]),
+                              Row(children: [const Icon(Icons.trending_down_rounded, color: brickRed, size: 18), const SizedBox(width: 6), Text('${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 14))]),
                             ],
                           ),
                           const SizedBox(height: 10),

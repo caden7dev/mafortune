@@ -106,4 +106,6 @@ flutter:
   assets:
     - assets/image/commercant1.jpeg
     - assets/image/googleLogo.jpeg
+    - assets/icon/logoapp.jpg
+    - assets/image/welcome_bg.jpeg
     

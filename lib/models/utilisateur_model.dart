@@ -29,11 +29,15 @@ class UtilisateurModel {
   final DateTime? dateExpiration;
 
   // 🔐 Champs de sécurité et récupération
-  final String? emailSecours;  // Email de secours pour la récupération
-  final bool? googleLie;       // Si le compte Google est lié
-  final String? googleEmail;   // Email Google lié
-  final String? googleDisplayName; // Nom affiché Google
-  final String? googlePhotoUrl;    // Photo Google
+  final String? emailSecours;
+  final bool? googleLie;
+  final String? googleEmail;
+  final String? googleDisplayName;
+  final String? googlePhotoUrl;
+
+  // ✅ NOUVEAUX CHAMPS : Suppression douce
+  final bool suppressionDemandee;
+  final DateTime? dateSuppressionDemandee;
 
   UtilisateurModel({
     required this.id,
@@ -54,33 +58,31 @@ class UtilisateurModel {
     this.organisation,
     this.secteurActivite,
     this.dateExpiration,
-    // Nouveaux champs de sécurité
     this.emailSecours,
     this.googleLie = false,
     this.googleEmail,
     this.googleDisplayName,
     this.googlePhotoUrl,
+    // ✅ Initialisation des nouveaux champs
+    this.suppressionDemandee = false,
+    this.dateSuppressionDemandee,
   });
 
-  // Convertir depuis Firestore avec gestion d'erreurs renforcée
   factory UtilisateurModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    // Helper conversion Timestamp -> DateTime sécurisée
     DateTime? parseDateTime(dynamic value) {
       if (value is Timestamp) return value.toDate();
       if (value is DateTime) return value;
       return null;
     }
 
-    // Helper conversion double sécurisée (num, String, int)
     double parseDouble(dynamic value) {
       if (value == null) return 0.0;
       if (value is num) return value.toDouble();
       return double.tryParse(value.toString()) ?? 0.0;
     }
 
-    // Helper extraction Liste de String sécurisée
     List<String>? parseStringList(dynamic value) {
       if (value is List) {
         return value.map((item) => item.toString()).toList();
@@ -107,16 +109,17 @@ class UtilisateurModel {
       organisation: data['organisation'] as String?,
       secteurActivite: data['secteurActivite'] as String?,
       dateExpiration: parseDateTime(data['dateExpiration']),
-      // Nouveaux champs de sécurité
       emailSecours: data['emailSecours'] as String?,
       googleLie: data['googleLie'] as bool? ?? false,
       googleEmail: data['googleEmail'] as String?,
       googleDisplayName: data['googleDisplayName'] as String?,
       googlePhotoUrl: data['googlePhotoUrl'] as String?,
+      // ✅ Récupération des nouveaux champs
+      suppressionDemandee: data['suppressionDemandee'] as bool? ?? false,
+      dateSuppressionDemandee: parseDateTime(data['dateSuppressionDemandee']),
     );
   }
 
-  // Convertir vers Firestore
   Map<String, dynamic> toFirestore() {
     return {
       'nom': nom,
@@ -140,19 +143,22 @@ class UtilisateurModel {
       'dateExpiration': dateExpiration != null
           ? Timestamp.fromDate(dateExpiration!)
           : null,
-      // Nouveaux champs de sécurité
       'emailSecours': emailSecours,
       'googleLie': googleLie,
       'googleEmail': googleEmail,
       'googleDisplayName': googleDisplayName,
       'googlePhotoUrl': googlePhotoUrl,
+      // ✅ Ajout des nouveaux champs à l'export Firestore
+      'suppressionDemandee': suppressionDemandee,
+      'dateSuppressionDemandee': dateSuppressionDemandee != null
+          ? Timestamp.fromDate(dateSuppressionDemandee!)
+          : null,
     };
   }
 
   static TypeUtilisateur _typeUtilisateurFromString(String? type) {
     if (type == null) return TypeUtilisateur.commercant;
     final lowerType = type.toLowerCase();
-    
     return TypeUtilisateur.values.firstWhere(
       (e) => e.name.toLowerCase() == lowerType,
       orElse: () => TypeUtilisateur.commercant,
@@ -183,6 +189,9 @@ class UtilisateurModel {
     String? googleEmail,
     String? googleDisplayName,
     String? googlePhotoUrl,
+    // ✅ Paramètres copyWith pour les nouveaux champs
+    bool? suppressionDemandee,
+    DateTime? dateSuppressionDemandee,
   }) {
     return UtilisateurModel(
       id: id ?? this.id,
@@ -208,21 +217,28 @@ class UtilisateurModel {
       googleEmail: googleEmail ?? this.googleEmail,
       googleDisplayName: googleDisplayName ?? this.googleDisplayName,
       googlePhotoUrl: googlePhotoUrl ?? this.googlePhotoUrl,
+      // ✅ Assignation copyWith
+      suppressionDemandee: suppressionDemandee ?? this.suppressionDemandee,
+      dateSuppressionDemandee: dateSuppressionDemandee ?? this.dateSuppressionDemandee,
     );
   }
 
   // ─── GETTERS UTILES ──────────────────────────────────────────────────────
-
   String get nomComplet => '$prenom $nom';
-  
   bool get estCommercant => typeUtilisateur == TypeUtilisateur.commercant;
   bool get estAdministrateur => typeUtilisateur == TypeUtilisateur.administrateur;
   bool get estPartenaire => typeUtilisateur == TypeUtilisateur.partenaire;
-  
-  // Nouveaux getters pour la sécurité
   bool get aEmailSecours => emailSecours != null && emailSecours!.isNotEmpty;
   bool get aGoogleLie => googleLie == true;
-  
-  // Méthode pour vérifier si le compte est sécurisé
   bool get estSecurise => aEmailSecours || aGoogleLie;
+
+  // ✅ NOUVEAUX GETTERS POUR LA SUPPRESSION DOUCE
+  DateTime? get dateSuppressionDefinitive =>
+      dateSuppressionDemandee?.add(const Duration(days: 30));
+
+  int get joursRestantsAvantSuppression {
+    final date = dateSuppressionDefinitive;
+    if (date == null) return 0;
+    return date.difference(DateTime.now()).inDays.clamp(0, 30);
+  }
 }
