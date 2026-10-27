@@ -1,0 +1,37 @@
+# Flutter/Dart
+.dart_tool/
+.pub/
+.pub-cache/
+.packages
+build/
+flutter_*.png
+ios/Flutter/flutter_export_environment.sh
+ios/Flutter/Generated.xcconfig
+android/local.properties
+android/app/.cxx/
+android/app/build/
+android/.gradle/
+android/.idea/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Firebase
+google-services.json
+GoogleService-Info.plist
+firebase_options.dart
+
+# Keys
+*.pem
+*.key
+*.crt
+*.p12
+
+# Logs
+*.log

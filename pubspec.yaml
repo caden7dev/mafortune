@@ -1,0 +1,127 @@
+name: mafortune
+description: "Application de gestion financière pour les commerçants du secteur informel au Togo"
+
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # ✅ Google Sign-In - Version stable
+  google_sign_in: ^6.1.5
+
+  url_launcher: ^6.3.0
+
+  image_picker: ^1.0.7
+  
+  flutter_native_splash: ^2.3.10
+  
+  # Notifications
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.9.4
+
+  # UI
+  cupertino_icons: ^1.0.8
+  flutter_tts: ^4.0.2
+
+  # URLs & Storage
+  shared_preferences: ^2.2.0
+  flutter_secure_storage: ^9.0.0
+
+  # Charts & PDF
+  fl_chart: ^0.68.0
+  intl: ^0.19.0
+  pdf: ^3.10.7
+  printing: ^5.11.1
+
+  # Biometrics & Images
+  local_auth: ^2.1.6
+  
+
+  # Network & Offline
+  connectivity_plus: ^6.0.0
+  sqflite: ^2.3.0
+  path_provider: ^2.1.0
+  workmanager: ^0.9.0+3
+  path: ^1.9.0
+
+  # Firebase
+  firebase_core: ^3.8.1
+  firebase_auth: ^5.3.4
+  cloud_firestore: ^5.5.2
+  firebase_storage: ^12.3.8
+  firebase_crashlytics: ^4.1.3
+  firebase_analytics: ^11.3.3
+
+  # State Management
+  provider: ^6.1.2
+  crypto: ^3.0.7
+
+  google_generative_ai: ^0.4.3
+
+  # ==========================================
+  # ✅ AJOUTS POUR LA SAISIE RAPIDE
+  # ==========================================
+  
+  # QR Code pour les produits
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^5.2.3
+  
+  # UI supplémentaires
+  google_fonts: ^6.1.0
+  flutter_svg: ^2.0.9
+  shimmer: ^3.0.0
+  lottie: ^2.7.0
+
+  # Partage et export
+  share_plus: ^7.2.1
+  file_picker: ^8.1.2
+  
+  # Navigation
+  go_router: ^13.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
+
+# ==========================================
+# 📱 ICÔNE DU TÉLÉPHONE ET DESIGN DE L'APPLICATION (ANCIEN)
+# ==========================================
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/icon/logoapp.jpg"              # On garde l'ancien pour l'icône de l'app
+  adaptive_icon_background: "#2E7D32"
+  adaptive_icon_foreground: "assets/icon/logoapp.jpg"
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/image/commercant1.jpeg
+    - assets/image/googlelogo.png
+    - assets/icon/logoapp.jpg                        # L'ancien utilisé par votre code sur l'accueil
+    - assets/icon/splash_rond.png                        # Le nouveau pour l'écran de démarrage natif
+    - assets/image/welcome_bg.jpeg
+
+# ==========================================
+# 🚀 ÉCRAN DE DÉMARRAGE NATIF (NOUVEAU ROND TRANSPARENT)
+# ==========================================
+flutter_native_splash:
+  color: "#2E7D32"                  # Fond vert de l'application
+  image: "assets/icon/splash_rond.png"  # Image pour les versions d'Android inférieures à 12 et iOS
+  fullscreen: true
+
+  android_12:
+    color: "#2E7D32"
+    image: "assets/icon/splash_rond.png"
+    # ✅ FORCE ANDROID 12+ À UTILISER UN DESIGN CIRCULAIRE ADAPTATIF COMPLET
+    icon_background_color: "#2E7D32"
+    android_12_adaptive_icon_replacement: "assets/icon/splash_rond.png"
