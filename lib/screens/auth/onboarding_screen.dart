@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../widgets/screenshot_wrapper.dart';
-import 'terms_screen.dart'; // ✅ Import de l'écran des conditions
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE
 const Color emeraldGreen = Color(0xFF0B4F36);
@@ -58,26 +57,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  // ✅ MODIFICATION : Vérification des conditions avant de continuer
+  // ✅ MODIFICATION : On va directement à l'écran de bienvenue/connexion
+  // L'acceptation des conditions se fait maintenant via la case à cocher dans l'inscription.
   Future<void> _terminer() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarding_done', true);
     
     if (!mounted) return;
 
-    // On vérifie si l'utilisateur a déjà accepté les conditions
-    final termsAccepted = prefs.getBool('terms_accepted') ?? false;
-
-    if (!termsAccepted) {
-      // Si NON, on l'envoie sur l'écran des conditions
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const TermsScreen()),
-      );
-    } else {
-      // Si OUI, on l'envoie directement à l'écran de bienvenue/connexion
-      Navigator.pushReplacementNamed(context, '/welcome');
-    }
+    // Redirection directe vers l'écran de bienvenue (qui mène à l'inscription/connexion)
+    Navigator.pushReplacementNamed(context, '/welcome');
   }
 
   void _pageSuivante() {
@@ -93,96 +82,98 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Align(
-              alignment: Alignment.topRight,
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: TextButton(
-                  onPressed: _terminer,
-                  child: Text(
-                    'Passer',
-                    style: TextStyle(
-                      color: textMedium,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
+    return ScreenshotWrapper(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Column(
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: TextButton(
+                    onPressed: _terminer,
+                    child: Text(
+                      'Passer',
+                      style: TextStyle(
+                        color: textMedium,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            Expanded(
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (index) => setState(() => _currentPage = index),
-                itemCount: _pages.length,
-                itemBuilder: (context, index) {
-                  final page = _pages[index];
-                  return _buildPage(page);
-                },
+              Expanded(
+                child: PageView.builder(
+                  controller: _pageController,
+                  onPageChanged: (index) => setState(() => _currentPage = index),
+                  itemCount: _pages.length,
+                  itemBuilder: (context, index) {
+                    final page = _pages[index];
+                    return _buildPage(page);
+                  },
+                ),
               ),
-            ),
 
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(
-                  _pages.length,
-                  (index) => AnimatedContainer(
-                    duration: const Duration(milliseconds: 250),
-                    margin: const EdgeInsets.symmetric(horizontal: 4),
-                    width: _currentPage == index ? 24 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _currentPage == index
-                          ? _pages[_currentPage]['couleur'] as Color
-                          : Colors.grey.shade300,
-                      borderRadius: BorderRadius.circular(4),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: List.generate(
+                    _pages.length,
+                    (index) => AnimatedContainer(
+                      duration: const Duration(milliseconds: 250),
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      width: _currentPage == index ? 24 : 8,
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: _currentPage == index
+                            ? _pages[_currentPage]['couleur'] as Color
+                            : Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-            Padding(
-              padding: EdgeInsets.fromLTRB(
-                24,
-                8,
-                24,
-                MediaQuery.of(context).padding.bottom + 24,
-              ),
-              child: SizedBox(
-                width: double.infinity,
-                height: 64,
-                child: ElevatedButton(
-                  onPressed: _pageSuivante,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _pages[_currentPage]['couleur'] as Color,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                  24,
+                  8,
+                  24,
+                  MediaQuery.of(context).padding.bottom + 24,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: 64,
+                  child: ElevatedButton(
+                    onPressed: _pageSuivante,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _pages[_currentPage]['couleur'] as Color,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
-                  ),
-                  child: Text(
-                    _currentPage < _pages.length - 1
-                        ? 'Suivant →'
-                        : '✅ Commencer',
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    child: Text(
+                      _currentPage < _pages.length - 1
+                          ? 'Suivant →'
+                          : '✅ Commencer',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -16,8 +16,11 @@ class CguScreen extends StatelessWidget {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: textDark),
           onPressed: () => Navigator.pop(context),
-),
-        title: const Text('Conditions d\'Utilisation', style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 18)),
+        ),
+        title: const Text(
+          'Conditions d\'Utilisation', 
+          style: TextStyle(color: textDark, fontWeight: FontWeight.bold, fontSize: 18)
+        ),
         centerTitle: true,
       ),
       body: SingleChildScrollView(

@@ -25,7 +25,7 @@ import 'changer_code_pin_screen.dart';
 import 'lier_email_screen.dart';
 import 'admin_suppressions_screen.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+//  CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
 const Color terracotta = Color(0xFFD96B43);
 const Color brickRed = Color(0xFFB91C1C);
@@ -422,10 +422,18 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
 
-    confirmController.dispose();
+    // ✅ CORRECTION : Fermer le clavier et disposer le controller après délai
+    FocusManager.instance.primaryFocus?.unfocus();
+    // On libère le controller après la fermeture animée du dialogue
+    Future.delayed(const Duration(milliseconds: 400), confirmController.dispose);
     if (doubleConfirm != true) return;
 
     if (!mounted) return;
+    
+    // On garde navigator et messenger avant les await
+    final navigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -433,34 +441,37 @@ class _ProfilScreenState extends State<ProfilScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: const Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
-          child: Row(children: [CircularProgressIndicator(color: emeraldDark), SizedBox(width: 20), Text('Traitement de la demande...', style: TextStyle(fontSize: 16, color: textDark))]),
+          child: Row(children: [
+            CircularProgressIndicator(color: emeraldDark),
+            SizedBox(width: 20),
+            Text('Traitement de la demande...', style: TextStyle(fontSize: 16, color: textDark)),
+          ]),
         ),
       ),
     );
 
-   try {
+    try {
       await _deleteService.demanderSuppressionCompte();
 
-      if (mounted) {
-        Navigator.of(context).pop(); 
-        Navigator.of(context).pushReplacementNamed('/welcome');
-        await _authService.signOut();
+      // 1. Ferme le chargement, 2. quitte tout l'arbre connecté
+      navigator.pop();
+      navigator.pushNamedAndRemoveUntil('/welcome', (route) => false);
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ Demande de suppression enregistrée. Vous avez 30 jours pour l\'annuler.'),
-            backgroundColor: emeraldDark,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
+      messenger.showSnackBar(const SnackBar(
+        content: Text('✅ Demande de suppression enregistrée. Vous avez 30 jours pour l\'annuler.'),
+        backgroundColor: emeraldDark,
+        duration: Duration(seconds: 3),
+      ));
+
+      // 3. Déconnexion seulement quand l'écran profil n'existe plus
+      await Future.delayed(const Duration(milliseconds: 500));
+      await _authService.signOut();
     } catch (e) {
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur : ${e.toString()}', style: const TextStyle(fontSize: 16)), backgroundColor: brickRed),
-        );
-      }
+      navigator.pop();
+      messenger.showSnackBar(SnackBar(
+        content: Text('Erreur : $e', style: const TextStyle(fontSize: 16)),
+        backgroundColor: brickRed,
+      ));
     }
   }
 
@@ -663,7 +674,6 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                 const SizedBox(height: 24),
 
-                // ✅ SECTION MISE À JOUR : Un seul bouton QR Code qui regroupe les deux actions
                 _buildSection('Mon compte', [
                   _buildMenuItem(icon: Icons.edit_outlined, title: 'Modifier mon profil', onTap: _modifierProfil),
                   _buildMenuItem(icon: Icons.inventory_2_outlined, title: 'Mes produits & services', onTap: _mesProduits),
@@ -673,7 +683,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   _buildMenuItem(
                     icon: Icons.qr_code_rounded, 
                     title: 'Mon QR Code', 
-                    subtitle: 'Afficher ou scanner un code', // ✅ Sous-titre mis à jour
+                    subtitle: 'Afficher ou scanner un code',
                     onTap: () {
                       if (_currentUser != null) {
                         Navigator.push(context, MaterialPageRoute(builder: (_) => MonQrCodeScreen(user: _currentUser!)));

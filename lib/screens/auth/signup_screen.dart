@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/utilisateur_model.dart';
 import '../../widgets/screenshot_wrapper.dart';
+import 'login_screen.dart';
+import 'cgu_screen.dart'; // ✅ AJOUTÉ : Import de l'écran CGU interne
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -23,13 +27,15 @@ class _SignupScreenState extends State<SignupScreen> {
   final _prenomKey = GlobalKey();
   final _telephoneKey = GlobalKey();
   final _activiteKey = GlobalKey();
+  final _termsKey = GlobalKey();
 
   String? _selectedActivity;
+  bool _acceptTerms = false;
 
-  // Messages d'erreur ciblés par champ
   String? _prenomError;
   String? _telephoneError;
   String? _activiteError;
+  String? _termsError;
   String? _globalError;
 
   int _etape = 1;
@@ -43,7 +49,6 @@ class _SignupScreenState extends State<SignupScreen> {
     {'emoji': '📦', 'label': 'Commerce divers'},
   ];
 
-  // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
   static const Color emeraldGreen = Color(0xFF0B4F36);
   static const Color terracotta = Color(0xFFD96B43);
   static const Color textDark = Color(0xFF333333);
@@ -76,8 +81,41 @@ class _SignupScreenState extends State<SignupScreen> {
       _prenomError = null;
       _telephoneError = null;
       _activiteError = null;
+      _termsError = null;
       _globalError = null;
     });
+  }
+
+  // ✅ NOUVELLE MÉTHODE : Gérer l'ouverture des liens (CGU en local, Politique en WebView)
+  void _handleLinkTap(String type) {
+    if (type == 'terms') {
+      // Ouvre l'écran CGU directement dans l'application
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CguScreen()),
+      );
+    } else if (type == 'privacy') {
+      // Ouvre la politique de confidentialité Notion SANS quitter l'app
+      _openPrivacyPolicy();
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    // Ton lien Notion fourni
+    final String url = 'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70?source=copy_link';
+    final Uri uri = Uri.parse(url);
+    
+    if (!await launchUrl(
+      uri,
+      mode: LaunchMode.inAppWebView, // ✅ Ouvre dans l'app (pas de sortie vers Chrome/Safari)
+      webViewConfiguration: const WebViewConfiguration(enableJavaScript: true),
+    )) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Impossible d\'ouvrir le lien.')),
+        );
+      }
+    }
   }
 
   String _genererEmail(String telephone) {
@@ -90,7 +128,6 @@ class _SignupScreenState extends State<SignupScreen> {
     return 'MF_${tel}_Fortune2024!';
   }
 
-  // ✅ Vérification de l'activité + Demande de téléphone si nouveau compte Google
   Future<void> _inscrireAvecGoogle() async {
     if (_selectedActivity == null) {
       setState(() {
@@ -102,6 +139,15 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
+    if (!_acceptTerms) {
+      setState(() {
+        _termsError = 'Vous devez accepter les conditions pour continuer';
+      });
+      HapticFeedback.heavyImpact();
+      _scrollToKey(_termsKey);
+      return;
+    }
+
     _reinitialiserErreurs();
     final authProvider = context.read<AuthProvider>();
 
@@ -110,7 +156,6 @@ class _SignupScreenState extends State<SignupScreen> {
     if (success && mounted) {
       final user = await authProvider.getCurrentUser();
 
-      // ✅ Si l'utilisateur vient de s'inscrire et n'a pas de numéro valide, on le lui demande
       if (user != null && (user.telephone == null || user.telephone!.isEmpty || user.telephone == '00000000')) {
         _showPhoneCompletionDialog(user, authProvider);
       } else {
@@ -123,7 +168,6 @@ class _SignupScreenState extends State<SignupScreen> {
     }
   }
 
-  // ✅ Fenêtre de complétion du numéro
   void _showPhoneCompletionDialog(UtilisateurModel user, AuthProvider authProvider) {
     final phoneController = TextEditingController();
     String? phoneError;
@@ -147,7 +191,6 @@ class _SignupScreenState extends State<SignupScreen> {
                 style: TextStyle(fontSize: 14, color: textMedium),
               ),
               const SizedBox(height: 20),
-
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -280,6 +323,15 @@ class _SignupScreenState extends State<SignupScreen> {
 
   Future<void> _creerCompte() async {
     _reinitialiserErreurs();
+
+    if (!_acceptTerms) {
+      setState(() {
+        _termsError = 'Veuillez accepter les conditions générales';
+      });
+      HapticFeedback.heavyImpact();
+      _scrollToKey(_termsKey);
+      return;
+    }
 
     final prenom = _prenomController.text.trim();
     final telephoneBrut = _telephoneController.text.trim();
@@ -586,6 +638,82 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       const SizedBox(height: 36),
 
+                      // ✅ CASE À COCHER DES CONDITIONS AVEC LA NOUVELLE LOGIQUE
+                      Container(
+                        key: _termsKey,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: _termsError != null ? errorRed : Colors.grey.shade300,
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Checkbox(
+                              value: _acceptTerms,
+                              onChanged: (value) {
+                                setState(() {
+                                  _acceptTerms = value ?? false;
+                                  if (_termsError != null) _termsError = null;
+                                });
+                              },
+                              activeColor: emeraldGreen,
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  setState(() {
+                                    _acceptTerms = !_acceptTerms;
+                                    if (_termsError != null) _termsError = null;
+                                  });
+                                },
+                                child: RichText(
+                                  text: TextSpan(
+                                    style: const TextStyle(fontSize: 13, color: textDark, height: 1.4),
+                                    children: [
+                                      const TextSpan(text: "J'accepte les "),
+                                      TextSpan(
+                                        text: 'Conditions générales',
+                                        style: const TextStyle(
+                                          color: emeraldGreen,
+                                          fontWeight: FontWeight.bold,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        recognizer: TapGestureRecognizer()..onTap = () => _handleLinkTap('terms'), // ✅ Ouvre l'écran interne
+                                      ),
+                                      const TextSpan(text: ' et la '),
+                                      TextSpan(
+                                        text: 'Politique de confidentialité',
+                                        style: const TextStyle(
+                                          color: emeraldGreen,
+                                          fontWeight: FontWeight.bold,
+                                          decoration: TextDecoration.underline,
+                                        ),
+                                        recognizer: TapGestureRecognizer()..onTap = () => _handleLinkTap('privacy'), // ✅ Ouvre le WebView Notion
+                                      ),
+                                      const TextSpan(text: '.'),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (_termsError != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6, left: 4),
+                          child: Text(
+                            _termsError!,
+                            style: const TextStyle(color: errorRed, fontSize: 12, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      const SizedBox(height: 24),
+
                       SizedBox(
                         width: double.infinity,
                         height: 60,
@@ -644,7 +772,6 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       const SizedBox(height: 24),
 
-                      // ✅ BOUTON GOOGLE OFFICIEL MIS À JOUR
                       SizedBox(
                         width: double.infinity,
                         height: 56,
@@ -682,9 +809,15 @@ class _SignupScreenState extends State<SignupScreen> {
 
                       const SizedBox(height: 20),
 
+                      // ✅ NAVIGATION INSTANTANÉE SANS BUG
                       Center(
                         child: TextButton(
-                          onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                          onPressed: () {
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(builder: (context) => const LoginScreen()),
+                            );
+                          },
                           child: const Text(
                             "J'ai déjà un compte",
                             style: TextStyle(
