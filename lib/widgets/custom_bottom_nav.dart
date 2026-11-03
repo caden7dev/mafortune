@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../screens/commercant/notifications_screen.dart';
+import '../core/utils/global_nav.dart'; // ✅ Chemin corrigé
 
 class CustomBottomNav extends StatelessWidget {
   final int currentIndex;
@@ -53,6 +54,7 @@ class CustomBottomNav extends StatelessWidget {
             currentIndex: currentIndex,
             onTap: (index) {
               if (index == 3) {
+                // L'onglet Notifications reste une page poussée (avec sa propre flèche retour)
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -60,7 +62,9 @@ class CustomBottomNav extends StatelessWidget {
                   ),
                 );
               } else {
-                onTap(index);
+                // ✅ CORRECTION : On met à jour l'index global ET on revient au Dashboard existant
+                globalNavIndex.value = index;
+                Navigator.popUntil(context, ModalRoute.withName('/dashboard'));
               }
             },
             type: BottomNavigationBarType.fixed,

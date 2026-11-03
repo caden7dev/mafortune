@@ -6,6 +6,7 @@ import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 import '../../widgets/custom_bottom_nav.dart';
+import '../../core/utils/global_nav.dart'; // ✅ Chemin corrigé
 import 'saisie_rapide_screen.dart';
 import 'modifier_transaction_screen.dart';
 import 'bilans_screen.dart';
@@ -42,15 +43,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
-  int _currentIndex = 0;
+  
+  // ✅ SUPPRIMÉ : int _currentIndex = 0; (géré maintenant par globalNavIndex)
 
   int _refreshTrigger = 0;
   bool _isInitialLoad = true;
   bool _showAdminMessage = true;
   bool _isBalanceVisible = true;
 
-  String _getTitle() {
-    switch (_currentIndex) {
+  // ✅ MODIFIÉ : Prend l'index en paramètre
+  String _getTitle(int index) {
+    switch (index) {
       case 0: return 'Accueil';
       case 1: return 'Bilans';
       case 2: return 'Rapports';
@@ -80,11 +83,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
-    // ✅ CORRIGÉ : on ne vide plus _recentTransactions/_weekData/_quickStats ici.
-    // Les vider avant d'avoir les nouvelles données faisait clignoter la liste
-    // (ancien contenu → vide → nouveau contenu) à chaque rafraîchissement.
-    // On se contente de signaler le chargement ; le contenu affiché reste
-    // l'ancien jusqu'à ce que les nouvelles données remplacent tout d'un coup.
     if (mounted) {
       setState(() {
         _isLoading = true;
@@ -95,17 +93,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _currentUser = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
       if (_currentUser == null) return;
 
-      // Redirige vers l'écran de récupération si suppression en attente
       if (_currentUser!.suppressionDemandee) {
         if (mounted) {
           Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (_) => CompteEnSuppressionScreen(user: _currentUser!)),
           );
         }
-        return; // On arrête le chargement du dashboard
+        return;
       }
 
-      // Recalcul automatique : garantit que le solde est cohérent avec les transactions
       if (forceRefresh) {
         await _transactionService.recalculerSolde(_currentUser!.id);
         _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
@@ -143,9 +139,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final allTransactions = results[1] as List<TransactionModel>;
     allTransactions.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
 
-    // ✅ Un seul setState qui REMPLACE directement l'ancienne liste par la
-    // nouvelle (déjà complète : anciennes + nouvelle transaction) — jamais
-    // de passage par une liste vide entre les deux.
     if (mounted) {
       setState(() {
         _quickStats = stats;
@@ -214,7 +207,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       });
     }
 
-    // ✅ Idem : remplace directement, pas de passage par une liste vide avant.
     if (mounted) setState(() => _weekData = weekData);
   }
 
@@ -242,7 +234,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-   Future<void> _ouvrirSaisie({required bool isVente}) async {
+  Future<void> _ouvrirSaisie({required bool isVente}) async {
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -251,17 +243,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
     
     if (result == true) {
-      // 1. Vider le cache du service
       if (_currentUser != null) {
         _transactionService.invalidateCache(_currentUser!.id);
       }
       
-      // 2. Incrémenter le trigger pour prévenir les écrans Rapports/Bilans
       setState(() {
         _refreshTrigger++; 
       });
       
-      // 3. Recharger les données du Dashboard
       await _loadData(forceRefresh: true);
     }
     _loadMessagesPreview();
@@ -435,128 +424,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      appBar: AppBar(
-        title: Text(_getTitle(), style: const TextStyle(fontWeight: FontWeight.w700)),
-        backgroundColor: emeraldDark,
-        foregroundColor: Colors.white,
-        elevation: 0,
-        actions: [
-          if (_currentIndex == 0)
-            StreamBuilder<QuerySnapshot>(
-              stream: _currentUser != null
-                  ? FirebaseFirestore.instance.collection('notifications')
-                      .where('commercantId', isEqualTo: _currentUser!.id)
-                      .where('lu', isEqualTo: false)
-                      .snapshots()
-                  : const Stream.empty(),
-              builder: (context, snapshot) {
-                int unreadCount = 0;
-                if (snapshot.hasData && snapshot.data != null) {
-                  unreadCount = snapshot.data!.docs.length;
-                }
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.notifications_outlined),
-                      onPressed: () {
-                        setState(() => _currentIndex = 3);
-                      },
-                      tooltip: 'Notifications',
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 8, top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
+    // ✅ EMBALLAGE GLOBAL : Écoute les changements d'onglet depuis n'importe où dans l'app
+    return ValueListenableBuilder<int>(
+      valueListenable: globalNavIndex,
+      builder: (context, currentIndex, child) {
+        return Scaffold(
+          backgroundColor: const Color(0xFFF8F9FA),
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: Text(_getTitle(currentIndex), style: const TextStyle(fontWeight: FontWeight.w700)),
+            backgroundColor: emeraldDark,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            actions: [
+              if (currentIndex == 0)
+                StreamBuilder<QuerySnapshot>(
+                  stream: _currentUser != null
+                      ? FirebaseFirestore.instance.collection('notifications')
+                          .where('commercantId', isEqualTo: _currentUser!.id)
+                          .where('lu', isEqualTo: false)
+                          .snapshots()
+                      : const Stream.empty(),
+                  builder: (context, snapshot) {
+                    int unreadCount = 0;
+                    if (snapshot.hasData && snapshot.data != null) {
+                      unreadCount = snapshot.data!.docs.length;
+                    }
+                    return Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.notifications_outlined),
+                          onPressed: () {
+                            globalNavIndex.value = 3; // ✅ Utilise le contrôleur global
+                          },
+                          tooltip: 'Notifications',
+                        ),
+                        if (unreadCount > 0)
+                          Positioned(
+                            right: 8, top: 8,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                              constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                              child: Text(
+                                unreadCount > 9 ? '9+' : '$unreadCount',
+                                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              StreamBuilder<QuerySnapshot>(
+                stream: _currentUser != null
+                    ? FirebaseFirestore.instance.collection('messages')
+                        .where('commercantId', isEqualTo: _currentUser!.id)
+                        .where('expediteur', isEqualTo: 'admin')
+                        .where('lu', isEqualTo: false)
+                        .snapshots()
+                    : const Stream.empty(),
+                builder: (context, snapshot) {
+                  int unreadCount = 0;
+                  if (snapshot.hasData && snapshot.data != null) {
+                    unreadCount = snapshot.data!.docs.length;
+                  }
+                  return Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.message_outlined),
+                        onPressed: () async {
+                          await Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()));
+                          if (mounted) _loadMessagesPreview();
+                        },
+                        tooltip: 'Messages',
+                      ),
+                      if (unreadCount > 0)
+                        Positioned(
+                          right: 8, top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                            child: Text(
+                              unreadCount > 9 ? '9+' : '$unreadCount',
+                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                );
-              },
-            ),
-            StreamBuilder<QuerySnapshot>(
-              stream: _currentUser != null
-                  ? FirebaseFirestore.instance.collection('messages')
-                      .where('commercantId', isEqualTo: _currentUser!.id)
-                      .where('expediteur', isEqualTo: 'admin')
-                      .where('lu', isEqualTo: false)
-                      .snapshots()
-                  : const Stream.empty(),
-              builder: (context, snapshot) {
-                int unreadCount = 0;
-                if (snapshot.hasData && snapshot.data != null) {
-                  unreadCount = snapshot.data!.docs.length;
-                }
-                return Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.message_outlined),
-                      onPressed: () async {
-                        await Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()));
-                        if (mounted) _loadMessagesPreview();
-                      },
-                      tooltip: 'Messages',
-                    ),
-                    if (unreadCount > 0)
-                      Positioned(
-                        right: 8, top: 8,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
-                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                          child: Text(
-                            unreadCount > 9 ? '9+' : '$unreadCount',
-                            style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      ),
-                  ],
-                );
-              },
-            ),
-        ],
-      ),
-      body: _buildCurrentTab(),
-      bottomNavigationBar: CustomBottomNav(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() => _currentIndex = index);
-        },
-      ),
-      floatingActionButton: _currentIndex == 0
-          ? FloatingActionButton.extended(
-              onPressed: () => _ouvrirSaisie(isVente: true),
-              backgroundColor: emeraldDark,
-              icon: const Icon(Icons.add, color: Colors.white, size: 26),
-              label: const Text('Saisie simple', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-              elevation: 4,
-            )
-          : null,
-    );
-  }
-
-  Widget _buildCurrentTab() {
-    return IndexedStack(
-      index: _currentIndex,
-      children: [
-        _buildDashboardContent(),
-        BilansScreen(refreshTrigger: _refreshTrigger),
-        RapportsScreen(refreshTrigger: _refreshTrigger),
-        const NotificationsScreen(),
-        ProfilScreen(preloadedUser: _currentUser),
-      ],
+                    ],
+                  );
+                },
+              ),
+            ],
+          ),
+          
+          // ✅ IndexedStack piloté par l'index global
+          body: IndexedStack(
+            index: currentIndex,
+            children: [
+              _buildDashboardContent(),
+              BilansScreen(refreshTrigger: _refreshTrigger),
+              RapportsScreen(refreshTrigger: _refreshTrigger),
+              const NotificationsScreen(),
+              ProfilScreen(preloadedUser: _currentUser),
+            ],
+          ),
+          
+          bottomNavigationBar: CustomBottomNav(
+            currentIndex: currentIndex,
+            onTap: (index) {
+              globalNavIndex.value = index;
+            },
+          ),
+          
+          floatingActionButton: currentIndex == 0
+              ? FloatingActionButton.extended(
+                  onPressed: () => _ouvrirSaisie(isVente: true),
+                  backgroundColor: emeraldDark,
+                  icon: const Icon(Icons.add, color: Colors.white, size: 26),
+                  label: const Text('Saisie simple', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+                  elevation: 4,
+                )
+              : null,
+        );
+      },
     );
   }
 
