@@ -52,6 +52,8 @@
 		<key>NSPhotoLibraryAddUsageDescription</key>
 		<string>MaFortune a besoin de l'accès à la photothèque pour enregistrer les images.</string>
 		<key>UIStatusBarHidden</key>
+		<true/>
+		<key>UIViewControllerBasedStatusBarAppearance</key>
 		<false/>
 	</dict>
 </plist>

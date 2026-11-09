@@ -110,18 +110,21 @@ flutter:
     - assets/icon/logoapp.jpg                        # L'ancien utilisé par votre code sur l'accueil
     - assets/icon/splash_rond.png                        # Le nouveau pour l'écran de démarrage natif
     - assets/image/welcome_bg.jpeg
+    - assets/icon/transparent.png
 
 # ==========================================
 # 🚀 ÉCRAN DE DÉMARRAGE NATIF (NOUVEAU ROND TRANSPARENT)
 # ==========================================
 flutter_native_splash:
-  color: "#2E7D32"                  # Fond vert de l'application
-  image: "assets/icon/splash_rond.png"  # Image pour les versions d'Android inférieures à 12 et iOS
+  color: "#FFFFFF"
+  color_dark: "#FFFFFF"
+  image: "assets/icon/splash_rond.png"
   fullscreen: true
 
   android_12:
-    color: "#2E7D32"
+    color: "#FFFFFF"
+    color_dark: "#FFFFFF"
     image: "assets/icon/splash_rond.png"
-    # ✅ FORCE ANDROID 12+ À UTILISER UN DESIGN CIRCULAIRE ADAPTATIF COMPLET
-    icon_background_color: "#2E7D32"
-    android_12_adaptive_icon_replacement: "assets/icon/splash_rond.png"
+    icon_background_color: "#FFFFFF"
+    icon_background_color_dark: "#FFFFFF"
+    

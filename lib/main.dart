@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
-import 'package:flutter_native_splash/flutter_native_splash.dart'; // ✅ IMPORTATION DU SCRIPT DE SPLASH
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 
 // Services
 import 'services/theme_service.dart';
@@ -54,7 +54,7 @@ import 'screens/commercant/messages_screen.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  // ✅ ÉTAPE UNIQUE : On capture l'initialisation des widgets et on fige le Splash Screen natif
+  // Fige le splash natif jusqu'a ce que SplashScreen appelle remove()
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
@@ -73,11 +73,9 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Services requis au démarrage
+  // Services requis au demarrage
   final networkService = NetworkService();
   await networkService.initialize();
-
-  await BilanNotificationService.initialize();
 
   final themeService = ThemeService();
   await themeService.loadTheme();
@@ -94,6 +92,9 @@ void main() async {
       child: const MyApp(),
     ),
   );
+
+  // Lance en arriere-plan, sans bloquer l'affichage du logo
+  BilanNotificationService.initialize();
 }
 
 class MyApp extends StatelessWidget {
@@ -110,16 +111,15 @@ class MyApp extends StatelessWidget {
           title: 'MaFortune',
           debugShowCheckedModeBanner: false,
           navigatorKey: navigatorKey,
-          
-          // ✅ Cohérence graphique avec le fond vert configuré dans le pubspec.yaml
+
           theme: themeService.lightTheme.copyWith(
-            scaffoldBackgroundColor: const Color(0xFF2E7D32),
+            scaffoldBackgroundColor: Colors.white,
           ),
           darkTheme: themeService.darkTheme.copyWith(
-            scaffoldBackgroundColor: const Color(0xFF2E7D32),
+            scaffoldBackgroundColor: Colors.white,
           ),
           themeMode: isDarkMode ? ThemeMode.dark : ThemeMode.light,
-          
+
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(context).copyWith(
               textScaler: MediaQuery.of(context).textScaler.clamp(
@@ -129,9 +129,9 @@ class MyApp extends StatelessWidget {
             ),
             child: ScreenshotWrapper(child: child!),
           ),
-          
-          home: const SplashScreen(), // Redirige instantanément vers ton contrôleur de routes
-          
+
+          home: const SplashScreen(),
+
           navigatorObservers: [
             FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
           ],

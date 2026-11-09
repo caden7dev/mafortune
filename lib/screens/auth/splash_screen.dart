@@ -13,6 +13,8 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  bool _showLogo = false;
+
   @override
   void initState() {
     super.initState();
@@ -22,16 +24,27 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _checkAppStatus() async {
+    final stopwatch = Stopwatch()..start();
+
+    // Charge le logo avant de l'afficher (evite un flash)
+    await precacheImage(const AssetImage('assets/icon/logoapp.jpg'), context);
+    if (!mounted) return;
+
+    setState(() => _showLogo = true);
+    FlutterNativeSplash.remove();
+
     final prefs = await SharedPreferences.getInstance();
     final hasDoneOnboarding = prefs.getBool('onboarding_done') ?? false;
     final user = FirebaseAuth.instance.currentUser;
-    final localAuth = LocalAuthService();
-    final hasPin = await localAuth.hasPin();
+    final hasPin = await LocalAuthService().hasPin();
+
+    // Duree totale d'affichage : 2,5 secondes
+    final remaining = const Duration(milliseconds: 2500) - stopwatch.elapsed;
+    if (remaining > Duration.zero) await Future.delayed(remaining);
 
     if (!mounted) return;
 
     void goTo(Widget page) {
-      FlutterNativeSplash.remove();
       Navigator.pushReplacement(
         context,
         PageRouteBuilder(
@@ -43,19 +56,13 @@ class _SplashScreenState extends State<SplashScreen> {
     }
 
     void goToNamed(String routeName) {
-      FlutterNativeSplash.remove();
       Navigator.pushReplacementNamed(context, routeName);
     }
 
-    // ✅ SUPPRESSION DE LA REDIRECTION VERS TERMSSCREEN
     if (!hasDoneOnboarding) {
       goTo(const OnboardingScreen());
     } else if (user != null) {
-      if (hasPin) {
-        goToNamed('/pin_verify');
-      } else {
-        goToNamed('/dashboard');
-      }
+      goToNamed(hasPin ? '/pin_verify' : '/dashboard');
     } else {
       goToNamed('/welcome');
     }
@@ -63,9 +70,16 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF2E7D32),
-      body: SizedBox.shrink(),
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: _showLogo
+          ? Center(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(24),
+                child: Image.asset('assets/icon/logoapp.jpg', width: 200),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

@@ -88,24 +88,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       body: Stack(
         children: [
           // 1. IMAGE D'ARRIÈRE-PLAN (Remplace 'welcome_bg.jpg' par ton image)
-          Positioned.fill(
-            child: Image.asset(
-              'assets/image/welcome_bg.jpeg', // ⚠️ Mets ton image ici (ex: un marché, un commerçant, ou un fond abstrait vert)
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) {
-                // Fallback si l'image n'existe pas encore : un beau dégradé
-                return Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFFE8F5E9), Colors.white],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
+          
 
           // 2. VOILE BLANC pour garantir la lisibilité du texte par-dessus l'image
           Positioned.fill(
