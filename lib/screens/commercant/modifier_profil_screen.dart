@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, FileOptions;
 import '../../services/auth_service.dart';
 import '../../models/utilisateur_model.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
 const Color terracotta = Color(0xFFD96B43);
 const Color brickRed = Color(0xFFB91C1C);
@@ -24,12 +24,11 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   final AuthService _authService = AuthService();
   final _formKey = GlobalKey<FormState>();
   final ImagePicker _picker = ImagePicker();
-  final FirebaseStorage _storage = FirebaseStorage.instance;
 
   late TextEditingController _nomController;
   late TextEditingController _prenomController;
   late TextEditingController _telephoneController;
-  late TextEditingController _emailController; // ✅ Ajouté
+  late TextEditingController _emailController;
   late TextEditingController _adresseController;
   late TextEditingController _typeActiviteController;
 
@@ -48,14 +47,14 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     _typeActiviteController = TextEditingController(text: widget.currentUser.typeActivite ?? '');
     _profileImageUrl = widget.currentUser.photo;
 
-    // ✅ CORRECTION : Si l'email est le faux email (contient le numéro), on laisse le champ vide
+    // Si l'email est le faux email (contient le numero), on laisse le champ vide
     final email = widget.currentUser.email;
     final phone = widget.currentUser.telephone;
-    
+
     if (email != null && email.isNotEmpty && (phone == null || !email.contains(phone))) {
       _emailController = TextEditingController(text: email); // Vrai email
     } else {
-      _emailController = TextEditingController(text: ''); // Champ vide pour inciter à mettre le vrai
+      _emailController = TextEditingController(text: ''); // Champ vide pour inciter a mettre le vrai
     }
   }
 
@@ -64,7 +63,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     _nomController.dispose();
     _prenomController.dispose();
     _telephoneController.dispose();
-    _emailController.dispose(); // ✅ Ajouté
+    _emailController.dispose();
     _adresseController.dispose();
     _typeActiviteController.dispose();
     super.dispose();
@@ -201,10 +200,13 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
   Future<void> _deleteImage() async {
     setState(() => _isUploading = true);
     try {
-      if (_profileImageUrl != null && _profileImageUrl!.isNotEmpty) {
-        final fileName = 'profile_${widget.currentUser.id}.jpg';
+      // Supprime le fichier dans Supabase (si la photo vient de Supabase)
+      if (_profileImageUrl != null && _profileImageUrl!.contains('supabase')) {
         try {
-          await _storage.ref().child('profile_photos/$fileName').delete();
+          final fileName = Uri.parse(_profileImageUrl!).pathSegments.last;
+          await Supabase.instance.client.storage
+              .from('profile_photos')
+              .remove([fileName]);
         } catch (_) {}
       }
       setState(() {
@@ -231,7 +233,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
         );
       }
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -239,11 +241,18 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     if (_selectedImage == null) return null;
     setState(() => _isUploading = true);
     try {
-      final fileName = 'profile_${widget.currentUser.id}.jpg';
-      final ref = _storage.ref().child('profile_photos/$fileName');
+      // Nom unique : evite les problemes de cache et d'ecrasement
+      final fileName =
+          'profile_${widget.currentUser.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final storage = Supabase.instance.client.storage.from('profile_photos');
       final bytes = await _selectedImage!.readAsBytes();
-      await ref.putData(bytes);
-      return await ref.getDownloadURL();
+
+      await storage.uploadBinary(
+        fileName,
+        bytes,
+        fileOptions: const FileOptions(contentType: 'image/jpeg'),
+      );
+      return storage.getPublicUrl(fileName);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -255,7 +264,7 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
       }
       return null;
     } finally {
-      setState(() => _isUploading = false);
+      if (mounted) setState(() => _isUploading = false);
     }
   }
 
@@ -263,17 +272,23 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _isLoading = true);
     try {
-      String? newPhotoUrl = _profileImageUrl;
+            String? newPhotoUrl = _profileImageUrl;
       if (_selectedImage != null) {
         final uploaded = await _uploadImage();
-        if (uploaded != null) newPhotoUrl = uploaded;
+        if (uploaded == null) {
+          // L'erreur est deja affichee par _uploadImage : on s'arrete ici
+          if (mounted) setState(() => _isLoading = false);
+          return;
+        }
+        newPhotoUrl = uploaded;
+        debugPrint('URL photo: $newPhotoUrl');
       }
 
       final updatedUser = widget.currentUser.copyWith(
         nom: _nomController.text.trim(),
         prenom: _prenomController.text.trim(),
         telephone: _telephoneController.text.trim(),
-        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(), // ✅ Sauvegarde du vrai email
+        email: _emailController.text.trim().isEmpty ? null : _emailController.text.trim(),
         adresse: _adresseController.text.trim().isEmpty ? null : _adresseController.text.trim(),
         typeActivite: _typeActiviteController.text.trim().isEmpty ? null : _typeActiviteController.text.trim(),
         photo: newPhotoUrl,
@@ -363,7 +378,6 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
                 keyboardType: TextInputType.phone,
                 required: true,
               ),
-              // ✅ Champ Email ajouté ici pour permettre de le lier facilement
               _buildField(
                 controller: _emailController,
                 icon: Icons.email_outlined,
@@ -553,7 +567,6 @@ class _ModifierProfilScreenState extends State<ModifierProfilScreen> {
     );
   }
 
-  // ✅ Ajout du paramètre helperText pour afficher le message d'aide sous le champ email
   Widget _buildField({
     required TextEditingController controller,
     required IconData icon,

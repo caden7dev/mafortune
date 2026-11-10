@@ -85,6 +85,8 @@ dependencies:
   # Navigation
   go_router: ^13.0.0
 
+  supabase_flutter: ^2.16.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -110,7 +112,7 @@ flutter:
     - assets/icon/logoapp.jpg                        # L'ancien utilisé par votre code sur l'accueil
     - assets/icon/splash_rond.png                        # Le nouveau pour l'écran de démarrage natif
     - assets/image/welcome_bg.jpeg
-    - assets/icon/transparent.png
+  
 
 # ==========================================
 # 🚀 ÉCRAN DE DÉMARRAGE NATIF (NOUVEAU ROND TRANSPARENT)

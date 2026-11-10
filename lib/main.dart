@@ -51,6 +51,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'dart:ui';
 import 'screens/commercant/messages_screen.dart';
 
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
@@ -61,6 +63,11 @@ void main() async {
   // Initialisation de Firebase et Crashlytics
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
+
+    await Supabase.initialize(
+    url: 'https://atipntzkupciirorqvud.supabase.co',
+    anonKey: 'sb_publishable_Psu4y1xyfkHaz5eGujGQzw_-20CrGR-',
+  );
 
   FlutterError.onError = FirebaseCrashlytics.instance.recordFlutterFatalError;
   PlatformDispatcher.instance.onError = (error, stack) {

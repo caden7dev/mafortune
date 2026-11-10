@@ -6,7 +6,7 @@ import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 import '../../widgets/custom_bottom_nav.dart';
-import '../../core/utils/global_nav.dart'; // ✅ Chemin corrigé
+import '../../core/utils/global_nav.dart';
 import 'saisie_rapide_screen.dart';
 import 'modifier_transaction_screen.dart';
 import 'bilans_screen.dart';
@@ -18,7 +18,7 @@ import 'historique_screen.dart';
 import 'compte_en_suppression_screen.dart';
 import '../../services/bilan_notification_service.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure)
 const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Chaleur, Action principale)
 const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Alertes)
@@ -43,15 +43,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
-  
-  // ✅ SUPPRIMÉ : int _currentIndex = 0; (géré maintenant par globalNavIndex)
 
   int _refreshTrigger = 0;
   bool _isInitialLoad = true;
   bool _showAdminMessage = true;
   bool _isBalanceVisible = true;
 
-  // ✅ MODIFIÉ : Prend l'index en paramètre
   String _getTitle(int index) {
     switch (index) {
       case 0: return 'Accueil';
@@ -76,10 +73,39 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return parts.isNotEmpty ? parts[0] : _currentUser!.nomComplet;
   }
 
+  // Initiale affichee quand il n'y a pas de photo (ou si l'URL echoue)
+  Widget _avatarInitial() {
+    return Center(
+      child: Text(
+        _getInitial(),
+        style: const TextStyle(fontSize: 26, color: Colors.white, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    globalNavIndex.addListener(_onTabChanged);
+  }
+
+  @override
+  void dispose() {
+    globalNavIndex.removeListener(_onTabChanged);
+    super.dispose();
+  }
+
+  // Quand on revient sur l'onglet Accueil, on recharge le profil (photo, nom...)
+  void _onTabChanged() {
+    if (globalNavIndex.value == 0) _refreshUser();
+  }
+
+  Future<void> _refreshUser() async {
+    try {
+      final user = await _authService.getCurrentUserData(forceRefresh: true);
+      if (mounted && user != null) setState(() => _currentUser = user);
+    } catch (_) {}
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
@@ -241,16 +267,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: Colors.transparent,
       builder: (_) => SaisieRapideScreen(isVenteInitial: isVente),
     );
-    
+
     if (result == true) {
       if (_currentUser != null) {
         _transactionService.invalidateCache(_currentUser!.id);
       }
-      
+
       setState(() {
-        _refreshTrigger++; 
+        _refreshTrigger++;
       });
-      
+
       await _loadData(forceRefresh: true);
     }
     _loadMessagesPreview();
@@ -424,7 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // ✅ EMBALLAGE GLOBAL : Écoute les changements d'onglet depuis n'importe où dans l'app
+    // Ecoute les changements d'onglet depuis n'importe ou dans l'app
     return ValueListenableBuilder<int>(
       valueListenable: globalNavIndex,
       builder: (context, currentIndex, child) {
@@ -456,7 +482,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         IconButton(
                           icon: const Icon(Icons.notifications_outlined),
                           onPressed: () {
-                            globalNavIndex.value = 3; // ✅ Utilise le contrôleur global
+                            globalNavIndex.value = 3;
                           },
                           tooltip: 'Notifications',
                         ),
@@ -522,8 +548,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ],
           ),
-          
-          // ✅ IndexedStack piloté par l'index global
+
+          // IndexedStack pilote par l'index global
           body: IndexedStack(
             index: currentIndex,
             children: [
@@ -534,14 +560,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ProfilScreen(preloadedUser: _currentUser),
             ],
           ),
-          
+
           bottomNavigationBar: CustomBottomNav(
             currentIndex: currentIndex,
             onTap: (index) {
               globalNavIndex.value = index;
             },
           ),
-          
+
           floatingActionButton: currentIndex == 0
               ? FloatingActionButton.extended(
                   onPressed: () => _ouvrirSaisie(isVente: true),
@@ -588,10 +614,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Row(
                     children: [
+                      // Avatar : photo de profil si elle existe, sinon l'initiale
                       Container(
                         width: 52, height: 52,
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), shape: BoxShape.circle),
-                        child: Center(child: Text(_getInitial(), style: const TextStyle(fontSize: 26, color: Colors.white, fontWeight: FontWeight.bold))),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: ClipOval(
+                          child: (_currentUser!.photo != null && _currentUser!.photo!.isNotEmpty)
+                              ? Image.network(
+                                  _currentUser!.photo!,
+                                  width: 52,
+                                  height: 52,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => _avatarInitial(),
+                                )
+                              : _avatarInitial(),
+                        ),
                       ),
                       const SizedBox(width: 14),
                       Expanded(

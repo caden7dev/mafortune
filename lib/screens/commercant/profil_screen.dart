@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 
@@ -24,8 +23,9 @@ import 'mon_qr_code_screen.dart';
 import 'changer_code_pin_screen.dart';
 import 'lier_email_screen.dart';
 import 'admin_suppressions_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, FileOptions;
 
-//  CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
 const Color terracotta = Color(0xFFD96B43);
 const Color brickRed = Color(0xFFB91C1C);
@@ -43,7 +43,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
   final DeleteAccountService _deleteService = DeleteAccountService();
-  
+
   UtilisateurModel? _currentUser;
   bool _isLoading = true;
   bool _isAdmin = false;
@@ -100,7 +100,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     final email = _currentUser?.email;
     final phone = _currentUser?.telephone;
-    
+
     if (email == null || email.isEmpty || email.contains('temp.mafortune.com') || (phone != null && email.contains(phone))) {
       return 'Non lié (Optionnel)';
     }
@@ -112,9 +112,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     final email = _currentUser?.email;
     final phone = _currentUser?.telephone;
-    return email != null && 
-           email.isNotEmpty && 
-           !email.contains('temp.mafortune.com') && 
+    return email != null &&
+           email.isNotEmpty &&
+           !email.contains('temp.mafortune.com') &&
            (phone == null || !email.contains(phone));
   }
 
@@ -158,11 +158,18 @@ class _ProfilScreenState extends State<ProfilScreen> {
     }
   }
 
-  Future<void> _changerPhotoProfil() async {
+  // ===========================================================================
+  // PHOTO DE PROFIL
+  // ===========================================================================
+
+  bool get _hasPhoto =>
+      _currentUser?.photo != null && _currentUser!.photo!.isNotEmpty;
+
+  Future<void> _changerPhotoProfil({ImageSource source = ImageSource.gallery}) async {
     if (_currentUser == null) return;
     final ImagePicker picker = ImagePicker();
     final XFile? image = await picker.pickImage(
-      source: ImageSource.gallery,
+      source: source,
       imageQuality: 80,
     );
     if (image == null) return;
@@ -171,12 +178,17 @@ class _ProfilScreenState extends State<ProfilScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const AlertDialog(
+      builder: (_) => AlertDialog(
         content: Row(
-          children: [
+          children: const [
             CircularProgressIndicator(color: emeraldDark),
             SizedBox(width: 20),
-            Text('Mise à jour de la photo...', style: TextStyle(fontSize: 16, color: textDark)),
+            Expanded(
+              child: Text(
+                'Mise à jour de la photo...',
+                style: TextStyle(fontSize: 16, color: textDark),
+              ),
+            ),
           ],
         ),
       ),
@@ -184,9 +196,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
     try {
       final String fileName = 'profile_${_currentUser!.id}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final ref = FirebaseStorage.instance.ref().child('users_photos').child(fileName);
-      final uploadTask = await ref.putFile(File(image.path));
-      final String downloadUrl = await uploadTask.ref.getDownloadURL();
+      final storage = Supabase.instance.client.storage.from('profile_photos');
+      await storage.uploadBinary(
+        fileName,
+        await File(image.path).readAsBytes(),
+        fileOptions: const FileOptions(contentType: 'image/jpeg'),
+      );
+      final String downloadUrl = storage.getPublicUrl(fileName);
 
       await FirebaseFirestore.instance.collection('utilisateurs').doc(_currentUser!.id).update({
         'photo': downloadUrl,
@@ -204,6 +220,136 @@ class _ProfilScreenState extends State<ProfilScreen> {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Erreur lors de la mise à jour : $e'), backgroundColor: brickRed),
+        );
+      }
+    }
+  }
+
+  // Toucher la photo : l'affiche en grand (avec Changer / Supprimer)
+  Future<void> _voirPhoto() async {
+    if (!_hasPhoto) {
+      _showPhotoOptions();
+      return;
+    }
+    final action = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (_) => _PhotoViewerScreen(url: _currentUser!.photo!)),
+    );
+    if (!mounted) return;
+    if (action == 'change') {
+      _changerPhotoProfil();
+    } else if (action == 'delete') {
+      _supprimerPhotoProfil();
+    }
+  }
+
+  // Toucher l'icone camera : menu d'options
+  void _showPhotoOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(height: 12),
+              if (_hasPhoto)
+                ListTile(
+                  leading: const Icon(Icons.visibility_rounded, color: emeraldDark),
+                  title: const Text('Voir la photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _voirPhoto();
+                  },
+                ),
+              ListTile(
+                leading: const Icon(Icons.image_rounded, color: emeraldDark),
+                title: const Text('Choisir dans la galerie', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _changerPhotoProfil();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt_rounded, color: emeraldDark),
+                title: const Text('Prendre une photo', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _changerPhotoProfil(source: ImageSource.camera);
+                },
+              ),
+              if (_hasPhoto)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline_rounded, color: brickRed),
+                  title: const Text('Supprimer la photo',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: brickRed)),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _supprimerPhotoProfil();
+                  },
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _supprimerPhotoProfil() async {
+    if (_currentUser == null || !_hasPhoto) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Supprimer la photo ?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Votre photo de profil sera retirée.', style: TextStyle(fontSize: 16)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Non')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: brickRed, foregroundColor: Colors.white),
+            child: const Text('Oui, supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+
+    try {
+      final url = _currentUser!.photo!;
+      // Supprime le fichier dans Supabase (si la photo vient de Supabase)
+      if (url.contains('supabase')) {
+        try {
+          final fileName = Uri.parse(url).pathSegments.last;
+          await Supabase.instance.client.storage.from('profile_photos').remove([fileName]);
+        } catch (_) {}
+      }
+
+      await FirebaseFirestore.instance
+          .collection('utilisateurs')
+          .doc(_currentUser!.id)
+          .update({'photo': FieldValue.delete()});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Photo supprimée'), backgroundColor: terracotta),
+        );
+        await _loadProfile(forceRefresh: true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur : $e'), backgroundColor: brickRed),
         );
       }
     }
@@ -422,14 +568,13 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
 
-    // ✅ CORRECTION : Fermer le clavier et disposer le controller après délai
+    // Fermer le clavier et disposer le controller apres delai
     FocusManager.instance.primaryFocus?.unfocus();
-    // On libère le controller après la fermeture animée du dialogue
     Future.delayed(const Duration(milliseconds: 400), confirmController.dispose);
     if (doubleConfirm != true) return;
 
     if (!mounted) return;
-    
+
     // On garde navigator et messenger avant les await
     final navigator = Navigator.of(context, rootNavigator: true);
     final messenger = ScaffoldMessenger.of(context);
@@ -444,7 +589,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
           child: Row(children: [
             CircularProgressIndicator(color: emeraldDark),
             SizedBox(width: 20),
-            Text('Traitement de la demande...', style: TextStyle(fontSize: 16, color: textDark)),
+            Expanded(
+              child: Text('Traitement de la demande...', style: TextStyle(fontSize: 16, color: textDark)),
+            ),
           ]),
         ),
       ),
@@ -453,7 +600,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
     try {
       await _deleteService.demanderSuppressionCompte();
 
-      // 1. Ferme le chargement, 2. quitte tout l'arbre connecté
+      // 1. Ferme le chargement, 2. quitte tout l'arbre connecte
       navigator.pop();
       navigator.pushNamedAndRemoveUntil('/welcome', (route) => false);
 
@@ -463,7 +610,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         duration: Duration(seconds: 3),
       ));
 
-      // 3. Déconnexion seulement quand l'écran profil n'existe plus
+      // 3. Deconnexion seulement quand l'ecran profil n'existe plus
       await Future.delayed(const Duration(milliseconds: 500));
       await _authService.signOut();
     } catch (e) {
@@ -535,35 +682,40 @@ class _ProfilScreenState extends State<ProfilScreen> {
                       Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          Container(
-                            width: 88,
-                            height: 88,
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                            ),
-                            child: ClipOval(
-                              child: _currentUser!.photo != null && _currentUser!.photo!.isNotEmpty
-                                  ? Image.network(
-                                      _currentUser!.photo!,
-                                      width: 88,
-                                      height: 88,
-                                      fit: BoxFit.cover,
-                                      errorBuilder: (_, __, ___) => Center(
+                          // Toucher la photo : l'affiche en grand
+                          GestureDetector(
+                            onTap: _voirPhoto,
+                            child: Container(
+                              width: 88,
+                              height: 88,
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: ClipOval(
+                                child: _hasPhoto
+                                    ? Image.network(
+                                        _currentUser!.photo!,
+                                        width: 88,
+                                        height: 88,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (_, __, ___) => Center(
+                                          child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
+                                        ),
+                                      )
+                                    : Center(
                                         child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
                                       ),
-                                    )
-                                  : Center(
-                                      child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-                                    ),
+                              ),
                             ),
                           ),
+                          // Toucher la camera : menu d'options
                           Positioned(
                             bottom: -2,
                             right: -2,
                             child: GestureDetector(
-                              onTap: _changerPhotoProfil,
+                              onTap: _showPhotoOptions,
                               child: Container(
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
@@ -635,8 +787,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            _isBalanceVisible 
-                                ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA' 
+                            _isBalanceVisible
+                                ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'
                                 : '•••••• FCFA',
                             style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 0.5),
                           ),
@@ -681,8 +833,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   _buildMenuItem(icon: Icons.pin_outlined, title: 'Changer le code PIN', onTap: _changerPin),
                   _buildMenuItem(icon: Icons.switch_account_rounded, title: 'Changer de compte', onTap: _changerDeCompte),
                   _buildMenuItem(
-                    icon: Icons.qr_code_rounded, 
-                    title: 'Mon QR Code', 
+                    icon: Icons.qr_code_rounded,
+                    title: 'Mon QR Code',
                     subtitle: 'Afficher ou scanner un code',
                     onTap: () {
                       if (_currentUser != null) {
@@ -720,8 +872,8 @@ class _ProfilScreenState extends State<ProfilScreen> {
                   _buildSection('Administration', [
                     _buildMenuItem(icon: Icons.admin_panel_settings_outlined, title: 'Tableau de bord Admin', onTap: () => Navigator.pushNamed(context, '/admin/dashboard')),
                     _buildMenuItem(
-                      icon: Icons.warning_amber_rounded, 
-                      title: 'Comptes en suppression', 
+                      icon: Icons.warning_amber_rounded,
+                      title: 'Comptes en suppression',
                       subtitle: 'Gérer les demandes de suppression',
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminSuppressionsScreen())),
                     ),
@@ -867,6 +1019,86 @@ class _ProfilScreenState extends State<ProfilScreen> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(text, style: const TextStyle(fontSize: 14, color: textDark, height: 1.4)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// ECRAN DE VISUALISATION DE LA PHOTO DE PROFIL
+// =============================================================================
+class _PhotoViewerScreen extends StatelessWidget {
+  final String url;
+  const _PhotoViewerScreen({required this.url});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        title: const Text('Photo de profil'),
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: Center(
+              child: InteractiveViewer(
+                minScale: 1,
+                maxScale: 4,
+                child: Image.network(
+                  url,
+                  fit: BoxFit.contain,
+                  loadingBuilder: (context, child, progress) {
+                    if (progress == null) return child;
+                    return const Center(child: CircularProgressIndicator(color: Colors.white));
+                  },
+                  errorBuilder: (_, __, ___) =>
+                      const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 64),
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pop(context, 'change'),
+                      icon: const Icon(Icons.image_rounded),
+                      label: const Text('Changer'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => Navigator.pop(context, 'delete'),
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      label: const Text('Supprimer'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: brickRed,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),
