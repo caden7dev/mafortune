@@ -180,9 +180,13 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                     ),
                   ),
                   const SizedBox(width: 12),
-                  Text(
-                    existing != null ? 'Modifier le produit' : 'Nouveau produit / service',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+                  Flexible( // ✅ AJOUTÉ pour éviter le débordement du titre
+                    child: Text(
+                      existing != null ? 'Modifier le produit' : 'Nouveau produit / service',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
@@ -310,9 +314,11 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
               child: const Icon(Icons.delete_outline_rounded, size: 48, color: brickRed),
             ),
             const SizedBox(height: 16),
-            Text('Supprimer "${p['nom']}" ?',
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
-                textAlign: TextAlign.center),
+            Text(
+              'Supprimer "${p['nom']}" ?',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 20),
             Row(children: [
               Expanded(
@@ -393,17 +399,29 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Row(
+            Row(
               children: [
-                Icon(Icons.inventory_2_rounded, size: 20, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Mes produits & services', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const Icon(Icons.inventory_2_rounded, size: 20, color: Colors.white),
+                const SizedBox(width: 8),
+                Flexible( // ✅ AJOUTÉ : Empêche le débordement du titre dans l'AppBar
+                  child: Text(
+                    'Mes produits & services',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
               ],
             ),
             if (_typeActivite.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(left: 28, top: 4),
-                child: Text(_typeActivite, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+                child: Text(
+                  _typeActivite,
+                  style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8)),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis, // ✅ AJOUTÉ : Empêche le débordement du sous-titre
+                ),
               ),
           ],
         ),
@@ -540,6 +558,8 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                 fontWeight: FontWeight.w600,
                                 color: isSelected ? textDark : Colors.grey[400],
                               ),
+                              maxLines: 1, // ✅ AJOUTÉ : Protège contre les noms de produits trop longs
+                              overflow: TextOverflow.ellipsis, // ✅ AJOUTÉ
                             ),
                           ),
                           if (isSelected)
@@ -571,7 +591,6 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                     borderSide: const BorderSide(color: emeraldDark, width: 2),
                                   ),
                                 ),
-                                // ✅ SUPPRIMÉ : On ne modifie plus _suggestions directement ici
                               ),
                             ),
                         ],
@@ -599,7 +618,6 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                           : () {
                               debugPrint('🔘 Bouton "Confirmer" cliqué !');
                               
-                              // ✅ CRITIQUE : Créer une NOUVELLE liste modifiable au lieu de modifier _suggestions
                               final List<Map<String, dynamic>> produitsASauvegarder = [];
                               
                               for (int i = 0; i < _suggestions.length; i++) {
@@ -609,7 +627,6 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                       ? double.tryParse(val) 
                                       : null;
                                   
-                                  // On crée une copie propre du produit
                                   produitsASauvegarder.add({
                                     'nom': _suggestions[i]['nom'],
                                     'emoji': _suggestions[i]['emoji'] ?? '📦',
@@ -744,6 +761,8 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                   Text(
                                     p['nom'] ?? '',
                                     style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark),
+                                    maxLines: 1, // ✅ AJOUTÉ : Protège contre les noms de produits trop longs
+                                    overflow: TextOverflow.ellipsis, // ✅ AJOUTÉ
                                   ),
                                   const SizedBox(height: 3),
                                   Text(
@@ -753,6 +772,8 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                                       color: p['prix'] != null ? emeraldDark : Colors.grey[500],
                                       fontWeight: p['prix'] != null ? FontWeight.w600 : FontWeight.normal,
                                     ),
+                                    maxLines: 1, // ✅ AJOUTÉ
+                                    overflow: TextOverflow.ellipsis, // ✅ AJOUTÉ
                                   ),
                                 ],
                               ),
@@ -810,12 +831,19 @@ class _MesProduitsScreenState extends State<MesProduitsScreen> {
                   elevation: 0,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.rocket_launch_rounded, size: 20),
-                    SizedBox(width: 8),
-                    Text('Commencer à utiliser MaFortune', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.rocket_launch_rounded, size: 20),
+                    const SizedBox(width: 8),
+                    Flexible( // ✅ AJOUTÉ : Empêche le débordement du texte du bouton sur petits écrans
+                      child: Text(
+                        'Commencer à utiliser MaFortune',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
                   ],
                 ),
               ),

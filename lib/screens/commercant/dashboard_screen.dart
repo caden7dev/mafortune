@@ -19,6 +19,7 @@ import 'messages_screen.dart';
 import 'historique_screen.dart';
 import 'compte_en_suppression_screen.dart';
 import '../../services/bilan_notification_service.dart';
+import 'package:flutter/services.dart';
 
 // CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure)
@@ -178,8 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return;
       }
 
-      // Affichage immediat : en-tete, photo, solde, boutons
-            // Charge la photo en memoire avant d'afficher la page (600 ms maximum)
+            // 1) Charge la photo en mémoire (max 600 ms), puis on affiche la page
       final photoUrl = user.photo;
       if (photoUrl != null && photoUrl.isNotEmpty) {
         try {
@@ -520,17 +520,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<int>(
-      valueListenable: globalNavIndex,
-      builder: (context, currentIndex, child) {
-        return Scaffold(
-          backgroundColor: const Color(0xFFF8F9FA),
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            title: Text(_getTitle(currentIndex), style: const TextStyle(fontWeight: FontWeight.w700)),
+    // ✅ Le gardien du geste retour : géré au-dessus de l'IndexedStack,
+    // donc ça s'applique à TOUS les onglets automatiquement.
+    return PopScope(
+      canPop: false, // On empêche Flutter de gérer le retour lui-même
+      onPopInvoked: (didPop) async {
+        if (didPop) return;
+
+        if (globalNavIndex.value != 0) {
+          // Onglet autre qu'Accueil → on y retourne
+          globalNavIndex.value = 0;
+        } else {
+          // Accueil déjà affiché → on quitte l'app (retour écran d'accueil du téléphone)
+          SystemNavigator.pop();
+        }
+      },
+      child: ValueListenableBuilder<int>(
+        valueListenable: globalNavIndex,
+        builder: (context, currentIndex, child) {
+          return Scaffold(
+            backgroundColor: const Color(0xFFF8F9FA),
+            appBar: AppBar(
+              automaticallyImplyLeading: false, // ✅ Déjà OK, garde-le
+              title: Text(_getTitle(currentIndex),
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              // ... le reste de ton AppBar inchangé ...
             backgroundColor: emeraldDark,
             foregroundColor: Colors.white,
             elevation: 0,
@@ -644,6 +660,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         );
       },
+    ),
     );
   }
 

@@ -7,7 +7,7 @@ import '../models/utilisateur_model.dart';
 import 'local_auth_service.dart';
 
 class AuthService {
-  // Singleton : un seul cache partage entre tous les ecrans (PIN, dashboard, profil...)
+  // Singleton : un seul cache partagé entre tous les écrans (PIN, dashboard, profil...)
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
 
@@ -48,6 +48,79 @@ class AuthService {
       digits = digits.substring(digits.length - 8); // garde les 8 derniers chiffres
     }
     return digits;
+  }
+
+  // ─── VÉRIFIER SI UN NUMÉRO EXISTE (Pour la réinitialisation du PIN) ─────
+  Future<bool> userExistsByTelephone(String telephone) async {
+    try {
+      final cleanTel = telephone.replaceAll(RegExp(r'[^\d]'), '');
+      
+      // 1. Chercher par numéro exact (ex: "90123456")
+      var query = await _firestore.collection('utilisateurs')
+          .where('telephone', isEqualTo: cleanTel).limit(1).get();
+      if (query.docs.isNotEmpty) return true;
+
+      // 2. Chercher avec l'indicatif (ex: "+22890123456")
+      query = await _firestore.collection('utilisateurs')
+          .where('telephone', isEqualTo: '+228$cleanTel').limit(1).get();
+      if (query.docs.isNotEmpty) return true;
+
+      // 3. Fallback : si c'est 8 chiffres, chercher par l'email généré automatiquement
+      if (cleanTel.length == 8) {
+        query = await _firestore.collection('utilisateurs')
+            .where('email', isEqualTo: '$cleanTel@mafortune.tg').limit(1).get();
+        if (query.docs.isNotEmpty) return true;
+      }
+
+      return false;
+    } catch (e) {
+      debugPrint('❌ Erreur vérification numéro: $e');
+      return false;
+    }
+  }
+
+  // ─── RÉINITIALISER LE PIN (Pour la réinitialisation du PIN) ─────────────
+  Future<void> resetUserPin(String telephone, String newPin) async {
+    try {
+      final cleanTel = telephone.replaceAll(RegExp(r'[^\d]'), '');
+      
+      // On retrouve le document exactement comme dans la méthode précédente
+      QuerySnapshot query = await _firestore.collection('utilisateurs')
+          .where('telephone', isEqualTo: cleanTel).limit(1).get();
+      
+      if (query.docs.isEmpty) {
+        query = await _firestore.collection('utilisateurs')
+            .where('telephone', isEqualTo: '+228$cleanTel').limit(1).get();
+      }
+
+      if (query.docs.isEmpty && cleanTel.length == 8) {
+         query = await _firestore.collection('utilisateurs')
+            .where('email', isEqualTo: '$cleanTel@mafortune.tg').limit(1).get();
+      }
+
+      if (query.docs.isEmpty) {
+        throw Exception('Utilisateur non trouvé avec ce numéro.');
+      }
+
+      final docId = query.docs.first.id;
+      
+      // Mise à jour du PIN dans Firestore
+      // ⚠️ Assure-toi que le champ s'appelle bien 'codePin' dans ta base de données
+      await _firestore.collection('utilisateurs').doc(docId).update({
+        'codePin': newPin, 
+        'derniereSynchronisation': FieldValue.serverTimestamp(),
+      });
+
+      // Si c'est l'utilisateur actuellement connecté, on invalide le cache 
+      // pour qu'il soit rechargé avec le nouveau PIN au prochain appel
+      if (_cachedUserId == docId) {
+        invalidateUserCache();
+      }
+
+    } catch (e) {
+      debugPrint('❌ Erreur réinitialisation PIN: $e');
+      rethrow;
+    }
   }
 
   // ─── INSCRIPTION AVEC NUMÉRO DE TÉLÉPHONE ──────────────────────────────
@@ -248,8 +321,6 @@ class AuthService {
   // ─── CONNEXION / INSCRIPTION AVEC GOOGLE ─────────────────────────────
   Future<UtilisateurModel?> signInWithGoogle() async {
     try {
-      // Forcer la déconnexion juste avant la connexion pour vider le cache
-      // et forcer l'affichage du sélecteur de comptes sur Android.
       await _googleSignIn.signOut();
 
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -480,25 +551,18 @@ class AuthService {
   // ─── DÉCONNEXION ─────────────────────────────────────────────────────────
   Future<void> signOut() async {
     try {
-      // 1. Utiliser l'instance unique de la classe pour vider le cache Google
       await _googleSignIn.signOut();
-
-      // 2. Déconnecter de Firebase
       await _auth.signOut();
-
-      // 3. Invalider le cache local et effacer le PIN local pour la sécurité
       invalidateUserCache();
       await _localAuth.clearPin();
     } catch (e) {
       debugPrint('Erreur lors de la déconnexion: $e');
-      // Même en cas d'erreur, on force la déconnexion Firebase
       await _auth.signOut();
       invalidateUserCache();
     }
   }
 
   // ─── GET PROFIL ───────────────────────────────────────────────────────────
-  // Ordre : cache memoire -> cache local Firestore (instantane) -> serveur (delai max 6 s)
   Future<UtilisateurModel?> getCurrentUserData({bool forceRefresh = false}) async {
     try {
       final user = _auth.currentUser;
@@ -511,7 +575,6 @@ class AuthService {
       final ref = _firestore.collection('utilisateurs').doc(user.uid);
       DocumentSnapshot<Map<String, dynamic>>? doc;
 
-      // 1) Cache local Firestore d'abord : instantané, même avec un réseau lent
       if (!forceRefresh) {
         try {
           final cached = await ref.get(const GetOptions(source: Source.cache));
@@ -519,7 +582,6 @@ class AuthService {
         } catch (_) {}
       }
 
-      // 2) Sinon serveur avec délai maximum, puis retour au cache
       if (doc == null) {
         try {
           doc = await ref.get().timeout(const Duration(seconds: 6));

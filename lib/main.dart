@@ -3,8 +3,10 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'firebase_options.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // ✅ AJOUTÉ pour sauvegarder l'heure
+
+import 'firebase_options.dart';
 
 // Services
 import 'services/theme_service.dart';
@@ -12,6 +14,7 @@ import 'services/auth_service.dart';
 import 'services/local_auth_service.dart';
 import 'services/network_service.dart';
 import 'services/bilan_notification_service.dart';
+import 'services/notification_service.dart';
 
 // AuthProvider
 import 'providers/auth_provider.dart';
@@ -56,15 +59,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  // Fige le splash natif jusqu'a ce que SplashScreen appelle remove()
   WidgetsBinding widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
   FlutterNativeSplash.preserve(widgetsBinding: widgetsBinding);
 
-  // Initialisation de Firebase et Crashlytics
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await initializeDateFormatting();
 
-    await Supabase.initialize(
+  await Supabase.initialize(
     url: 'https://atipntzkupciirorqvud.supabase.co',
     anonKey: 'sb_publishable_Psu4y1xyfkHaz5eGujGQzw_-20CrGR-',
   );
@@ -80,7 +81,9 @@ void main() async {
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
 
-  // Services requis au demarrage
+  // ✅ INITIALISATION PROPRE DES NOTIFICATIONS
+  await NotificationService.initialize();
+
   final networkService = NetworkService();
   await networkService.initialize();
 
@@ -100,12 +103,41 @@ void main() async {
     ),
   );
 
-  // Lance en arriere-plan, sans bloquer l'affichage du logo
   BilanNotificationService.initialize();
 }
 
-class MyApp extends StatelessWidget {
+// ✅ CHANGÉ : MyApp devient un StatefulWidget pour observer le cycle de vie de l'app
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    // On s'abonne aux changements d'état de l'application (premier plan / arrière-plan)
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    // On se désabonne proprement quand l'app est fermée
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // ✅ C'est ici que la magie opère : on sauvegarde l'heure quand l'app est mise en arrière-plan
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      final prefs = await SharedPreferences.getInstance();
+      // On enregistre le timestamp actuel en millisecondes
+      await prefs.setInt('last_active_time', DateTime.now().millisecondsSinceEpoch);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

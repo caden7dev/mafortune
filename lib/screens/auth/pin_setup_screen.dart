@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/local_auth_service.dart';
-import '../../services/tts_service.dart';
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile) - Accessible partout dans ce fichier
 const Color emeraldGreen = Color(0xFF0B4F36);
@@ -19,7 +18,6 @@ class PinSetupScreen extends StatefulWidget {
 class _PinSetupScreenState extends State<PinSetupScreen>
     with TickerProviderStateMixin {
   final LocalAuthService _localAuth = LocalAuthService();
-  final TtsService _tts = TtsService();
 
   List<int> _pin = [];
   List<int> _confirmPin = [];
@@ -106,7 +104,6 @@ class _PinSetupScreenState extends State<PinSetupScreen>
         _errorMessage = null;
       });
       _fadeController.forward();
-      _tts.parler('Confirme ton code');
     } else {
       // Vérification
       if (_listEquals(_pin, _confirmPin)) {
@@ -119,7 +116,6 @@ class _PinSetupScreenState extends State<PinSetupScreen>
           _confirmPin.clear();
           _errorMessage = 'Les codes ne correspondent pas.\nRéessaie.';
         });
-        _tts.parler('Code incorrect, réessaie');
       }
     }
   }
@@ -137,12 +133,11 @@ class _PinSetupScreenState extends State<PinSetupScreen>
     try {
       final pinStr = _pin.join();
       await _localAuth.savePin(pinStr);
-      _tts.parler('Code créé avec succès');
       await _successController.forward();
 
-    if (mounted) {
-  Navigator.pushReplacementNamed(context, '/mes_produits');
-}
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/mes_produits');
+      }
     } catch (e) {
       if (mounted) {
         setState(() {

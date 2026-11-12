@@ -26,6 +26,7 @@ import 'changer_code_pin_screen.dart';
 import 'lier_email_screen.dart';
 import 'admin_suppressions_screen.dart';
 import 'package:supabase_flutter/supabase_flutter.dart' show Supabase, FileOptions;
+import '../../core/utils/global_nav.dart';
 
 // CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
@@ -425,12 +426,15 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
 
-    if (confirm == true) {
+        if (confirm == true) {
+      // ✅ RÉINITIALISER L'ONGLET À L'ACCUEIL (0) AVANT LA DÉCONNEXION
+      globalNavIndex.value = 0; 
+      
       await _authService.signOut();
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/login');
     }
-  }
+     }
 
   Future<void> _changerDeCompte() async {
     final confirm = await showDialog<bool>(
@@ -477,7 +481,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
       ),
     );
 
-    if (confirm == true) {
+       if (confirm == true) {
+      // ✅ RÉINITIALISER L'ONGLET À L'ACCUEIL (0) AVANT LA DÉCONNEXION
+      globalNavIndex.value = 0;
+
       await _authService.signOut();
       if (!mounted) return;
       Navigator.of(context).pushReplacementNamed('/login');
