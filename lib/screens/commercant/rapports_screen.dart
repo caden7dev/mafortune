@@ -1,4 +1,4 @@
-import 'dart:async'; // ✅ AJOUTÉ POUR LE STREAM
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -9,7 +9,6 @@ import '../../services/pdf_export_service.dart';
 import '../../models/transaction_model.dart';
 import '../../models/utilisateur_model.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);
 const Color terracotta = Color(0xFFD96B43);
 const Color brickRed = Color(0xFFB91C1C);
@@ -31,8 +30,6 @@ class _RapportsScreenState extends State<RapportsScreen>
   final PdfExportService _pdfExportService = PdfExportService();
 
   late TabController _tabController;
-
-  // ✅ NOUVEAU : Abonnement au flux de mise à jour du service
   StreamSubscription<void>? _transactionSub;
 
   UtilisateurModel? _currentUser;
@@ -56,7 +53,7 @@ class _RapportsScreenState extends State<RapportsScreen>
   final TextEditingController _montantMaxController = TextEditingController();
 
   final Map<String, String> _categoryEmojis = {
-    'alimentation': '🍽️', 'transport': '🚗', 'stock': '📦', 'loyer': '🏠',
+    'alimentation': '️', 'transport': '🚗', 'stock': '📦', 'loyer': '🏠',
     'santé': '💊', 'eau': '💧', 'électricité': '💡', 'téléphone': '📱',
   };
 
@@ -73,18 +70,13 @@ class _RapportsScreenState extends State<RapportsScreen>
       _applyFilters();
     });
 
-    // ✅ Écoute le Service : dès qu'une transaction est ajoutée, on rafraîchit automatiquement
-    _transactionSub = _transactionService.transactionUpdatedStream.listen((_) {
-      debugPrint('🔄 [Rapports] Nouvelle transaction détectée, rafraîchissement en cours...');
-      _loadData(force: true);
-    });
-
+    _transactionSub = _transactionService.transactionUpdatedStream.listen((_) => _loadData(force: true));
     _loadData(force: true);
   }
 
   @override
   void dispose() {
-    _transactionSub?.cancel(); // ✅ Très important pour éviter les fuites de mémoire
+    _transactionSub?.cancel();
     _tabController.dispose();
     _searchController.dispose();
     _montantMinController.dispose();
@@ -93,39 +85,26 @@ class _RapportsScreenState extends State<RapportsScreen>
   }
 
   @override
-void didUpdateWidget(RapportsScreen oldWidget) {
-  super.didUpdateWidget(oldWidget);
-  if (widget.refreshTrigger != oldWidget.refreshTrigger) {
-    _loadData(force: true);
+  void didUpdateWidget(RapportsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.refreshTrigger != oldWidget.refreshTrigger) _loadData(force: true);
   }
-}
 
-  // ✅ CORRECTION : Ajout du paramètre 'force' pour contourner le cache
   Future<void> _loadData({bool force = false}) async {
-    // Si on a déjà des données et qu'on ne force pas, on ne fait rien (évite les clignotements)
     if (!force && _allTransactions.isNotEmpty) return;
-
-    // Si on force, on affiche le chargement seulement si on n'a aucune donnée (pour ne pas bloquer l'écran inutilement)
-    if (_allTransactions.isEmpty && mounted) {
-      setState(() => _isLoading = true);
-    }
+    if (_allTransactions.isEmpty && mounted) setState(() => _isLoading = true);
     
     try {
       _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
       if (_currentUser == null) return;
       
-      // On force le service à aller chercher les toutes dernières données
-      final freshTransactions = await _transactionService.getTransactionsByCommercant(
-        _currentUser!.id,
-        forceRefresh: true,
-      );
-      
+      final freshTransactions = await _transactionService.getTransactionsByCommercant(_currentUser!.id, forceRefresh: true);
       if (mounted) {
         setState(() {
           _allTransactions = freshTransactions;
           _isLoading = false;
         });
-        _applyFilters(); // Met à jour la liste filtrée immédiatement
+        _applyFilters();
       }
     } catch (e) {
       debugPrint('Erreur rapports: $e');
@@ -138,39 +117,21 @@ void didUpdateWidget(RapportsScreen oldWidget) {
       final snap = await FirebaseFirestore.instance.collection('categories').get();
       List<String> fetched = snap.docs.map((d) => d['nom'] as String).toList();
       if (mounted) {
-        setState(() {
-          _categories = fetched.isEmpty 
-              ? ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre']
-              : fetched;
-        });
+        setState(() => _categories = fetched.isEmpty 
+            ? ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre']
+            : fetched);
       }
     } catch (e) {
-      if (mounted) {
-        setState(() {
-          _categories = ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre'];
-        });
-      }
+      if (mounted) setState(() => _categories = ['Alimentation', 'Transport', 'Stock', 'Loyer', 'Santé', 'Électricité', 'Téléphone', 'Autre']);
     }
   }
 
   void _applyFilters() {
     var list = List<TransactionModel>.from(_allTransactions);
-
-    if (_dateRange != null) {
-      list = list.where((t) => t.date.isAfter(_dateRange!.start) && t.date.isBefore(_dateRange!.end.add(const Duration(days: 1)))).toList();
-    }
-    if (_selectedType != 'Tous') {
-      list = list.where((t) => t.estRecette ? _selectedType == 'Recettes' : _selectedType == 'Dépenses').toList();
-    }
-    if (_selectedCategorie != 'Toutes') {
-      list = list.where((t) => t.categorie == _selectedCategorie).toList();
-    }
-    if (_searchQuery.isNotEmpty) {
-      list = list.where((t) {
-        final desc = (t.description ?? t.categorie).toLowerCase();
-        return desc.contains(_searchQuery.toLowerCase());
-      }).toList();
-    }
+    if (_dateRange != null) list = list.where((t) => t.date.isAfter(_dateRange!.start) && t.date.isBefore(_dateRange!.end.add(const Duration(days: 1)))).toList();
+    if (_selectedType != 'Tous') list = list.where((t) => t.estRecette ? _selectedType == 'Recettes' : _selectedType == 'Dépenses').toList();
+    if (_selectedCategorie != 'Toutes') list = list.where((t) => t.categorie == _selectedCategorie).toList();
+    if (_searchQuery.isNotEmpty) list = list.where((t) => (t.description ?? t.categorie).toLowerCase().contains(_searchQuery.toLowerCase())).toList();
     if (_montantMin > 0) list = list.where((t) => t.montant >= _montantMin).toList();
     if (_montantMax != double.infinity && _montantMax > 0) list = list.where((t) => t.montant <= _montantMax).toList();
 
@@ -207,9 +168,7 @@ void didUpdateWidget(RapportsScreen oldWidget) {
         child: child!,
       ),
     );
-    if (picked != null) {
-      setState(() { _dateRange = picked; _applyFilters(); });
-    }
+    if (picked != null) setState(() { _dateRange = picked; _applyFilters(); });
   }
 
   Future<void> _showMontantFilter() async {
@@ -370,24 +329,14 @@ void didUpdateWidget(RapportsScreen oldWidget) {
   }
 
   String _fmt(double v) => NumberFormat('#,###', 'fr_FR').format(v).replaceAll(',', ' ');
-
-  String _getCatEmoji(String cat) {
-    for (final key in _categoryEmojis.keys) {
-      if (cat.toLowerCase().contains(key)) return _categoryEmojis[key]!;
-    }
-    return '📌';
-  }
-
+  String _getCatEmoji(String cat) => _categoryEmojis.entries.firstWhere((e) => cat.toLowerCase().contains(e.key), orElse: () => const MapEntry('Autre', '📌')).value;
   bool get _hasActiveFilters => _dateRange != null || _selectedType != 'Tous' || _selectedCategorie != 'Toutes' || _searchQuery.isNotEmpty || _montantMin > 0 || _montantMax != double.infinity;
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-
     final totalRecettes = _filteredTransactions.where((t) => t.estRecette).fold(0.0, (s, t) => s + t.montant);
     final totalDepenses = _filteredTransactions.where((t) => !t.estRecette).fold(0.0, (s, t) => s + t.montant);
-    
-    // ✅ MODIFICATION : Utiliser le soldeActuel du profil pour être 100% identique au Dashboard
     final solde = _currentUser?.soldeActuel ?? 0.0;
 
     return Scaffold(
@@ -483,7 +432,7 @@ void didUpdateWidget(RapportsScreen oldWidget) {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 14),
+        duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: active ? emeraldDark : Colors.grey[100], borderRadius: BorderRadius.circular(22),
           border: Border.all(color: active ? emeraldDark : Colors.grey[300]!, width: active ? 1.5 : 1),
@@ -492,7 +441,7 @@ void didUpdateWidget(RapportsScreen oldWidget) {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (icon != null) ...[Icon(icon, size: 16, color: active ? Colors.white : Colors.grey[700]), const SizedBox(width: 6)],
-            Text(label, style: TextStyle(fontSize: 14, color: active ? Colors.white : Colors.grey[700], fontWeight: active ? FontWeight.w600 : FontWeight.normal)),
+            Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: active ? Colors.white : Colors.grey[700], fontWeight: active ? FontWeight.w600 : FontWeight.normal))),
           ],
         ),
       ),
@@ -511,13 +460,13 @@ void didUpdateWidget(RapportsScreen oldWidget) {
         child: GestureDetector(
           onTap: () { setState(() => _selectedType = label); _applyFilters(); },
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 14),
+            duration: const Duration(milliseconds: 150), height: 44, padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: selected ? activeColor : Colors.grey[100], borderRadius: BorderRadius.circular(22),
               border: Border.all(color: selected ? activeColor : Colors.grey[300]!, width: selected ? 1.5 : 1),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(label, style: TextStyle(fontSize: 14, color: selected ? Colors.white : Colors.grey[700], fontWeight: selected ? FontWeight.bold : FontWeight.normal)),
+              Flexible(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: selected ? Colors.white : Colors.grey[700], fontWeight: selected ? FontWeight.bold : FontWeight.normal))),
             ]),
           ),
         ),
@@ -532,14 +481,14 @@ void didUpdateWidget(RapportsScreen oldWidget) {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
       child: Row(
         children: [
-          _buildSummaryCell(icon: Icons.arrow_upward_rounded, value: _fmt(recettes), label: 'Reçu', iconColor: emeraldDark, bgColor: emeraldDark.withOpacity(0.1)),
+          _buildSummaryCell(icon: Icons.arrow_upward_rounded, value: recettes, label: 'Reçu', iconColor: emeraldDark, bgColor: emeraldDark.withOpacity(0.1)),
           _buildCellDivider(),
-          _buildSummaryCell(icon: Icons.arrow_downward_rounded, value: _fmt(depenses), label: 'Dépensé', iconColor: brickRed, bgColor: brickRed.withOpacity(0.1)),
+          _buildSummaryCell(icon: Icons.arrow_downward_rounded, value: depenses, label: 'Dépensé', iconColor: brickRed, bgColor: brickRed.withOpacity(0.1)),
           _buildCellDivider(),
           _buildSummaryCell(
             icon: isPositif ? Icons.trending_up_rounded : Icons.trending_down_rounded,
-            value: _fmt(solde),
-            label: 'Solde total',
+            value: solde,
+            label: 'Solde',
             iconColor: isPositif ? emeraldDark : brickRed,
             bgColor: isPositif ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
           ),
@@ -548,24 +497,27 @@ void didUpdateWidget(RapportsScreen oldWidget) {
     );
   }
 
-  Widget _buildSummaryCell({required IconData icon, required String value, required String label, required Color iconColor, required Color bgColor}) {
+  Widget _buildSummaryCell({required IconData icon, required double value, required String label, required Color iconColor, required Color bgColor}) {
     return Expanded(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
         child: Column(
           children: [
-            Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle), child: Icon(icon, color: iconColor, size: 20)),
-            const SizedBox(height: 8),
-            Text('$value F', style: TextStyle(fontWeight: FontWeight.bold, color: iconColor, fontSize: 14), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+            Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: bgColor, shape: BoxShape.circle), child: Icon(icon, color: iconColor, size: 18)),
+            const SizedBox(height: 6),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text('${_fmt(value)} F', style: TextStyle(fontWeight: FontWeight.bold, color: iconColor, fontSize: 13), textAlign: TextAlign.center, maxLines: 1),
+            ),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+            Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[600]), textAlign: TextAlign.center, maxLines: 1),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildCellDivider() => Container(width: 1, height: 50, color: Colors.grey[200]);
+  Widget _buildCellDivider() => Container(width: 1, height: 40, color: Colors.grey[200]);
 
   Widget _buildActionBar() {
     return Container(
@@ -575,19 +527,19 @@ void didUpdateWidget(RapportsScreen oldWidget) {
           Expanded(flex: 2, child: ElevatedButton(
             onPressed: _filteredTransactions.isEmpty ? null : _exportPDF,
             style: ElevatedButton.styleFrom(backgroundColor: terracotta, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.picture_as_pdf_rounded, size: 18), SizedBox(width: 6), Text('Exporter PDF', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold))]),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.picture_as_pdf_rounded, size: 16), SizedBox(width: 4), Text('PDF', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold))]),
           )),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Expanded(child: OutlinedButton(
             onPressed: _showSortDialog,
-            style: OutlinedButton.styleFrom(foregroundColor: emeraldDark, side: const BorderSide(color: emeraldDark, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sort_rounded, size: 18), SizedBox(width: 4), Text('Trier', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
+            style: OutlinedButton.styleFrom(foregroundColor: emeraldDark, side: const BorderSide(color: emeraldDark, width: 1.2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.sort_rounded, size: 16), SizedBox(width: 4), Text('Trier', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))]),
           )),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
           Expanded(child: OutlinedButton(
             onPressed: _hasActiveFilters ? _resetFilters : null,
-            style: OutlinedButton.styleFrom(foregroundColor: _hasActiveFilters ? textDark : Colors.grey[500], side: BorderSide(color: _hasActiveFilters ? textDark : Colors.grey[300]!, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
-            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.refresh_rounded, size: 18), SizedBox(width: 4), Text('Reset', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600))]),
+            style: OutlinedButton.styleFrom(foregroundColor: _hasActiveFilters ? textDark : Colors.grey[500], side: BorderSide(color: _hasActiveFilters ? textDark : Colors.grey[300]!, width: 1.2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), padding: const EdgeInsets.symmetric(vertical: 12)),
+            child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.refresh_rounded, size: 16), SizedBox(width: 4), Text('Reset', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600))]),
           )),
         ],
       ),
@@ -599,15 +551,17 @@ void didUpdateWidget(RapportsScreen oldWidget) {
       onRefresh: () => _loadData(force: true), color: emeraldDark,
       child: _filteredTransactions.isEmpty
           ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.6, child: Center(
+              SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: Center(
                 child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Icon(Icons.search_off_rounded, size: 56, color: Colors.grey),
                   const SizedBox(height: 16),
-                  const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textDark)),
+                  const Text('Aucune transaction trouvée', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
                   const SizedBox(height: 8),
-                  Text('Tirez vers le bas pour actualiser\nou changez les filtres.', style: TextStyle(fontSize: 15, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
-                  const SizedBox(height: 24),
-                  ElevatedButton(onPressed: _resetFilters, style: ElevatedButton.styleFrom(backgroundColor: emeraldDark, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+                  Text('Tirez vers le bas pour actualiser\nou changez les filtres.', style: TextStyle(fontSize: 14, color: Colors.grey[600], height: 1.4), textAlign: TextAlign.center),
+                  if (_hasActiveFilters) ...[
+                    const SizedBox(height: 20),
+                    ElevatedButton(onPressed: _resetFilters, style: ElevatedButton.styleFrom(backgroundColor: emeraldDark, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Réinitialiser les filtres', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+                  ],
                 ]),
               )),
             ])
@@ -619,33 +573,38 @@ void didUpdateWidget(RapportsScreen oldWidget) {
                 final catEmoji = _getCatEmoji(t.categorie);
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6, offset: const Offset(0, 2))]),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: Colors.grey.shade100)),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                     child: Row(
                       children: [
                         Container(
-                          width: 50, height: 50,
+                          width: 44, height: 44,
                           decoration: BoxDecoration(color: t.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1), shape: BoxShape.circle),
-                          child: Center(child: Icon(t.estRecette ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded, color: t.estRecette ? emeraldDark : brickRed, size: 24)),
+                          child: Center(child: Icon(t.estRecette ? Icons.call_received_rounded : Icons.call_made_rounded, color: t.estRecette ? emeraldDark : brickRed, size: 20)),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(t.description ?? t.categorie, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
-                              const SizedBox(height: 4),
+                              Text(t.description ?? t.categorie, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: textDark), maxLines: 1, overflow: TextOverflow.ellipsis),
+                              const SizedBox(height: 3),
                               Row(children: [
-                                Text(DateFormat('dd/MM/yyyy').format(t.date), style: TextStyle(fontSize: 13, color: Colors.grey[500])),
-                                const SizedBox(width: 8),
-                                Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 13, color: Colors.grey[500])),
+                                Flexible(child: Text(DateFormat('dd/MM/yy', 'fr_FR').format(t.date), style: TextStyle(fontSize: 11, color: Colors.grey[500]), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                                const SizedBox(width: 6),
+                                Text('•', style: TextStyle(fontSize: 11, color: Colors.grey[400])),
+                                const SizedBox(width: 6),
+                                Flexible(child: Text('$catEmoji ${t.categorie}', style: TextStyle(fontSize: 11, color: Colors.grey[600], fontWeight: FontWeight.w500), maxLines: 1, overflow: TextOverflow.ellipsis)),
                               ]),
                             ],
                           ),
                         ),
-                        const SizedBox(width: 10),
-                        Text('${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: t.estRecette ? emeraldDark : brickRed)),
+                        const SizedBox(width: 8),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('${t.estRecette ? '+' : '-'}${_fmt(t.montant)} F', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: t.estRecette ? emeraldDark : brickRed)),
+                        ),
                       ],
                     ),
                   ),
@@ -660,7 +619,7 @@ void didUpdateWidget(RapportsScreen oldWidget) {
       onRefresh: () => _loadData(force: true), color: emeraldDark,
       child: _filteredTransactions.isEmpty
           ? ListView(physics: const AlwaysScrollableScrollPhysics(), children: [
-              SizedBox(height: MediaQuery.of(context).size.height * 0.6, child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey), SizedBox(height: 16), Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey))])))
+              SizedBox(height: MediaQuery.of(context).size.height * 0.5, child: const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.bar_chart_rounded, size: 56, color: Colors.grey), SizedBox(height: 16), Text('Aucune donnée à afficher', style: TextStyle(fontSize: 18, color: Colors.grey))])))
             ])
           : SingleChildScrollView(
               physics: const AlwaysScrollableScrollPhysics(), padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
@@ -669,9 +628,9 @@ void didUpdateWidget(RapportsScreen oldWidget) {
                   Row(
                     children: [
                       Expanded(child: _buildMiniStat('${_filteredTransactions.length}', 'Total', Icons.receipt_long_rounded, emeraldDark)),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(child: _buildMiniStat('${_filteredTransactions.where((t) => t.estRecette).length}', 'Reçus', Icons.arrow_upward_rounded, emeraldDark)),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 8),
                       Expanded(child: _buildMiniStat('${_filteredTransactions.where((t) => !t.estRecette).length}', 'Dépensés', Icons.arrow_downward_rounded, brickRed)),
                     ],
                   ),
@@ -691,15 +650,15 @@ void didUpdateWidget(RapportsScreen oldWidget) {
 
                       return spots.length > 1
                           ? Container(
-                              padding: const EdgeInsets.all(20),
+                              padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Row(children: [Icon(Icons.trending_up_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Évolution du résultat', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark))]),
-                                  const SizedBox(height: 20),
+                                  const Row(children: [Icon(Icons.trending_up_rounded, size: 20, color: textDark), SizedBox(width: 8), Text('Évolution du résultat', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark))]),
+                                  const SizedBox(height: 16),
                                   SizedBox(
-                                    height: 200,
+                                    height: 180,
                                     child: LineChart(
                                       LineChartData(
                                         minY: minY * 1.2, maxY: maxY > 0 ? maxY * 1.2 : 100,
@@ -748,36 +707,36 @@ void didUpdateWidget(RapportsScreen oldWidget) {
                   const SizedBox(height: 16),
                   if (totalRecettes > 0 || totalDepenses > 0)
                     Container(
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 8)]),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Row(children: [Icon(Icons.pie_chart_outline_rounded, size: 22, color: textDark), SizedBox(width: 10), Text('Répartition de la sélection', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: textDark))]),
-                          const SizedBox(height: 20),
+                          const Row(children: [Icon(Icons.pie_chart_outline_rounded, size: 20, color: textDark), SizedBox(width: 8), Text('Répartition', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark))]),
+                          const SizedBox(height: 16),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Row(children: [const Icon(Icons.trending_up_rounded, color: emeraldDark, size: 18), const SizedBox(width: 6), Text('${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 14))]),
-                              Row(children: [const Icon(Icons.trending_down_rounded, color: brickRed, size: 18), const SizedBox(width: 6), Text('${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 14))]),
+                              Flexible(child: Row(children: [const Icon(Icons.trending_up_rounded, color: emeraldDark, size: 16), const SizedBox(width: 4), Flexible(child: Text('${_fmt(totalRecettes)} F', style: const TextStyle(color: emeraldDark, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis))])),
+                              Flexible(child: Row(children: [const Icon(Icons.trending_down_rounded, color: brickRed, size: 16), const SizedBox(width: 4), Flexible(child: Text('${_fmt(totalDepenses)} F', style: const TextStyle(color: brickRed, fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis))])),
                             ],
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(8),
                             child: Row(
                               children: [
-                                if (totalRecettes > 0) Expanded(flex: (totalRecettes / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: emeraldDark)),
-                                if (totalDepenses > 0) Expanded(flex: (totalDepenses / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 22, color: brickRed)),
+                                if (totalRecettes > 0) Expanded(flex: (totalRecettes / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 18, color: emeraldDark)),
+                                if (totalDepenses > 0) Expanded(flex: (totalDepenses / (totalRecettes + totalDepenses) * 100).round(), child: Container(height: 18, color: brickRed)),
                               ],
                             ),
                           ),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text('${(totalRecettes / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% reçu', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-                              Text('${(totalDepenses / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}% dépensé', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                              Text('${(totalRecettes / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                              Text('${(totalDepenses / (totalRecettes + totalDepenses) * 100).toStringAsFixed(0)}%', style: TextStyle(fontSize: 12, color: Colors.grey[600])),
                             ],
                           ),
                         ],
@@ -791,15 +750,15 @@ void didUpdateWidget(RapportsScreen oldWidget) {
 
   Widget _buildMiniStat(String value, String label, IconData icon, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)]),
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 6)]),
       child: Column(
         children: [
-          Icon(icon, color: color, size: 24),
-          const SizedBox(height: 8),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          const SizedBox(height: 4),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+          Icon(icon, color: color, size: 20),
+          const SizedBox(height: 6),
+          FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color))),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey[500]), textAlign: TextAlign.center, maxLines: 1),
         ],
       ),
     );
