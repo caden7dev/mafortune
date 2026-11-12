@@ -5,7 +5,7 @@ import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color terracotta = Color(0xFFD96B43);    // Vente / Action chaleureuse
 const Color brickRed = Color(0xFFB91C1C);      // Dépense / Alerte douce
 const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (lisibilité maximale)
@@ -13,6 +13,26 @@ const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé (
 class SaisieRapideScreen extends StatefulWidget {
   final bool? isVenteInitial;
   const SaisieRapideScreen({super.key, this.isVenteInitial});
+
+  // Cache mémoire des produits : survit à la fermeture du formulaire
+  static List<Map<String, dynamic>>? _produitsCache;
+  static String? _produitsCacheUid;
+
+  // Appelé par le dashboard pour préparer le formulaire à l'avance
+  static Future<void> prefetchProduits() async {
+    final uid = AuthService().currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final snap = await FirebaseFirestore.instance
+          .collection('produits')
+          .where('commercantId', isEqualTo: uid)
+          .where('estActif', isEqualTo: true)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      _produitsCache = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+      _produitsCacheUid = uid;
+    } catch (_) {}
+  }
 
   @override
   State<SaisieRapideScreen> createState() => _SaisieRapideScreenState();
@@ -32,6 +52,9 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
   List<Map<String, dynamic>> _panier = [];
   String _mode = 'produits';
   String _montantStr = '0';
+
+  // Controller du champ montant (côté dépense), créé une seule fois
+  final TextEditingController _montantController = TextEditingController();
 
   // Catégories de dépenses (remplace la liste de produits côté dépense)
   final List<Map<String, String>> _categoriesDepense = [
@@ -53,7 +76,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
   final FocusNode _descriptionFocus = FocusNode();
   ModePaiement _modePaiementSelectionne = ModePaiement.especes;
 
-  // ✅ NOUVEAU : quantité optionnelle (vente montant libre + dépense), 1 par défaut
+  // Quantité optionnelle (vente montant libre + dépense), 1 par défaut
   int _quantite = 1;
 
   final List<Map<String, dynamic>> _modesPaiement = [
@@ -79,6 +102,18 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       CurvedAnimation(parent: _fadeController, curve: Curves.easeOut),
     );
     _fadeController.forward();
+
+    // Produits déjà en mémoire : affichage immédiat, sans spinner
+    final uid = _authService.currentUser?.uid;
+    final cached = SaisieRapideScreen._produitsCacheUid == uid
+        ? SaisieRapideScreen._produitsCache
+        : null;
+    if (cached != null) {
+      _produits = List<Map<String, dynamic>>.from(cached);
+      _mode = _produits.isNotEmpty ? 'produits' : 'montant_libre';
+    } else {
+      _isLoadingProduits = true;
+    }
     _loadProduits();
   }
 
@@ -87,28 +122,70 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     _fadeController.dispose();
     _descriptionController.dispose();
     _descriptionFocus.dispose();
+    _montantController.dispose();
     super.dispose();
   }
 
+  // Cache local Firestore d'abord (instantané), puis serveur en arrière-plan
   Future<void> _loadProduits() async {
-    setState(() => _isLoadingProduits = true);
+    final user = _authService.currentUser;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingProduits = false);
+      return;
+    }
+
+    final query = _db
+        .collection('produits')
+        .where('commercantId', isEqualTo: user.uid)
+        .where('estActif', isEqualTo: true);
+
+    List<Map<String, dynamic>> toList(QuerySnapshot<Map<String, dynamic>> s) =>
+        s.docs.map((d) => {'id': d.id, ...d.data()}).toList();
+
+    final alreadyShown = SaisieRapideScreen._produitsCacheUid == user.uid &&
+        SaisieRapideScreen._produitsCache != null;
+
+    // 1) Cache local Firestore : instantané
+    if (!alreadyShown) {
+      try {
+        final snap = await query.get(const GetOptions(source: Source.cache));
+        if (snap.docs.isNotEmpty && mounted) {
+          final list = toList(snap);
+          SaisieRapideScreen._produitsCache = list;
+          SaisieRapideScreen._produitsCacheUid = user.uid;
+          setState(() {
+            _produits = list;
+            _mode = 'produits';
+            _isLoadingProduits = false;
+          });
+        }
+      } catch (_) {}
+    }
+
+    // 2) Serveur en arrière-plan : met à jour la liste sans bloquer l'écran
     try {
-      final user = _authService.currentUser;
-      if (user == null) return;
-      final snap = await _db
-          .collection('produits')
-          .where('commercantId', isEqualTo: user.uid)
-          .where('estActif', isEqualTo: true)
-          .get();
+      final snap = await query.get().timeout(const Duration(seconds: 5));
+      final list = toList(snap);
+      SaisieRapideScreen._produitsCache = list;
+      SaisieRapideScreen._produitsCacheUid = user.uid;
+      if (!mounted) return;
       setState(() {
-        _produits = snap.docs.map((d) => {'id': d.id, ...d.data()}).toList();
-        _mode = _produits.isNotEmpty ? 'produits' : 'montant_libre';
+        final firstLoad = !alreadyShown && _produits.isEmpty;
+        _produits = list;
+        if (list.isEmpty) {
+          _mode = 'montant_libre';
+        } else if (firstLoad) {
+          _mode = 'produits';
+        }
+        _isLoadingProduits = false;
       });
     } catch (e) {
       debugPrint('Erreur produits: $e');
-      setState(() => _mode = 'montant_libre');
-    } finally {
-      if (mounted) setState(() => _isLoadingProduits = false);
+      if (!mounted) return;
+      setState(() {
+        if (_produits.isEmpty) _mode = 'montant_libre';
+        _isLoadingProduits = false;
+      });
     }
   }
 
@@ -172,6 +249,17 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     setState(() => _panier[idx]['prixUnit'] = nouveauPrix);
   }
 
+  // Aligne le champ texte du montant sur _montantStr (sans toucher au build)
+  void _syncMontantController() {
+    final txt = _montantStr == '0' ? '' : _montantStr;
+    if (_montantController.text != txt) {
+      _montantController.value = TextEditingValue(
+        text: txt,
+        selection: TextSelection.collapsed(offset: txt.length),
+      );
+    }
+  }
+
   void _appuyerTouche(String t) {
     HapticFeedback.lightImpact();
     setState(() {
@@ -189,6 +277,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
         }
       }
     });
+    _syncMontantController();
   }
 
   void _ajouterRapide(int v) {
@@ -197,6 +286,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       final actuel = int.tryParse(_montantStr) ?? 0;
       _montantStr = (actuel + v).toString();
     });
+    _syncMontantController();
   }
 
   void _changerQuantite(int delta) {
@@ -385,8 +475,8 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     final couleur = _isVente ? terracotta : brickRed;
     final screenHeight = MediaQuery.of(context).size.height;
 
-    // ✅ CORRIGÉ : remonte toute la feuille de la hauteur du clavier quand il
-    // s'ouvre, pour que le champ actif (ex: description) ne soit plus caché.
+    // Remonte toute la feuille de la hauteur du clavier quand il s'ouvre,
+    // pour que le champ actif (ex: description) ne soit plus caché.
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -539,7 +629,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-  // ✅ NOUVEAU : sélecteur de quantité réutilisable (1 par défaut, optionnel)
+  // Sélecteur de quantité réutilisable (1 par défaut, optionnel)
   Widget _buildQuantiteSelector(Color couleur) {
     return Row(
       children: [
@@ -658,8 +748,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             child: TextField(
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              controller: TextEditingController(text: _montantStr == '0' ? '' : _montantStr)
-                ..selection = TextSelection.collapsed(offset: _montantStr == '0' ? 0 : _montantStr.length),
+              controller: _montantController,
               style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: textDark),
               decoration: InputDecoration(
                 hintText: '0',
@@ -706,7 +795,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
 
           const SizedBox(height: 20),
 
-          // ✅ NOUVEAU : quantité optionnelle
+          // Quantité optionnelle
           _buildQuantiteSelector(couleur),
 
           const SizedBox(height: 20),
@@ -794,7 +883,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-         Widget _buildModeProduits(Color couleur) {
+  Widget _buildModeProduits(Color couleur) {
     return Column(
       children: [
         // ─── LISTE VERTICALE DES PRODUITS (Prend toute la place) ──────────
@@ -809,7 +898,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
               final hasQte = qte > 0;
 
               return GestureDetector(
-                // ✅ CORRECTION : Taper sur un produit déjà sélectionné le retire
+                // Taper sur un produit déjà sélectionné le retire
                 onTap: () => _toggleProduit(p),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 150),
@@ -843,9 +932,9 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                           child: Text(p['emoji'] ?? '📦', style: const TextStyle(fontSize: 22)),
                         ),
                       ),
-                      
+
                       const SizedBox(width: 14),
-                      
+
                       // Nom + Prix
                       Expanded(
                         child: Column(
@@ -873,13 +962,12 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                           ],
                         ),
                       ),
-                      
-                      // ✅ BOUTONS + ET - PLUS LARGES ET FACILES À CLIQUER
+
+                      // Boutons + et -
                       if (hasQte)
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Bouton MOINS (zone de tap large)
                             GestureDetector(
                               onTap: () => _retirerDuPanier(p),
                               child: Container(
@@ -892,8 +980,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                                 child: Icon(Icons.remove, color: couleur, size: 20),
                               ),
                             ),
-                            
-                            // Quantité
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 12),
                               child: Text(
@@ -905,8 +991,6 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                                 ),
                               ),
                             ),
-                            
-                            // Bouton PLUS (zone de tap large)
                             GestureDetector(
                               onTap: () => _ajouterAuPanier(p),
                               child: Container(
@@ -1022,7 +1106,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
     );
   }
 
-  // ✅ NOUVELLE MÉTHODE : Afficher le détail du panier dans un bottom sheet
+  // Afficher le détail du panier dans un bottom sheet
   void _afficherDetailPanier() {
     showModalBottomSheet(
       context: context,
@@ -1117,6 +1201,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
       ),
     );
   }
+
   Widget _buildModeMontantLibre(Color couleur) {
     final bool isVente = _isVente;
 
@@ -1196,7 +1281,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
                             fit: BoxFit.scaleDown,
                             child: Text(
                               v >= 1000 ? '${v ~/ 1000}k' : '$v',
-                              style: TextStyle(
+                              style: const TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
                                   color: textDark),
@@ -1235,7 +1320,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ✅ NOUVEAU : quantité optionnelle
+                // Quantité optionnelle
                 _buildQuantiteSelector(couleur),
                 const SizedBox(height: 16),
                 const Text('Description (optionnel)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: textDark)),
@@ -1285,6 +1370,7 @@ class _SaisieRapideScreenState extends State<SaisieRapideScreen>
           _modePaiementSelectionne = ModePaiement.especes;
           _quantite = 1;
         });
+        _montantController.clear();
         _fadeController.forward();
       },
       child: AnimatedContainer(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/auth_service.dart';
 import '../../services/transaction_service.dart';
 import '../../models/transaction_model.dart';
@@ -39,15 +41,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<TransactionModel> _recentTransactions = [];
   Map<String, dynamic> _quickStats = {};
   List<Map<String, dynamic>> _weekData = [];
-  bool _isLoading = true;
+
+  bool _isLoading = true;     // true tant que le profil n'est pas lu
+  bool _dataLoaded = false;   // true quand stats + operations sont chargees
 
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
 
   int _refreshTrigger = 0;
-  bool _isInitialLoad = true;
   bool _showAdminMessage = true;
   bool _isBalanceVisible = true;
+
+  // Onglets construits (les autres ne se chargent pas au demarrage)
+  final Set<int> _openedTabs = {0};
+  bool _tabsPreloaded = false;
+
+  // Streams crees UNE SEULE fois
+  Stream<QuerySnapshot>? _notifStream;
+  Stream<QuerySnapshot>? _msgStream;
 
   String _getTitle(int index) {
     switch (index) {
@@ -96,82 +107,178 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  // Quand on revient sur l'onglet Accueil, on recharge le profil (photo, nom...)
+  // Ouvre l'onglet demande s'il n'est pas encore construit.
+  // Pas de lecture Firestore ici : le profil previent l'accueil via onUserChanged.
   void _onTabChanged() {
-    if (globalNavIndex.value == 0) _refreshUser();
+    final i = globalNavIndex.value;
+    if (!_openedTabs.contains(i)) {
+      setState(() => _openedTabs.add(i));
+    }
   }
 
-  Future<void> _refreshUser() async {
+  void _initStreams() {
+    if (_currentUser == null || _notifStream != null) return;
+    _notifStream = _db
+        .collection('notifications')
+        .where('commercantId', isEqualTo: _currentUser!.id)
+        .where('lu', isEqualTo: false)
+        .snapshots();
+    _msgStream = _db
+        .collection('messages')
+        .where('commercantId', isEqualTo: _currentUser!.id)
+        .where('expediteur', isEqualTo: 'admin')
+        .where('lu', isEqualTo: false)
+        .snapshots();
+  }
+
+  // Precharge les autres onglets UN PAR UN, apres la fin du chargement de l'accueil
+  void _preloadOtherTabs() {
+    if (_tabsPreloaded) return;
+    _tabsPreloaded = true;
+    _staggerTabs();
+  }
+
+  Future<void> _staggerTabs() async {
+    for (final i in const [4, 1, 2, 3]) {
+      await Future.delayed(const Duration(milliseconds: 800));
+      if (!mounted) return;
+      setState(() => _openedTabs.add(i));
+    }
+  }
+
+  // Le profil s'affiche depuis le cache ; on recupere la version a jour ensuite
+  Future<void> _syncUserInBackground() async {
     try {
-      final user = await _authService.getCurrentUserData(forceRefresh: true);
-      if (mounted && user != null) setState(() => _currentUser = user);
+      final fresh = await _authService.getCurrentUserData(forceRefresh: true);
+      if (mounted && fresh != null) setState(() => _currentUser = fresh);
     } catch (_) {}
   }
 
+  // ETAPE 1 : la page s'affiche des que le profil est lu (cache local en priorite)
+  // ETAPE 2 : operations, stats et graphique arrivent ensuite (squelettes en attendant)
   Future<void> _loadData({bool forceRefresh = false}) async {
-    if (mounted) {
-      setState(() {
-        _isLoading = true;
-      });
-    }
-
     try {
-      _currentUser = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
-      if (_currentUser == null) return;
+      final fetched = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
+      if (!mounted) return;
 
-      if (_currentUser!.suppressionDemandee) {
-        if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => CompteEnSuppressionScreen(user: _currentUser!)),
-          );
-        }
+      if (fetched == null) {
+        setState(() {
+          _isLoading = false;
+          _dataLoaded = true;
+        });
         return;
       }
 
-      if (forceRefresh) {
-        await _transactionService.recalculerSolde(_currentUser!.id);
-        _currentUser = await _authService.getCurrentUserData(forceRefresh: true);
+      UtilisateurModel user = fetched;
+
+      if (user.suppressionDemandee) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => CompteEnSuppressionScreen(user: user)),
+        );
+        return;
       }
 
-      await Future.wait([
-        _loadStatsAndTransactions(forceRefresh),
-        _loadMessagesPreview(),
-      ]);
+      // Affichage immediat : en-tete, photo, solde, boutons
+            // Charge la photo en memoire avant d'afficher la page (600 ms maximum)
+      final photoUrl = user.photo;
+      if (photoUrl != null && photoUrl.isNotEmpty) {
+        try {
+          await precacheImage(CachedNetworkImageProvider(photoUrl), context)
+              .timeout(const Duration(milliseconds: 600));
+        } catch (_) {}
+        if (!mounted) return;
+      }
+
+      // Affichage immediat : en-tete, photo, solde, boutons
+      setState(() {
+        _currentUser = user;
+        _isLoading = false;
+      });
+      _initStreams();
+      SaisieRapideScreen.prefetchProduits();
+      _loadMessagesPreview(); // arriere-plan, non bloquant
+      if (!forceRefresh) _syncUserInBackground(); // profil a jour, sans bloquer
+
+      // Pull-to-refresh : on recalcule le solde (la page reste affichee)
+      if (forceRefresh) {
+        await _transactionService.recalculerSolde(user.id);
+        final refreshed = await _authService.getCurrentUserData(forceRefresh: true);
+        if (!mounted) return;
+        if (refreshed != null) {
+          user = refreshed;
+          setState(() => _currentUser = refreshed);
+        }
+      }
+
+      // Operations + stats + graphique
+      // Si forceRefresh : recalculerSolde vient deja de recharger depuis le serveur
+      final all = await _transactionService.getTransactionsByCommercant(user.id);
+      all.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+
+      final now = DateTime.now();
+      double income = 0, expense = 0;
+      for (final t in all) {
+        if (t.date.year == now.year && t.date.month == now.month && t.date.day == now.day) {
+          if (t.estRecette) {
+            income += t.montant;
+          } else {
+            expense += t.montant;
+          }
+        }
+      }
+      final week = _computeWeekData(all);
+
+      if (!mounted) return;
+      setState(() {
+        _quickStats = {'todayIncome': income, 'todayExpense': expense};
+        _recentTransactions = all.take(10).toList();
+        _weekData = week;
+        _dataLoaded = true;
+        _refreshTrigger++;
+      });
+
+      // Une fois l'accueil complet, on prepare les autres onglets en douceur
+      _preloadOtherTabs();
 
       if (BilanNotificationService.launchedFromBilan) {
         BilanNotificationService.launchedFromBilan = false;
       }
-
     } catch (e) {
       debugPrint('Erreur chargement: $e');
-    } finally {
       if (mounted) {
         setState(() {
           _isLoading = false;
-          _isInitialLoad = false;
-          _refreshTrigger++;
+          _dataLoaded = true;
         });
       }
     }
   }
 
-  Future<void> _loadStatsAndTransactions(bool forceRefresh) async {
-    final results = await Future.wait([
-      _transactionService.getQuickStats(_currentUser!.id, forceRefresh: forceRefresh),
-      _transactionService.getTransactionsByCommercant(_currentUser!.id, forceRefresh: forceRefresh),
-    ]);
-
-    final stats = results[0] as Map<String, dynamic>;
-    final allTransactions = results[1] as List<TransactionModel>;
-    allTransactions.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
-
-    if (mounted) {
-      setState(() {
-        _quickStats = stats;
-        _recentTransactions = allTransactions.take(10).toList();
+  List<Map<String, dynamic>> _computeWeekData(List<TransactionModel> all) {
+    final now = DateTime.now();
+    final weekData = <Map<String, dynamic>>[];
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final startOfDay = DateTime(date.year, date.month, date.day);
+      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+      double recettes = 0, depenses = 0;
+      for (var t in all) {
+        if (t.date.isAfter(startOfDay) && t.date.isBefore(endOfDay)) {
+          if (t.estRecette) {
+            recettes += t.montant;
+          } else {
+            depenses += t.montant;
+          }
+        }
+      }
+      weekData.add({
+        'jour': DateFormat('EEE', 'fr_FR').format(date).substring(0, 3).toUpperCase(),
+        'recettes': recettes,
+        'depenses': depenses,
+        'date': date,
       });
     }
-    await _loadWeekData(allTransactions);
+    return weekData;
   }
 
   Future<void> _loadMessagesPreview() async {
@@ -206,34 +313,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (e) {
       debugPrint('Erreur chargement preview messages: $e');
     }
-  }
-
-  Future<void> _loadWeekData(List<TransactionModel> allTransactions) async {
-    final now = DateTime.now();
-    final weekData = <Map<String, dynamic>>[];
-
-    for (int i = 6; i >= 0; i--) {
-      final date = now.subtract(Duration(days: i));
-      final startOfDay = DateTime(date.year, date.month, date.day);
-      final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
-
-      double recettes = 0, depenses = 0;
-      for (var t in allTransactions) {
-        if (t.date.isAfter(startOfDay) && t.date.isBefore(endOfDay)) {
-          if (t.estRecette) recettes += t.montant;
-          else depenses += t.montant;
-        }
-      }
-
-      weekData.add({
-        'jour': DateFormat('EEE', 'fr_FR').format(date).substring(0, 3).toUpperCase(),
-        'recettes': recettes,
-        'depenses': depenses,
-        'date': date,
-      });
-    }
-
-    if (mounted) setState(() => _weekData = weekData);
   }
 
   String _formatAmount(double amount) =>
@@ -272,11 +351,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (_currentUser != null) {
         _transactionService.invalidateCache(_currentUser!.id);
       }
-
-      setState(() {
-        _refreshTrigger++;
-      });
-
+      setState(() => _refreshTrigger++);
       await _loadData(forceRefresh: true);
     }
     _loadMessagesPreview();
@@ -311,7 +386,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
 
     if (confirm == true) {
-      setState(() => _isLoading = true);
       try {
         await _transactionService.deleteTransaction(transaction.id, transaction.commercantId);
         if (mounted) {
@@ -321,7 +395,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('❌ Erreur: $e'), backgroundColor: brickRed));
-          setState(() => _isLoading = false);
         }
       }
     }
@@ -450,7 +523,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Ecoute les changements d'onglet depuis n'importe ou dans l'app
     return ValueListenableBuilder<int>(
       valueListenable: globalNavIndex,
       builder: (context, currentIndex, child) {
@@ -465,12 +537,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             actions: [
               if (currentIndex == 0)
                 StreamBuilder<QuerySnapshot>(
-                  stream: _currentUser != null
-                      ? FirebaseFirestore.instance.collection('notifications')
-                          .where('commercantId', isEqualTo: _currentUser!.id)
-                          .where('lu', isEqualTo: false)
-                          .snapshots()
-                      : const Stream.empty(),
+                  stream: _notifStream ?? const Stream.empty(),
                   builder: (context, snapshot) {
                     int unreadCount = 0;
                     if (snapshot.hasData && snapshot.data != null) {
@@ -505,13 +572,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   },
                 ),
               StreamBuilder<QuerySnapshot>(
-                stream: _currentUser != null
-                    ? FirebaseFirestore.instance.collection('messages')
-                        .where('commercantId', isEqualTo: _currentUser!.id)
-                        .where('expediteur', isEqualTo: 'admin')
-                        .where('lu', isEqualTo: false)
-                        .snapshots()
-                    : const Stream.empty(),
+                stream: _msgStream ?? const Stream.empty(),
                 builder: (context, snapshot) {
                   int unreadCount = 0;
                   if (snapshot.hasData && snapshot.data != null) {
@@ -549,15 +610,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ],
           ),
 
-          // IndexedStack pilote par l'index global
+          // Seuls les onglets deja ouverts (ou precharges) sont construits
           body: IndexedStack(
             index: currentIndex,
             children: [
               _buildDashboardContent(),
-              BilansScreen(refreshTrigger: _refreshTrigger),
-              RapportsScreen(refreshTrigger: _refreshTrigger),
-              const NotificationsScreen(),
-              ProfilScreen(preloadedUser: _currentUser),
+              _openedTabs.contains(1)
+                  ? BilansScreen(refreshTrigger: _refreshTrigger)
+                  : const SizedBox.shrink(),
+              _openedTabs.contains(2)
+                  ? RapportsScreen(refreshTrigger: _refreshTrigger)
+                  : const SizedBox.shrink(),
+              _openedTabs.contains(3)
+                  ? const NotificationsScreen()
+                  : const SizedBox.shrink(),
+              _openedTabs.contains(4)
+                  ? ProfilScreen(
+                      preloadedUser: _currentUser,
+                      // Le profil previent l'accueil quand la photo ou les infos changent
+                      onUserChanged: (u) {
+                        if (u != null && mounted) setState(() => _currentUser = u);
+                      },
+                    )
+                  : const SizedBox.shrink(),
             ],
           ),
 
@@ -567,27 +642,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
               globalNavIndex.value = index;
             },
           ),
-
-          floatingActionButton: currentIndex == 0
-              ? FloatingActionButton.extended(
-                  onPressed: () => _ouvrirSaisie(isVente: true),
-                  backgroundColor: emeraldDark,
-                  icon: const Icon(Icons.add, color: Colors.white, size: 26),
-                  label: const Text('Saisie simple', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
-                  elevation: 4,
-                )
-              : null,
         );
       },
     );
   }
 
   Widget _buildDashboardContent() {
-    if (_isLoading && _isInitialLoad) {
-      return const Center(child: CircularProgressIndicator(color: emeraldDark));
-    }
-
+    // Tant que le profil n'est pas lu : squelette qui ressemble au dashboard
     if (_currentUser == null) {
+      if (_isLoading) return _buildDashboardSkeleton();
       return Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -614,7 +677,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      // Avatar : photo de profil si elle existe, sinon l'initiale
+                      // Avatar en cache, apparition immediate (la photo ne bloque plus la page)
                       Container(
                         width: 52, height: 52,
                         decoration: BoxDecoration(
@@ -624,12 +687,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                         child: ClipOval(
                           child: (_currentUser!.photo != null && _currentUser!.photo!.isNotEmpty)
-                              ? Image.network(
-                                  _currentUser!.photo!,
+                              ? CachedNetworkImage(
+                                  imageUrl: _currentUser!.photo!,
                                   width: 52,
                                   height: 52,
                                   fit: BoxFit.cover,
-                                  errorBuilder: (_, __, ___) => _avatarInitial(),
+                                  fadeInDuration: Duration.zero,
+                                  fadeOutDuration: Duration.zero,
+                                  placeholder: (_, __) => const SizedBox.shrink(),
+                                  errorWidget: (_, __, ___) => _avatarInitial(),
                                 )
                               : _avatarInitial(),
                         ),
@@ -693,9 +759,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 16),
                         Row(
                           children: [
-                            Expanded(child: _buildMiniStat('📈', 'Recettes du jour', '+${_formatAmount(_quickStats['todayIncome'] ?? 0)} F', Colors.white)),
+                            Expanded(child: _buildMiniStat('📈', 'Recettes du jour', _dataLoaded ? '+${_formatAmount((_quickStats['todayIncome'] ?? 0).toDouble())} F' : '...', Colors.white)),
                             Container(width: 1, height: 40, color: Colors.white30, margin: const EdgeInsets.symmetric(horizontal: 12)),
-                            Expanded(child: _buildMiniStat('📉', 'Dépense du jour', '-${_formatAmount(_quickStats['todayExpense'] ?? 0)} F', Colors.white.withOpacity(0.9))),
+                            Expanded(child: _buildMiniStat('📉', 'Dépense du jour', _dataLoaded ? '-${_formatAmount((_quickStats['todayExpense'] ?? 0).toDouble())} F' : '...', Colors.white.withOpacity(0.9))),
                           ],
                         ),
                       ],
@@ -847,35 +913,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text('Dernières opérations (${_recentTransactions.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+              child: Text(
+                _dataLoaded ? 'Dernières opérations (${_recentTransactions.length})' : 'Dernières opérations',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
+              ),
             ),
           ),
 
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-          _recentTransactions.isEmpty
-              ? const SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.all(40),
-                    child: Center(
-                      child: Column(
-                        children: [
-                          Text('📭', style: TextStyle(fontSize: 52)),
-                          SizedBox(height: 12),
-                          Text('Aucune opération pour l\'instant', style: TextStyle(color: Colors.grey, fontSize: 15), textAlign: TextAlign.center),
-                          SizedBox(height: 8),
-                          Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
-                        ],
+          !_dataLoaded
+              ? SliverToBoxAdapter(child: _buildTransactionsSkeleton())
+              : _recentTransactions.isEmpty
+                  ? const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.all(40),
+                        child: Center(
+                          child: Column(
+                            children: [
+                              Text('📭', style: TextStyle(fontSize: 52)),
+                              SizedBox(height: 12),
+                              Text('Aucune opération pour l\'instant', style: TextStyle(color: Colors.grey, fontSize: 15), textAlign: TextAlign.center),
+                              SizedBox(height: 8),
+                              Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  : SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, index) => _buildTransactionCard(_recentTransactions[index]),
+                        childCount: _recentTransactions.length,
                       ),
                     ),
-                  ),
-                )
-              : SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) => _buildTransactionCard(_recentTransactions[index]),
-                    childCount: _recentTransactions.length,
-                  ),
-                ),
 
           SliverToBoxAdapter(
             child: Padding(
@@ -927,6 +998,64 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  // Squelette de chargement (forme du dashboard)
+  Widget _buildDashboardSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade300,
+      highlightColor: Colors.grey.shade100,
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        child: Column(
+          children: [
+            Container(height: 220, color: Colors.white),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
+                  const SizedBox(width: 14),
+                  Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Container(height: 160, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+            ),
+            const SizedBox(height: 20),
+            ...List.generate(
+              4,
+              (_) => Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+                child: Container(height: 74, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Squelette de la liste des operations
+  Widget _buildTransactionsSkeleton() {
+    return Shimmer.fromColors(
+      baseColor: Colors.grey.shade200,
+      highlightColor: Colors.grey.shade100,
+      child: Column(
+        children: List.generate(
+          4,
+          (_) => Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+            height: 74,
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildMiniStat(String emoji, String label, String valeur, Color couleur) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -940,6 +1069,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildWeekChart() {
     final theme = Theme.of(context);
+
+    // Pendant le chargement : espace reserve, sans message trompeur
+    if (!_dataLoaded) return const SizedBox(height: 160);
+
     if (_weekData.isEmpty) {
       return Container(
         height: 140,

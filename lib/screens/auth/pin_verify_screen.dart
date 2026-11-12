@@ -5,8 +5,10 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import '../../services/local_auth_service.dart';
 import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
+import '../../services/transaction_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldGreen = Color(0xFF0B4F36);
 const Color textDark = Color(0xFF222222);
 const Color textMedium = Color(0xFF555555);
@@ -24,11 +26,37 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   final AuthService _authService = AuthService();
   final PermissionService _permissionService = PermissionService();
 
+  late final Future<bool> _adminFuture;
+
   String _pin = '';
   bool _isLoading = false;
   int _tentatives = 0;
   final int _maxTentatives = 3;
   bool _erreurVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Lance la verification admin tout de suite : le resultat sera pret quand le PIN sera tape
+    _adminFuture = _permissionService.isAdmin().catchError((_) => false);
+    _prefetch();
+  }
+
+  // Pendant que l'utilisateur tape son code, on prepare le dashboard
+   Future<void> _prefetch() async {
+    try {
+      final user = await _authService.getCurrentUserData();
+      if (user == null) return;
+
+      // Photo de profil en memoire pendant la saisie du PIN
+      final url = user.photo;
+      if (url != null && url.isNotEmpty && mounted) {
+        precacheImage(CachedNetworkImageProvider(url), context).catchError((_) {});
+      }
+
+      await TransactionService().getTransactionsByCommercant(user.id);
+    } catch (_) {}
+  }
 
   void _appuyerChiffre(String chiffre) {
     if (_pin.length >= 4 || _isLoading) return;
@@ -38,7 +66,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
       _pin += chiffre;
     });
     if (_pin.length == 4) {
-      Future.delayed(const Duration(milliseconds: 200), () {
+      Future.delayed(const Duration(milliseconds: 120), () {
         _verifier();
       });
     }
@@ -60,9 +88,8 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
 
       if (valide) {
         await _localAuth.updateLastActivity();
-        if (!mounted) return;
-
-        final isAdmin = await _permissionService.isAdmin();
+        // Deja calcule pendant la saisie du PIN : quasi instantane
+        final isAdmin = await _adminFuture;
         if (!mounted) return;
 
         Navigator.pushReplacementNamed(
@@ -234,7 +261,6 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                // ✅ MODIFIÉ : Texte clair "Code oublié ?" au lieu d'un point d'interrogation
                                 GestureDetector(
                                   onTap: _isLoading ? null : () => Navigator.pushNamed(context, '/reset_pin'),
                                   child: Container(

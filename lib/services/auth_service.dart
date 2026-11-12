@@ -7,18 +7,22 @@ import '../models/utilisateur_model.dart';
 import 'local_auth_service.dart';
 
 class AuthService {
+  // Singleton : un seul cache partage entre tous les ecrans (PIN, dashboard, profil...)
+  static final AuthService _instance = AuthService._internal();
+  factory AuthService() => _instance;
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final LocalAuthService _localAuth = LocalAuthService();
 
-  // ✅ Instance unique de GoogleSignIn pour toute la classe
+  // Instance unique de GoogleSignIn pour toute la classe
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   // ─── CACHE PROFIL ─────────────────────────────────────────────────────────
   UtilisateurModel? _cachedUser;
   String? _cachedUserId;
 
-  AuthService() {
+  AuthService._internal() {
     _auth.authStateChanges().listen((User? user) {
       if (user == null) {
         invalidateUserCache();
@@ -244,7 +248,7 @@ class AuthService {
   // ─── CONNEXION / INSCRIPTION AVEC GOOGLE ─────────────────────────────
   Future<UtilisateurModel?> signInWithGoogle() async {
     try {
-      // ✅ ASTUCE : Forcer la déconnexion juste avant la connexion pour vider le cache 
+      // Forcer la déconnexion juste avant la connexion pour vider le cache
       // et forcer l'affichage du sélecteur de comptes sur Android.
       await _googleSignIn.signOut();
 
@@ -473,16 +477,16 @@ class AuthService {
     }
   }
 
-  // ─── DÉCONNEXION (CORRIGÉE) ──────────────────────────────────────────────
+  // ─── DÉCONNEXION ─────────────────────────────────────────────────────────
   Future<void> signOut() async {
     try {
-      // ✅ 1. Utiliser l'instance unique de la classe pour vider le cache Google
+      // 1. Utiliser l'instance unique de la classe pour vider le cache Google
       await _googleSignIn.signOut();
-      
-      // ✅ 2. Déconnecter de Firebase
+
+      // 2. Déconnecter de Firebase
       await _auth.signOut();
-      
-      // ✅ 3. Invalider le cache local et effacer le PIN local pour la sécurité
+
+      // 3. Invalider le cache local et effacer le PIN local pour la sécurité
       invalidateUserCache();
       await _localAuth.clearPin();
     } catch (e) {
@@ -494,6 +498,7 @@ class AuthService {
   }
 
   // ─── GET PROFIL ───────────────────────────────────────────────────────────
+  // Ordre : cache memoire -> cache local Firestore (instantane) -> serveur (delai max 6 s)
   Future<UtilisateurModel?> getCurrentUserData({bool forceRefresh = false}) async {
     try {
       final user = _auth.currentUser;
@@ -503,10 +508,30 @@ class AuthService {
         return _cachedUser;
       }
 
-      final doc = await _firestore.collection('utilisateurs').doc(user.uid).get();
-      if (!doc.exists) return null;
+      final ref = _firestore.collection('utilisateurs').doc(user.uid);
+      DocumentSnapshot<Map<String, dynamic>>? doc;
 
-      final utilisateur = UtilisateurModel.fromFirestore(doc);
+      // 1) Cache local Firestore d'abord : instantané, même avec un réseau lent
+      if (!forceRefresh) {
+        try {
+          final cached = await ref.get(const GetOptions(source: Source.cache));
+          if (cached.exists) doc = cached;
+        } catch (_) {}
+      }
+
+      // 2) Sinon serveur avec délai maximum, puis retour au cache
+      if (doc == null) {
+        try {
+          doc = await ref.get().timeout(const Duration(seconds: 6));
+        } catch (_) {
+          doc = await ref.get(const GetOptions(source: Source.cache));
+        }
+      }
+
+      final snap = doc;
+      if (!snap.exists) return null;
+
+      final utilisateur = UtilisateurModel.fromFirestore(snap);
       _cachedUser = utilisateur;
       _cachedUserId = user.uid;
 

@@ -3,13 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter/gestures.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // ✅ AJOUTÉ pour le consentement implicite
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/utilisateur_model.dart';
 import '../../services/auth_service.dart';
 import '../../screens/commercant/compte_en_suppression_screen.dart';
 import 'signup_screen.dart';
 import 'cgu_screen.dart';
+import 'politique_screen.dart'; // ✅ AJOUTÉ : Import de l'écran Politique de confidentialité local
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -33,7 +34,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
 
   // ✅ Liste des activités pour le dialogue de finalisation
   final List<Map<String, String>> _activites = [
-    {'emoji': '🛒', 'label': 'Vente de produits'},
+    {'emoji': '', 'label': 'Vente de produits'},
     {'emoji': '🍲', 'label': 'Restauration'},
     {'emoji': '✂️', 'label': 'Coiffure'},
     {'emoji': '🧵', 'label': 'Couture'},
@@ -70,7 +71,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
     setState(() => _errorMessage = null);
   }
 
-  // ✅ NOUVELLE MÉTHODE : Gérer l'ouverture des liens (CGU en local, Politique en WebView)
+  // ✅ NOUVELLE MÉTHODE : Gérer l'ouverture des liens (CGU et Politique en local)
   void _handleLinkTap(String type) {
     if (type == 'terms') {
       Navigator.push(
@@ -78,24 +79,10 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
         MaterialPageRoute(builder: (context) => const CguScreen()),
       );
     } else if (type == 'privacy') {
-      _openPrivacyPolicy();
-    }
-  }
-
-  Future<void> _openPrivacyPolicy() async {
-    final String url = 'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70?source=copy_link';
-    final Uri uri = Uri.parse(url);
-    
-    if (!await launchUrl(
-      uri,
-      mode: LaunchMode.inAppWebView,
-      webViewConfiguration: const WebViewConfiguration(enableJavaScript: true),
-    )) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible d\'ouvrir le lien.')),
-        );
-      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PolitiqueScreen()),
+      );
     }
   }
 
@@ -484,7 +471,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                         ),
                       ),
 
-                      // ── CONTENU ──────────────────────────────────────────────────
+                      // ── CONTENU ─────────────────────────────────────────────────
                       Expanded(
                         child: FadeTransition(
                           opacity: _fadeAnim,
@@ -525,7 +512,7 @@ class _LoginScreenState extends State<LoginScreen> with TickerProviderStateMixin
                                           child: Row(
                                             mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Text('🇹🇬', style: TextStyle(fontSize: 20)),
+                                              Text('🇹🇬', style: TextStyle(fontSize: 20)), // ✅ DRAPEAU COMPLET DU TOGO
                                               SizedBox(width: 6),
                                               Text('+228', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: textDark)),
                                               SizedBox(width: 8),

@@ -1,55 +1,58 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 class UserAvatar extends StatelessWidget {
   final String? photoUrl;
   final String initial;
   final double size;
-  final Color background;
-  final Color textColor;
 
   const UserAvatar({
     super.key,
-    required this.photoUrl,
+    this.photoUrl,
     required this.initial,
-    this.size = 48,
-    this.background = const Color(0x33FFFFFF),
-    this.textColor = Colors.white,
+    required this.size,
   });
 
   @override
   Widget build(BuildContext context) {
-    final hasPhoto = photoUrl != null && photoUrl!.trim().isNotEmpty;
+    final hasPhoto = photoUrl != null && photoUrl!.isNotEmpty;
 
     return Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: background,
+        color: Colors.white.withOpacity(0.2),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
       ),
       child: ClipOval(
         child: hasPhoto
-            ? Image.network(
-                photoUrl!,
+            ? CachedNetworkImage(
+                imageUrl: photoUrl!,
                 width: size,
                 height: size,
                 fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => _initial(),
+                // ✅ Apparition immédiate, pas de fondu tardif
+                fadeInDuration: Duration.zero,
+fadeOutDuration: Duration.zero,
+placeholder: (_, __) => const SizedBox.shrink(),
+errorWidget: (_, __, ___) => _initial(),
               )
             : _initial(),
       ),
     );
   }
 
-  Widget _initial() => Center(
-        child: Text(
-          initial,
-          style: TextStyle(
-            fontSize: size * 0.4,
-            fontWeight: FontWeight.bold,
-            color: textColor,
-          ),
+  Widget _initial() {
+    return Center(
+      child: Text(
+        initial,
+        style: TextStyle(
+          fontSize: size * 0.4,
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
         ),
-      );
+      ),
+    );
+  }
 }

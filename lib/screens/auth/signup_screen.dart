@@ -7,7 +7,8 @@ import '../../providers/auth_provider.dart';
 import '../../models/utilisateur_model.dart';
 import '../../widgets/screenshot_wrapper.dart';
 import 'login_screen.dart';
-import 'cgu_screen.dart'; // ✅ AJOUTÉ : Import de l'écran CGU interne
+import 'cgu_screen.dart';
+import 'politique_screen.dart'; // ✅ AJOUTÉ : Import de l'écran Politique de confidentialité local
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -44,7 +45,7 @@ class _SignupScreenState extends State<SignupScreen> {
     {'emoji': '🛒', 'label': 'Vente de produits'},
     {'emoji': '🍲', 'label': 'Restauration'},
     {'emoji': '✂️', 'label': 'Coiffure'},
-    {'emoji': '🧵', 'label': 'Couture'},
+    {'emoji': '', 'label': 'Couture'},
     {'emoji': '🔧', 'label': 'Artisan'},
     {'emoji': '📦', 'label': 'Commerce divers'},
   ];
@@ -86,7 +87,7 @@ class _SignupScreenState extends State<SignupScreen> {
     });
   }
 
-  // ✅ NOUVELLE MÉTHODE : Gérer l'ouverture des liens (CGU en local, Politique en WebView)
+  // ✅ NOUVELLE MÉTHODE : Gérer l'ouverture des liens (CGU et Politique en local)
   void _handleLinkTap(String type) {
     if (type == 'terms') {
       // Ouvre l'écran CGU directement dans l'application
@@ -95,26 +96,11 @@ class _SignupScreenState extends State<SignupScreen> {
         MaterialPageRoute(builder: (context) => const CguScreen()),
       );
     } else if (type == 'privacy') {
-      // Ouvre la politique de confidentialité Notion SANS quitter l'app
-      _openPrivacyPolicy();
-    }
-  }
-
-  Future<void> _openPrivacyPolicy() async {
-    // Ton lien Notion fourni
-    final String url = 'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70?source=copy_link';
-    final Uri uri = Uri.parse(url);
-    
-    if (!await launchUrl(
-      uri,
-      mode: LaunchMode.inAppWebView, // ✅ Ouvre dans l'app (pas de sortie vers Chrome/Safari)
-      webViewConfiguration: const WebViewConfiguration(enableJavaScript: true),
-    )) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossible d\'ouvrir le lien.')),
-        );
-      }
+      // Ouvre l'écran Politique de confidentialité directement dans l'application
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const PolitiqueScreen()),
+      );
     }
   }
 
@@ -693,7 +679,7 @@ class _SignupScreenState extends State<SignupScreen> {
                                           fontWeight: FontWeight.bold,
                                           decoration: TextDecoration.underline,
                                         ),
-                                        recognizer: TapGestureRecognizer()..onTap = () => _handleLinkTap('privacy'), // ✅ Ouvre le WebView Notion
+                                        recognizer: TapGestureRecognizer()..onTap = () => _handleLinkTap('privacy'), // ✅ Ouvre l'écran interne
                                       ),
                                       const TextSpan(text: '.'),
                                     ],

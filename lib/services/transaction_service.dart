@@ -96,34 +96,48 @@ class TransactionService {
     }
   }
 
-  // ─── GET ALL TRANSACTIONS (✅ CORRIGÉ : Sans orderBy pour éviter l'erreur d'index) ──
-  Future<List<TransactionModel>> getTransactionsByCommercant(
+   Future<List<TransactionModel>> getTransactionsByCommercant(
     String commercantId, {
     int? limit,
     bool forceRefresh = false,
   }) async {
     final cacheKey = '${commercantId}_all';
 
-    if (forceRefresh) {
-      invalidateCache(commercantId);
-    }
+    if (forceRefresh) invalidateCache(commercantId);
 
+    List<TransactionModel> cut(List<TransactionModel> l) =>
+        (limit != null && limit < l.length) ? l.sublist(0, limit) : l;
+
+    // 1) Cache mémoire (2 minutes)
     if (!forceRefresh && _isCacheValid(cacheKey) && _cache.containsKey(cacheKey)) {
-      final cached = _cache[cacheKey]!;
-      if (limit != null && limit < cached.length) {
-        return cached.sublist(0, limit);
-      }
-      return cached;
+      return cut(_cache[cacheKey]!);
     }
 
+    // 2) Cache local Firestore (instantané), puis rafraîchissement en arrière-plan
+    if (!forceRefresh) {
+      try {
+        final snap = await _db
+            .collection('transactions')
+            .where('commercantId', isEqualTo: commercantId)
+            .get(const GetOptions(source: Source.cache));
+        if (snap.docs.isNotEmpty) {
+          final list = _toSortedList(snap);
+          _setCache(cacheKey, list);
+          _refreshFromServer(commercantId, cacheKey, list.length);
+          return cut(list);
+        }
+      } catch (_) {}
+    }
+
+    // 3) Serveur avec délai maximum de 8 s, sinon cache
     try {
       QuerySnapshot<Map<String, dynamic>> snapshot;
       try {
-        // ✅ MODIFICATION : On retire le .orderBy() pour éviter l'erreur d'index composite manquant
         snapshot = await _db
             .collection('transactions')
             .where('commercantId', isEqualTo: commercantId)
-            .get(const GetOptions(source: Source.serverAndCache));
+            .get()
+            .timeout(const Duration(seconds: 8));
       } catch (_) {
         snapshot = await _db
             .collection('transactions')
@@ -131,30 +145,46 @@ class TransactionService {
             .get(const GetOptions(source: Source.cache));
       }
 
-      final list = snapshot.docs
-          .map((doc) => TransactionModel.fromFirestore(doc))
-          .toList();
-
-      // ✅ MODIFICATION : On trie en Dart (évite les crashs si 'dateCreation' manque ou index manquant)
-      list.sort((a, b) {
-        final dateA = a.dateCreation ?? DateTime(2000);
-        final dateB = b.dateCreation ?? DateTime(2000);
-        return dateB.compareTo(dateA); // Décroissant (le plus récent en premier)
-      });
-
+      final list = _toSortedList(snapshot);
       _setCache(cacheKey, list);
       debugPrint('✅ [Service] ${list.length} transactions chargées pour $commercantId');
-
-      if (limit != null && limit < list.length) {
-        return list.sublist(0, limit);
-      }
-      return list;
+      return cut(list);
     } catch (e) {
       debugPrint('❌ [Service] Erreur getTransactionsByCommercant: $e');
-      return _cache[cacheKey] ?? [];
+      return cut(_cache[cacheKey] ?? []);
     }
   }
 
+  List<TransactionModel> _toSortedList(QuerySnapshot<Map<String, dynamic>> snapshot) {
+    final list = snapshot.docs.map((d) => TransactionModel.fromFirestore(d)).toList();
+    list.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+    return list;
+  }
+
+  // Rafraîchit silencieusement depuis le serveur, sans bloquer l'affichage
+  final Set<String> _refreshing = {};
+
+  Future<void> _refreshFromServer(String commercantId, String cacheKey, int previousCount) async {
+    if (!_refreshing.add(cacheKey)) return;
+    try {
+      final snap = await _db
+          .collection('transactions')
+          .where('commercantId', isEqualTo: commercantId)
+          .get(const GetOptions(source: Source.server))
+          .timeout(const Duration(seconds: 15));
+
+      // Le cache a été invalidé entre-temps (nouvelle saisie) : on ne l'écrase pas
+      if (!_cache.containsKey(cacheKey)) return;
+
+      final fresh = _toSortedList(snap);
+      _setCache(cacheKey, fresh);
+      if (fresh.length != previousCount) notifyListeners();
+    } catch (_) {
+      // Hors ligne ou lent : on garde ce qu'on a
+    } finally {
+      _refreshing.remove(cacheKey);
+    }
+  }
   // ─── GET QUICK STATS (Jour) ──────────────────────────────────────────────────
   Future<Map<String, dynamic>> getQuickStats(
     String commercantId, {

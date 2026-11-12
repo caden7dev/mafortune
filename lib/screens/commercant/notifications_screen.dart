@@ -24,8 +24,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   String? _currentUserId;
   bool _isMarkingAll = false;
-  bool _isLoading = true;
   String? _errorMessage;
+  
+  // ✅ NOUVEAU : Pour éviter d'afficher la vue "Vide" pendant le tout premier chargement
+  bool _isFirstLoad = true;
 
   // Cache local pour éviter les rebuilds inutiles
   List<QueryDocumentSnapshot> _cachedNotifications = [];
@@ -89,7 +91,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('✅ Aucune notification à marquer'),
-              backgroundColor: emeraldDark, // ✅ Couleur harmonisée
+              backgroundColor: emeraldDark,
             ),
           );
         }
@@ -117,7 +119,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               '✅ $count notification${count > 1 ? 's' : ''} marquée${count > 1 ? 's' : ''} comme lue${count > 1 ? 's' : ''}',
               style: const TextStyle(fontSize: 15),
             ),
-            backgroundColor: emeraldDark, // ✅ Couleur harmonisée
+            backgroundColor: emeraldDark,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
@@ -130,7 +132,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('❌ Erreur : ${e.toString()}', style: const TextStyle(fontSize: 15)),
-            backgroundColor: brickRed, // ✅ Couleur harmonisée
+            backgroundColor: brickRed,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             margin: const EdgeInsets.all(16),
@@ -180,34 +182,34 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       case '📊':
       case '📈':
       case '🔐':
-        return emeraldDark.withOpacity(0.1); // ✅ Vert Émeraude à 10%
+        return emeraldDark.withOpacity(0.1);
       case '⚠️':
-        return brickRed.withOpacity(0.1);    // ✅ Rouge Brique à 10%
+        return brickRed.withOpacity(0.1);
       case '🎉':
       case '🆕':
-        return terracotta.withOpacity(0.1);  // ✅ Terre Cuite à 10%
+        return terracotta.withOpacity(0.1);
       case '🔧':
       default:
-        return Colors.grey.withOpacity(0.1); // ✅ Gris neutre à 10%
+        return Colors.grey.withOpacity(0.1);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair et doux
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: emeraldDark, // ✅ Vert Émeraude Sombre
+        backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
-       title: const Text(
-  'Notifications',
-  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-),
+        title: const Text(
+          'Notifications',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
         actions: [
           TextButton(
             onPressed: _isMarkingAll ? null : _markAllAsRead,
@@ -237,16 +239,23 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             .where('audience', whereIn: ['Tous', 'Commerçants'])
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && _cachedNotifications.isEmpty) {
-            return const Center(child: CircularProgressIndicator(color: emeraldDark));
-          }
-
           if (snapshot.hasError && _cachedNotifications.isEmpty) {
             return _buildErrorView('Impossible de charger les notifications', 'Vérifiez votre connexion internet.');
           }
 
+          // ✅ CORRECTION DU CLIGNOTEMENT : 
+          // Si c'est le tout premier chargement et qu'on n'a pas encore de données, 
+          // on affiche un petit loader élégant au lieu de la vue "Pas de notifications".
+          if (_isFirstLoad && !snapshot.hasData && _cachedNotifications.isEmpty) {
+            return const Center(
+              child: CircularProgressIndicator(color: emeraldDark),
+            );
+          }
+
           List<QueryDocumentSnapshot> notifications = [];
           if (snapshot.hasData) {
+            _isFirstLoad = false; // ✅ On a reçu des données, on ne montrera plus le loader initial
+            
             notifications = List.from(snapshot.data!.docs);
             notifications.sort((a, b) {
               final dateA = (a.data() as Map<String, dynamic>)['dateCreation'] as Timestamp?;
@@ -282,7 +291,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     decoration: BoxDecoration(
-                      color: terracotta.withOpacity(0.1), // ✅ Fond Terre Cuite à 10%
+                      color: terracotta.withOpacity(0.1),
                       border: Border(bottom: BorderSide(color: terracotta.withOpacity(0.2))),
                     ),
                     child: Row(
@@ -346,7 +355,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       direction: DismissDirection.endToStart,
       background: Container(
         margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(color: brickRed, borderRadius: BorderRadius.circular(16)), // ✅ Rouge Brique
+        decoration: BoxDecoration(color: brickRed, borderRadius: BorderRadius.circular(16)),
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
@@ -373,7 +382,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
-              color: isRead ? Colors.grey.withOpacity(0.3) : emeraldDark.withOpacity(0.4), // ✅ Bordure Émeraude
+              color: isRead ? Colors.grey.withOpacity(0.3) : emeraldDark.withOpacity(0.4),
               width: isRead ? 1 : 1.5,
             ),
             boxShadow: [
@@ -389,7 +398,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   width: 52,
                   height: 52,
                   decoration: BoxDecoration(
-                    color: isRead ? Colors.grey.withOpacity(0.1) : _getEmojiBgColor(emoji), // ✅ Règle des 10%
+                    color: isRead ? Colors.grey.withOpacity(0.1) : _getEmojiBgColor(emoji),
                     shape: BoxShape.circle,
                   ),
                   child: Center(child: Text(emoji, style: const TextStyle(fontSize: 24))),
@@ -418,7 +427,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                               width: 10,
                               height: 10,
                               margin: const EdgeInsets.only(top: 6),
-                              decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle), // ✅ Point Terre Cuite
+                              decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
                             ),
                           ],
                         ],
@@ -445,7 +454,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: terracotta.withOpacity(0.1), // ✅ Fond Terre Cuite 10%
+                                color: terracotta.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Text(
@@ -483,7 +492,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: brickRed, // ✅ Rouge Brique
+              backgroundColor: brickRed,
               foregroundColor: Colors.white,
             ),
             child: const Text('Supprimer'),
@@ -499,7 +508,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('🗑️ Notification supprimée'), 
-              backgroundColor: brickRed, // ✅ Rouge Brique
+              backgroundColor: brickRed,
             ),
           );
         }
@@ -516,7 +525,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.error_outline_rounded, size: 56, color: Colors.grey[400]), // ✅ Icône système propre
+          Icon(Icons.error_outline_rounded, size: 56, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: textDark), textAlign: TextAlign.center),
           const SizedBox(height: 8),
@@ -527,7 +536,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             icon: const Icon(Icons.refresh_rounded),
             label: const Text('Réessayer'),
             style: ElevatedButton.styleFrom(
-              backgroundColor: emeraldDark, // ✅ Vert Émeraude
+              backgroundColor: emeraldDark,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             ),
@@ -543,7 +552,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.notifications_off_rounded, size: 64, color: Colors.grey[400]), // ✅ Icône système propre
+          Icon(Icons.notifications_off_rounded, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 20),
           const Text('Pas de notifications', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: textDark)),
           const SizedBox(height: 8),

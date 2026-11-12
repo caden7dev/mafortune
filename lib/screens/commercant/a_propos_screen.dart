@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../widgets/custom_bottom_nav.dart';
+import '../../screens/auth/cgu_screen.dart'; // ✅ Import de l'écran CGU local
+import '../../screens/auth/politique_screen.dart'; // ✅ AJOUTÉ : Import de l'écran Politique de confidentialité local
 
 // 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
@@ -18,7 +20,6 @@ class AProposScreen extends StatefulWidget {
 class _AProposScreenState extends State<AProposScreen> {
   int _currentIndex = 4;
 
-  // ✅ Remplacement des émojis par des icônes Material Design
   final List<Map<String, dynamic>> _features = [
     {'icon': Icons.analytics_outlined, 'text': 'Suivi de vos recettes et dépenses'},
     {'icon': Icons.bar_chart_rounded, 'text': 'Tableau de bord avec vos statistiques'},
@@ -50,7 +51,7 @@ class _AProposScreenState extends State<AProposScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA), // ✅ Fond gris très clair
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         backgroundColor: emeraldDark,
         foregroundColor: Colors.white,
@@ -73,7 +74,6 @@ class _AProposScreenState extends State<AProposScreen> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // ── Header logo ──────────────────────────────────────────────────
             Container(
               width: double.infinity,
               padding: const EdgeInsets.fromLTRB(24, 32, 24, 32),
@@ -113,7 +113,7 @@ class _AProposScreenState extends State<AProposScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                     decoration: BoxDecoration(
-                      color: emeraldDark.withOpacity(0.1), // ✅ Règle des 10%
+                      color: emeraldDark.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
@@ -136,7 +136,6 @@ class _AProposScreenState extends State<AProposScreen> {
 
             const SizedBox(height: 20),
 
-            // ── À propos ─────────────────────────────────────────────────────
             _buildSection(
               icon: Icons.info_outline,
               title: 'À propos de MaFortune',
@@ -155,7 +154,6 @@ class _AProposScreenState extends State<AProposScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Fonctionnalités ───────────────────────────────────────────────
             _buildSection(
               icon: Icons.star_outline,
               title: 'Fonctionnalités',
@@ -180,23 +178,26 @@ class _AProposScreenState extends State<AProposScreen> {
                     title: 'Site web',
                     onTap: () => _openUrl('https://www.mafortune.tg', 'Site web'),
                   ),
+                  // ✅ MODIFIÉ : Ouvre maintenant l'écran local PolitiqueScreen au lieu du lien Notion
                   _buildLinkItem(
                     icon: Icons.privacy_tip_outlined,
                     title: 'Politique de confidentialité',
-                    // ✅ VRAI LIEN NOTION MIS À JOUR (sans le ?source=copy_link pour faire plus propre)
-                    onTap: () => _openUrl(
-                      'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70', 
-                      'Politique de confidentialité'
-                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const PolitiqueScreen()),
+                      );
+                    },
                   ),
                   _buildLinkItem(
                     icon: Icons.description_outlined,
                     title: 'Conditions d\'utilisation',
-                    // ✅ Utilise le même lien pour l'instant pour éviter les erreurs
-                    onTap: () => _openUrl(
-                      'https://garnet-stone-55f.notion.site/Politique-de-Confidentialit-MaFortune-3e9256a556ad80409f3ad78e0a6c6e70', 
-                      'Conditions d\'utilisation'
-                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CguScreen()),
+                      );
+                    },
                     isLast: true,
                   ),
                 ],
@@ -205,24 +206,20 @@ class _AProposScreenState extends State<AProposScreen> {
 
             const SizedBox(height: 16),
 
-            // ── Informations légales ─────────────────────────────────────────
             _buildSection(
               icon: Icons.gavel_outlined,
               title: 'Informations légales',
               child: Column(
                 children: [
                   _buildInfoRow(icon: Icons.code_rounded, label: 'Développeur', value: 'MaFortune Team'),
-                  // ✅ EMAIL PERSONNEL MIS À JOUR
                   _buildInfoRow(icon: Icons.email_outlined, label: 'Email', value: 'ahadzicaden7@gmail.com'),
-                  // ✅ LIGNE TÉLÉPHONE SUPPRIMÉE POUR PROTÉGER TA VIE PRIVÉE
-                  _buildInfoRow(icon: Icons.calendar_today_outlined, label: 'Année', value: '2024', isLast: true),
+                  _buildInfoRow(icon: Icons.calendar_today_outlined, label: 'Année', value: '2026', isLast: true),
                 ],
               ),
             ),
 
             const SizedBox(height: 16),
 
-            // ── Crédits ──────────────────────────────────────────────────────
             _buildSection(
               icon: Icons.volunteer_activism_outlined,
               title: 'Crédits',
@@ -236,7 +233,7 @@ class _AProposScreenState extends State<AProposScreen> {
                   const SizedBox(height: 12),
                   Center(
                     child: Text(
-                      '© 2024 MaFortune — Tous droits réservés',
+                      '© 2026 MaFortune — Tous droits réservés',
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[500],
@@ -268,7 +265,6 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── SECTION WRAPPER ─────────────────────────────────────────────────────────
   Widget _buildSection({
     required IconData icon,
     required String title,
@@ -292,7 +288,6 @@ class _AProposScreenState extends State<AProposScreen> {
         children: [
           Row(
             children: [
-              // ✅ Icône de section avec règle des 10%
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -319,7 +314,6 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── PARAGRAPHE ──────────────────────────────────────────────────────────────
   Widget _buildParagraph(String text) {
     return Text(
       text,
@@ -331,14 +325,12 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── FEATURE ITEM ────────────────────────────────────────────────────────────
   Widget _buildFeatureItem({required IconData icon, required String text}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ✅ Icône avec règle des 10%
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -366,7 +358,6 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── LIEN ────────────────────────────────────────────────────────────────────
   Widget _buildLinkItem({
     required IconData icon,
     required String title,
@@ -384,7 +375,7 @@ class _AProposScreenState extends State<AProposScreen> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: terracotta.withOpacity(0.1), // ✅ Règle des 10% (Terre Cuite pour les liens)
+                    color: terracotta.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(icon, color: terracotta, size: 20),
@@ -410,7 +401,6 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── INFO ROW ────────────────────────────────────────────────────────────────
   Widget _buildInfoRow({
     required IconData icon, 
     required String label, 
@@ -446,7 +436,6 @@ class _AProposScreenState extends State<AProposScreen> {
     );
   }
 
-  // ─── CREDIT ITEM ─────────────────────────────────────────────────────────────
   Widget _buildCreditItem({
     required String name, 
     required IconData icon, 

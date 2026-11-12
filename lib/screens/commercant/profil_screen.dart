@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,6 +9,7 @@ import '../../services/auth_service.dart';
 import '../../services/permission_service.dart';
 import '../../services/delete_account_service.dart';
 import '../../models/utilisateur_model.dart';
+import '../../widgets/user_avatar.dart';
 import 'notifications_screen.dart';
 import 'confidentialite_screen.dart';
 import 'aide_screen.dart';
@@ -33,7 +35,9 @@ const Color textDark = Color(0xFF222222);
 
 class ProfilScreen extends StatefulWidget {
   final UtilisateurModel? preloadedUser;
-  const ProfilScreen({super.key, this.preloadedUser});
+  // Previent l'ecran parent (accueil) quand le profil change
+  final ValueChanged<UtilisateurModel?>? onUserChanged;
+  const ProfilScreen({super.key, this.preloadedUser, this.onUserChanged});
 
   @override
   State<ProfilScreen> createState() => _ProfilScreenState();
@@ -76,20 +80,31 @@ class _ProfilScreenState extends State<ProfilScreen> {
     if (mounted) setState(() => _isAdmin = isAdmin);
   }
 
+  // Plus de clignotement : le loader plein ecran n'apparait qu'au tout premier chargement.
+  // Ensuite, les donnees restent affichees pendant le chargement en arriere-plan.
   Future<void> _loadProfile({bool forceRefresh = false}) async {
-    setState(() => _isLoading = true);
+    if (_currentUser == null) {
+      setState(() => _isLoading = true);
+    }
+
     try {
       final user = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
-      setState(() => _currentUser = user);
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _isLoading = false;
+        });
+        // Previent l'accueil (photo, nom...)
+        widget.onUserChanged?.call(user);
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Erreur : $e', style: const TextStyle(fontSize: 16)),
           backgroundColor: brickRed,
         ));
+        setState(() => _isLoading = false);
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -208,13 +223,23 @@ class _ProfilScreenState extends State<ProfilScreen> {
         'photo': downloadUrl,
       });
 
-      if (mounted) {
-        Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Photo de profil mise à jour'), backgroundColor: emeraldDark),
-        );
-        await _loadProfile(forceRefresh: true);
-      }
+      // Charge la nouvelle image en cache avant de l'afficher (pas de clignotement)
+      try {
+        if (mounted) await precacheImage(CachedNetworkImageProvider(downloadUrl), context);
+      } catch (_) {}
+
+      if (!mounted) return;
+      final updated = _currentUser!.copyWith(photo: downloadUrl);
+      setState(() => _currentUser = updated);
+      widget.onUserChanged?.call(updated); // l'accueil se met a jour en meme temps
+
+      Navigator.of(context).pop(); // ferme le dialogue
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('✅ Photo de profil mise à jour'), backgroundColor: emeraldDark),
+      );
+
+      // Synchronise avec Firestore en arriere-plan
+      _loadProfile(forceRefresh: true);
     } catch (e) {
       if (mounted) {
         Navigator.of(context).pop();
@@ -344,7 +369,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Photo supprimée'), backgroundColor: terracotta),
         );
-        await _loadProfile(forceRefresh: true);
+        await _loadProfile(forceRefresh: true); // met aussi l'accueil a jour
       }
     } catch (e) {
       if (mounted) {
@@ -633,7 +658,9 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    // Loader plein ecran SEULEMENT au tout premier chargement.
+    // Ensuite, le RefreshIndicator gere le petit spinner sans cacher le contenu.
+    if (_isLoading && _currentUser == null) {
       return const Scaffold(backgroundColor: Color(0xFFF8F9FA), body: Center(child: CircularProgressIndicator(color: emeraldDark)));
     }
 
@@ -685,29 +712,10 @@ class _ProfilScreenState extends State<ProfilScreen> {
                           // Toucher la photo : l'affiche en grand
                           GestureDetector(
                             onTap: _voirPhoto,
-                            child: Container(
-                              width: 88,
-                              height: 88,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.2),
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
-                              ),
-                              child: ClipOval(
-                                child: _hasPhoto
-                                    ? Image.network(
-                                        _currentUser!.photo!,
-                                        width: 88,
-                                        height: 88,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Center(
-                                          child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-                                        ),
-                                      )
-                                    : Center(
-                                        child: Text(_getInitial(), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.white)),
-                                      ),
-                              ),
+                            child: UserAvatar(
+                              photoUrl: _currentUser!.photo,
+                              initial: _getInitial(),
+                              size: 88,
                             ),
                           ),
                           // Toucher la camera : menu d'options
@@ -861,6 +869,7 @@ class _ProfilScreenState extends State<ProfilScreen> {
 
                 const SizedBox(height: 24),
 
+                // Les conditions d'utilisation sont accessibles via "À propos de MaFortune"
                 _buildSection('Aide & Contact', [
                   _buildMenuItem(icon: Icons.chat_bubble_outline, title: 'Messagerie Admin', subtitle: 'Discutez directement avec le support', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()))),
                   _buildMenuItem(icon: Icons.help_outline, title: 'Aide & Support', onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AideScreen()))),
@@ -1050,14 +1059,12 @@ class _PhotoViewerScreen extends StatelessWidget {
               child: InteractiveViewer(
                 minScale: 1,
                 maxScale: 4,
-                child: Image.network(
-                  url,
+                // Deja en cache : s'ouvre instantanement
+                child: CachedNetworkImage(
+                  imageUrl: url,
                   fit: BoxFit.contain,
-                  loadingBuilder: (context, child, progress) {
-                    if (progress == null) return child;
-                    return const Center(child: CircularProgressIndicator(color: Colors.white));
-                  },
-                  errorBuilder: (_, __, ___) =>
+                  placeholder: (_, __) => const Center(child: CircularProgressIndicator(color: Colors.white)),
+                  errorWidget: (_, __, ___) =>
                       const Icon(Icons.broken_image_outlined, color: Colors.white54, size: 64),
                 ),
               ),
