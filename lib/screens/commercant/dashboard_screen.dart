@@ -20,11 +20,12 @@ import 'historique_screen.dart';
 import 'compte_en_suppression_screen.dart';
 import '../../services/bilan_notification_service.dart';
 import 'package:flutter/services.dart';
+import '../../services/notification_service.dart'; // ✅ Import du service
 
 // CHARTE GRAPHIQUE MA FORTUNE (Mobile)
-const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre (Sécurité, Structure)
-const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Chaleur, Action principale)
-const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique doux (Dépenses, Alertes)
+const Color emeraldDark = Color(0xFF0B4F36);
+const Color terracotta = Color(0xFFD96B43);
+const Color brickRed = Color(0xFFB91C1C);
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -43,8 +44,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Map<String, dynamic> _quickStats = {};
   List<Map<String, dynamic>> _weekData = [];
 
-  bool _isLoading = true;     // true tant que le profil n'est pas lu
-  bool _dataLoaded = false;   // true quand stats + operations sont chargees
+  bool _isLoading = true;
+  bool _dataLoaded = false;
 
   int _unreadMessagesCount = 0;
   Map<String, dynamic>? _latestAdminMessage;
@@ -53,12 +54,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   bool _showAdminMessage = true;
   bool _isBalanceVisible = true;
 
-  // Onglets construits (les autres ne se chargent pas au demarrage)
   final Set<int> _openedTabs = {0};
   bool _tabsPreloaded = false;
 
-  // Streams crees UNE SEULE fois
-  Stream<QuerySnapshot>? _notifStream;
+  // ✅ CORRECTION : On garde le vrai Stream Firestore, pas un Stream<int>
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _notifStream;
   Stream<QuerySnapshot>? _msgStream;
 
   String _getTitle(int index) {
@@ -85,7 +85,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return parts.isNotEmpty ? parts[0] : _currentUser!.nomComplet;
   }
 
-  // Initiale affichee quand il n'y a pas de photo (ou si l'URL echoue)
   Widget _avatarInitial() {
     return Center(
       child: Text(
@@ -108,8 +107,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     super.dispose();
   }
 
-  // Ouvre l'onglet demande s'il n'est pas encore construit.
-  // Pas de lecture Firestore ici : le profil previent l'accueil via onUserChanged.
   void _onTabChanged() {
     final i = globalNavIndex.value;
     if (!_openedTabs.contains(i)) {
@@ -117,13 +114,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
+  // ✅ CORRECTION : Initialisation correcte des streams
   void _initStreams() {
     if (_currentUser == null || _notifStream != null) return;
-    _notifStream = _db
-        .collection('notifications')
-        .where('commercantId', isEqualTo: _currentUser!.id)
-        .where('lu', isEqualTo: false)
-        .snapshots();
+    
+    _notifStream = NotificationService.streamBroadcast();
+    
     _msgStream = _db
         .collection('messages')
         .where('commercantId', isEqualTo: _currentUser!.id)
@@ -132,7 +128,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         .snapshots();
   }
 
-  // Precharge les autres onglets UN PAR UN, apres la fin du chargement de l'accueil
   void _preloadOtherTabs() {
     if (_tabsPreloaded) return;
     _tabsPreloaded = true;
@@ -147,7 +142,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  // Le profil s'affiche depuis le cache ; on recupere la version a jour ensuite
   Future<void> _syncUserInBackground() async {
     try {
       final fresh = await _authService.getCurrentUserData(forceRefresh: true);
@@ -155,8 +149,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {}
   }
 
-  // ETAPE 1 : la page s'affiche des que le profil est lu (cache local en priorite)
-  // ETAPE 2 : operations, stats et graphique arrivent ensuite (squelettes en attendant)
   Future<void> _loadData({bool forceRefresh = false}) async {
     try {
       final fetched = await _authService.getCurrentUserData(forceRefresh: forceRefresh);
@@ -179,7 +171,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         return;
       }
 
-            // 1) Charge la photo en mémoire (max 600 ms), puis on affiche la page
       final photoUrl = user.photo;
       if (photoUrl != null && photoUrl.isNotEmpty) {
         try {
@@ -189,17 +180,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         if (!mounted) return;
       }
 
-      // Affichage immediat : en-tete, photo, solde, boutons
       setState(() {
         _currentUser = user;
         _isLoading = false;
       });
+      
       _initStreams();
       SaisieRapideScreen.prefetchProduits();
-      _loadMessagesPreview(); // arriere-plan, non bloquant
-      if (!forceRefresh) _syncUserInBackground(); // profil a jour, sans bloquer
+      _loadMessagesPreview();
+      if (!forceRefresh) _syncUserInBackground();
 
-      // Pull-to-refresh : on recalcule le solde (la page reste affichee)
       if (forceRefresh) {
         await _transactionService.recalculerSolde(user.id);
         final refreshed = await _authService.getCurrentUserData(forceRefresh: true);
@@ -210,8 +200,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
-      // Operations + stats + graphique
-      // Si forceRefresh : recalculerSolde vient deja de recharger depuis le serveur
       final all = await _transactionService.getTransactionsByCommercant(user.id);
       all.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
 
@@ -237,7 +225,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         _refreshTrigger++;
       });
 
-      // Une fois l'accueil complet, on prepare les autres onglets en douceur
       _preloadOtherTabs();
 
       if (BilanNotificationService.launchedFromBilan) {
@@ -520,20 +507,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
   }
+
   @override
   Widget build(BuildContext context) {
-    // ✅ Le gardien du geste retour : géré au-dessus de l'IndexedStack,
-    // donc ça s'applique à TOUS les onglets automatiquement.
     return PopScope(
-      canPop: false, // On empêche Flutter de gérer le retour lui-même
+      canPop: false,
       onPopInvoked: (didPop) async {
         if (didPop) return;
-
         if (globalNavIndex.value != 0) {
-          // Onglet autre qu'Accueil → on y retourne
           globalNavIndex.value = 0;
         } else {
-          // Accueil déjà affiché → on quitte l'app (retour écran d'accueil du téléphone)
           SystemNavigator.pop();
         }
       },
@@ -543,17 +526,57 @@ class _DashboardScreenState extends State<DashboardScreen> {
           return Scaffold(
             backgroundColor: const Color(0xFFF8F9FA),
             appBar: AppBar(
-              automaticallyImplyLeading: false, // ✅ Déjà OK, garde-le
-              title: Text(_getTitle(currentIndex),
-                  style: const TextStyle(fontWeight: FontWeight.w700)),
-              // ... le reste de ton AppBar inchangé ...
-            backgroundColor: emeraldDark,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            actions: [
-              if (currentIndex == 0)
+              automaticallyImplyLeading: false,
+              title: Text(_getTitle(currentIndex), style: const TextStyle(fontWeight: FontWeight.w700)),
+              backgroundColor: emeraldDark,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              actions: [
+                if (currentIndex == 0)
+                  // ✅ CORRECTION MAJEURE : On écoute le vrai Stream Firestore
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _notifStream,
+                    builder: (context, snapshot) {
+                      int unreadCount = 0;
+                      // ✅ On calcule le nombre de non-lus ici, à partir du snapshot
+                      if (snapshot.hasData && _currentUser != null) {
+                        unreadCount = NotificationService.unreadCount(
+                          snapshot.data!,
+                          _currentUser!.id,
+                          NotificationService.sinceFor(_currentUser!.dateCreation),
+                        );
+                      }
+                      
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.notifications_outlined),
+                            onPressed: () {
+                              globalNavIndex.value = 3;
+                            },
+                            tooltip: 'Notifications',
+                          ),
+                          if (unreadCount > 0)
+                            Positioned(
+                              right: 8, top: 8,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                                child: Text(
+                                  unreadCount > 9 ? '9+' : '$unreadCount',
+                                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
                 StreamBuilder<QuerySnapshot>(
-                  stream: _notifStream ?? const Stream.empty(),
+                  stream: _msgStream ?? const Stream.empty(),
                   builder: (context, snapshot) {
                     int unreadCount = 0;
                     if (snapshot.hasData && snapshot.data != null) {
@@ -563,11 +586,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       clipBehavior: Clip.none,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.notifications_outlined),
-                          onPressed: () {
-                            globalNavIndex.value = 3;
+                          icon: const Icon(Icons.message_outlined),
+                          onPressed: () async {
+                            await Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()));
+                            if (mounted) _loadMessagesPreview();
                           },
-                          tooltip: 'Notifications',
+                          tooltip: 'Messages',
                         ),
                         if (unreadCount > 0)
                           Positioned(
@@ -587,85 +611,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     );
                   },
                 ),
-              StreamBuilder<QuerySnapshot>(
-                stream: _msgStream ?? const Stream.empty(),
-                builder: (context, snapshot) {
-                  int unreadCount = 0;
-                  if (snapshot.hasData && snapshot.data != null) {
-                    unreadCount = snapshot.data!.docs.length;
-                  }
-                  return Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.message_outlined),
-                        onPressed: () async {
-                          await Navigator.push(context, MaterialPageRoute(builder: (_) => const MessagesScreen()));
-                          if (mounted) _loadMessagesPreview();
+              ],
+            ),
+            body: IndexedStack(
+              index: currentIndex,
+              children: [
+                _buildDashboardContent(),
+                _openedTabs.contains(1) ? BilansScreen(refreshTrigger: _refreshTrigger) : const SizedBox.shrink(),
+                _openedTabs.contains(2) ? RapportsScreen(refreshTrigger: _refreshTrigger) : const SizedBox.shrink(),
+                _openedTabs.contains(3) ? const NotificationsScreen() : const SizedBox.shrink(),
+                _openedTabs.contains(4)
+                    ? ProfilScreen(
+                        preloadedUser: _currentUser,
+                        onUserChanged: (u) {
+                          if (u != null && mounted) setState(() => _currentUser = u);
                         },
-                        tooltip: 'Messages',
-                      ),
-                      if (unreadCount > 0)
-                        Positioned(
-                          right: 8, top: 8,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
-                            constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                            child: Text(
-                              unreadCount > 9 ? '9+' : '$unreadCount',
-                              style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                        ),
-                    ],
-                  );
-                },
-              ),
-            ],
-          ),
-
-          // Seuls les onglets deja ouverts (ou precharges) sont construits
-          body: IndexedStack(
-            index: currentIndex,
-            children: [
-              _buildDashboardContent(),
-              _openedTabs.contains(1)
-                  ? BilansScreen(refreshTrigger: _refreshTrigger)
-                  : const SizedBox.shrink(),
-              _openedTabs.contains(2)
-                  ? RapportsScreen(refreshTrigger: _refreshTrigger)
-                  : const SizedBox.shrink(),
-              _openedTabs.contains(3)
-                  ? const NotificationsScreen()
-                  : const SizedBox.shrink(),
-              _openedTabs.contains(4)
-                  ? ProfilScreen(
-                      preloadedUser: _currentUser,
-                      // Le profil previent l'accueil quand la photo ou les infos changent
-                      onUserChanged: (u) {
-                        if (u != null && mounted) setState(() => _currentUser = u);
-                      },
-                    )
-                  : const SizedBox.shrink(),
-            ],
-          ),
-
-          bottomNavigationBar: CustomBottomNav(
-            currentIndex: currentIndex,
-            onTap: (index) {
-              globalNavIndex.value = index;
-            },
-          ),
-        );
-      },
-    ),
-    );
+                      )
+                    : const SizedBox.shrink(),
+              ],
+            ),
+            bottomNavigationBar: CustomBottomNav(
+              currentIndex: currentIndex,
+              onTap: (index) {
+                globalNavIndex.value = index;
+              },
+            ),
+          ); // Fin du Scaffold
+        }, // Fin du builder
+      ), // Fin du ValueListenableBuilder
+    ); // Fin du PopScope
   }
 
   Widget _buildDashboardContent() {
-    // Tant que le profil n'est pas lu : squelette qui ressemble au dashboard
     if (_currentUser == null) {
       if (_isLoading) return _buildDashboardSkeleton();
       return Center(
@@ -694,7 +671,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Row(
                     children: [
-                      // Avatar en cache, apparition immediate (la photo ne bloque plus la page)
                       Container(
                         width: 52, height: 52,
                         decoration: BoxDecoration(
@@ -706,11 +682,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           child: (_currentUser!.photo != null && _currentUser!.photo!.isNotEmpty)
                               ? CachedNetworkImage(
                                   imageUrl: _currentUser!.photo!,
-                                  width: 52,
-                                  height: 52,
-                                  fit: BoxFit.cover,
-                                  fadeInDuration: Duration.zero,
-                                  fadeOutDuration: Duration.zero,
+                                  width: 52, height: 52, fit: BoxFit.cover,
+                                  fadeInDuration: Duration.zero, fadeOutDuration: Duration.zero,
                                   placeholder: (_, __) => const SizedBox.shrink(),
                                   errorWidget: (_, __, ___) => _avatarInitial(),
                                 )
@@ -746,16 +719,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             const Text('Solde total', style: TextStyle(color: Colors.white70, fontSize: 14)),
                             const Spacer(),
                             IconButton(
-                              icon: Icon(
-                                _isBalanceVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-                                color: Colors.white70,
-                                size: 22,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  _isBalanceVisible = !_isBalanceVisible;
-                                });
-                              },
+                              icon: Icon(_isBalanceVisible ? Icons.visibility_rounded : Icons.visibility_off_rounded, color: Colors.white70, size: 22),
+                              onPressed: () => setState(() => _isBalanceVisible = !_isBalanceVisible),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                               tooltip: _isBalanceVisible ? 'Masquer le solde' : 'Afficher le solde',
@@ -767,9 +732,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           fit: BoxFit.scaleDown,
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            _isBalanceVisible
-                                ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA'
-                                : '•••••• FCFA',
+                            _isBalanceVisible ? '${_formatAmount(_currentUser!.soldeActuel ?? 0)} FCFA' : '•••••• FCFA',
                             style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.bold),
                           ),
                         ),
@@ -788,7 +751,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
@@ -799,19 +761,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => _ouvrirSaisie(isVente: true),
                       child: Container(
                         height: 110,
-                        decoration: BoxDecoration(
-                          color: terracotta,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [BoxShadow(color: terracotta.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.payments_rounded, color: Colors.white, size: 38),
-                            SizedBox(height: 8),
-                            Text("J'AI VENDU", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+                        decoration: BoxDecoration(color: terracotta, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: terracotta.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))]),
+                        child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.payments_rounded, color: Colors.white, size: 38), SizedBox(height: 8), Text("J'AI VENDU", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
                       ),
                     ),
                   ),
@@ -821,19 +772,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onTap: () => _ouvrirSaisie(isVente: false),
                       child: Container(
                         height: 110,
-                        decoration: BoxDecoration(
-                          color: brickRed,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [BoxShadow(color: brickRed.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))],
-                        ),
-                        child: const Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.shopping_cart_rounded, color: Colors.white, size: 38),
-                            SizedBox(height: 8),
-                            Text("J'AI DÉPENSÉ", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
+                        decoration: BoxDecoration(color: brickRed, borderRadius: BorderRadius.circular(20), boxShadow: [BoxShadow(color: brickRed.withOpacity(0.35), blurRadius: 12, offset: const Offset(0, 4))]),
+                        child: const Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.shopping_cart_rounded, color: Colors.white, size: 38), SizedBox(height: 8), Text("J'AI DÉPENSÉ", style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold))]),
                       ),
                     ),
                   ),
@@ -841,20 +781,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
             ),
           ),
-
-          if (_latestAdminMessage != null &&
-              _latestAdminMessage!['isFromAdmin'] == true &&
-              _showAdminMessage)
+          if (_latestAdminMessage != null && _latestAdminMessage!['isFromAdmin'] == true && _showAdminMessage)
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
                 child: Container(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.blue.shade200),
-                  ),
+                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(16), border: Border.all(color: Colors.blue.shade200)),
                   child: Row(
                     children: [
                       Expanded(
@@ -862,11 +795,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           onTap: _openMessagesScreen,
                           child: Row(
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle),
-                                child: const Icon(Icons.admin_panel_settings, color: Colors.blue, size: 24),
-                              ),
+                              Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade100, shape: BoxShape.circle), child: const Icon(Icons.admin_panel_settings, color: Colors.blue, size: 24)),
                               const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
@@ -877,11 +806,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                         const Text('Message de l\'admin', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black87)),
                                         if (_unreadMessagesCount > 0) ...[
                                           const SizedBox(width: 6),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(color: terracotta, borderRadius: BorderRadius.circular(8)),
-                                            child: const Text('Nouveau', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-                                          ),
+                                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: terracotta, borderRadius: BorderRadius.circular(8)), child: const Text('Nouveau', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold))),
                                         ]
                                       ],
                                     ),
@@ -898,124 +823,61 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, size: 18, color: Colors.grey),
-                        onPressed: () => setState(() => _showAdminMessage = false),
-                        tooltip: 'Masquer ce message',
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
+                      IconButton(icon: const Icon(Icons.close, size: 18, color: Colors.grey), onPressed: () => setState(() => _showAdminMessage = false), tooltip: 'Masquer ce message', padding: EdgeInsets.zero, constraints: const BoxConstraints()),
                     ],
                   ),
                 ),
               ),
             ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Cette semaine', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
-                  const SizedBox(height: 10),
-                  _buildWeekChart(),
-                ],
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Text('Cette semaine', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
+                const SizedBox(height: 10),
+                _buildWeekChart(),
+              ]),
             ),
           ),
-
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                _dataLoaded ? 'Dernières opérations (${_recentTransactions.length})' : 'Dernières opérations',
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937)),
-              ),
+              child: Text(_dataLoaded ? 'Dernières opérations (${_recentTransactions.length})' : 'Dernières opérations', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1F2937))),
             ),
           ),
-
           const SliverToBoxAdapter(child: SizedBox(height: 8)),
-
           !_dataLoaded
               ? SliverToBoxAdapter(child: _buildTransactionsSkeleton())
               : _recentTransactions.isEmpty
                   ? const SliverToBoxAdapter(
                       child: Padding(
                         padding: EdgeInsets.all(40),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Text('📭', style: TextStyle(fontSize: 52)),
-                              SizedBox(height: 12),
-                              Text('Aucune opération pour l\'instant', style: TextStyle(color: Colors.grey, fontSize: 15), textAlign: TextAlign.center),
-                              SizedBox(height: 8),
-                              Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center),
-                            ],
-                          ),
-                        ),
+                        child: Center(child: Column(children: [Text('📭', style: TextStyle(fontSize: 52)), SizedBox(height: 12), Text('Aucune opération pour l\'instant', style: TextStyle(color: Colors.grey, fontSize: 15), textAlign: TextAlign.center), SizedBox(height: 8), Text('Appuie sur J\'AI VENDU ou J\'AI DÉPENSÉ', style: TextStyle(color: Colors.grey, fontSize: 13), textAlign: TextAlign.center)])),
                       ),
                     )
                   : SliverList(
-                      delegate: SliverChildBuilderDelegate(
-                        (context, index) => _buildTransactionCard(_recentTransactions[index]),
-                        childCount: _recentTransactions.length,
-                      ),
+                      delegate: SliverChildBuilderDelegate((context, index) => _buildTransactionCard(_recentTransactions[index]), childCount: _recentTransactions.length),
                     ),
-
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: GestureDetector(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HistoriqueScreen()),
-                  );
-                },
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoriqueScreen())),
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.grey.shade200),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.03),
-                        blurRadius: 4,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'Voir tout l\'historique',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: emeraldDark,
-                        ),
-                      ),
-                      SizedBox(width: 8),
-                      Icon(Icons.arrow_forward_rounded, size: 18, color: emeraldDark),
-                    ],
-                  ),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200), boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 4, offset: const Offset(0, 2))]),
+                  child: const Row(mainAxisAlignment: MainAxisAlignment.center, children: [Text('Voir tout l\'historique', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: emeraldDark)), SizedBox(width: 8), Icon(Icons.arrow_forward_rounded, size: 18, color: emeraldDark)]),
                 ),
               ),
             ),
           ),
-
           const SliverToBoxAdapter(child: SizedBox(height: 110)),
         ],
       ),
     );
   }
 
-  // Squelette de chargement (forme du dashboard)
   Widget _buildDashboardSkeleton() {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade300,
@@ -1028,47 +890,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 20),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
-                  const SizedBox(width: 14),
-                  Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))),
-                ],
-              ),
+              child: Row(children: [Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)))), const SizedBox(width: 14), Expanded(child: Container(height: 110, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20))))]),
             ),
             const SizedBox(height: 20),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(height: 160, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
-            ),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 16), child: Container(height: 160, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)))),
             const SizedBox(height: 20),
-            ...List.generate(
-              4,
-              (_) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-                child: Container(height: 74, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
-              ),
-            ),
+            ...List.generate(4, (_) => Padding(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 5), child: Container(height: 74, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))))),
           ],
         ),
       ),
     );
   }
 
-  // Squelette de la liste des operations
   Widget _buildTransactionsSkeleton() {
     return Shimmer.fromColors(
       baseColor: Colors.grey.shade200,
       highlightColor: Colors.grey.shade100,
       child: Column(
-        children: List.generate(
-          4,
-          (_) => Container(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
-            height: 74,
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-          ),
-        ),
+        children: List.generate(4, (_) => Container(margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5), height: 74, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)))),
       ),
     );
   }
@@ -1086,24 +925,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildWeekChart() {
     final theme = Theme.of(context);
-
-    // Pendant le chargement : espace reserve, sans message trompeur
     if (!_dataLoaded) return const SizedBox(height: 160);
-
     if (_weekData.isEmpty) {
-      return Container(
-        height: 140,
-        decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16)),
-        child: const Center(child: Text('📊 Aucune donnée cette semaine', style: TextStyle(color: Colors.grey))),
-      );
+      return Container(height: 140, decoration: BoxDecoration(color: theme.cardColor, borderRadius: BorderRadius.circular(16)), child: const Center(child: Text('📊 Aucune donnée cette semaine', style: TextStyle(color: Colors.grey))));
     }
-
     final maxValue = _weekData.fold<double>(0, (max, day) {
       final r = day['recettes'] as double;
       final d = day['depenses'] as double;
       return r > max ? r : (d > max ? d : max);
     });
-
     return Container(
       height: 160,
       padding: const EdgeInsets.all(16),
@@ -1116,18 +946,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           final depenses = day['depenses'] as double;
           final hR = maxValue > 0 ? (recettes / maxValue) * 100 : 0.0;
           final hD = maxValue > 0 ? (depenses / maxValue) * 100 : 0.0;
-
           return Column(
             mainAxisAlignment: MainAxisAlignment.end,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Container(width: 14, height: hR.clamp(3.0, 100.0), decoration: BoxDecoration(color: emeraldDark, borderRadius: BorderRadius.circular(4))),
-                  const SizedBox(width: 3),
-                  Container(width: 14, height: hD.clamp(3.0, 100.0), decoration: BoxDecoration(color: brickRed, borderRadius: BorderRadius.circular(4))),
-                ],
-              ),
+              Row(crossAxisAlignment: CrossAxisAlignment.end, children: [Container(width: 14, height: hR.clamp(3.0, 100.0), decoration: BoxDecoration(color: emeraldDark, borderRadius: BorderRadius.circular(4))), const SizedBox(width: 3), Container(width: 14, height: hD.clamp(3.0, 100.0), decoration: BoxDecoration(color: brickRed, borderRadius: BorderRadius.circular(4)))]),
               const SizedBox(height: 6),
               Text(day['jour'] as String, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: theme.colorScheme.onSurface.withOpacity(0.7))),
             ],
@@ -1144,7 +966,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final now = DateTime.now();
     final isToday = transaction.dateCreation.year == now.year && transaction.dateCreation.month == now.month && transaction.dateCreation.day == now.day;
     final isYesterday = transaction.dateCreation.day == now.day - 1 && transaction.dateCreation.month == now.month && transaction.dateCreation.year == now.year;
-
     final displayDate = isToday ? 'Aujourd\'hui, $timeStr' : (isYesterday ? 'Hier, $timeStr' : dateStr);
 
     String displayDescription = transaction.description ?? transaction.categorie;
@@ -1159,19 +980,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
         decoration: BoxDecoration(
           color: theme.cardColor,
           borderRadius: BorderRadius.circular(14),
-          border: Border(
-            left: BorderSide(color: transaction.estRecette ? emeraldDark : brickRed, width: 4),
-          ),
+          border: Border(left: BorderSide(color: transaction.estRecette ? emeraldDark : brickRed, width: 4)),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6, offset: const Offset(0, 2))],
         ),
         child: Row(
           children: [
             Container(
               width: 48, height: 48,
-              decoration: BoxDecoration(
-                color: transaction.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
+              decoration: BoxDecoration(color: transaction.estRecette ? emeraldDark.withOpacity(0.1) : brickRed.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
               child: Center(child: Text(_getCategoryIcon(transaction.categorie), style: const TextStyle(fontSize: 24))),
             ),
             const SizedBox(width: 12),
@@ -1188,10 +1004,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(width: 8),
             FittedBox(
               fit: BoxFit.scaleDown,
-              child: Text(
-                '${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: transaction.estRecette ? emeraldDark : brickRed),
-              ),
+              child: Text('${transaction.estRecette ? '+' : '-'}${_formatAmount(transaction.montant)} F', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: transaction.estRecette ? emeraldDark : brickRed)),
             ),
             const SizedBox(width: 4),
             const Icon(Icons.chevron_right_rounded, color: Colors.grey, size: 20),

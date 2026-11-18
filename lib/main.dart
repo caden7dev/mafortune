@@ -46,8 +46,6 @@ import 'screens/admin/stats_screen.dart';
 import 'screens/admin/settings_screen.dart';
 import 'screens/admin/notifications_screen.dart';
 
-// Core & Widgets
-import 'widgets/screenshot_wrapper.dart';
 
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
@@ -166,7 +164,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
                 maxScaleFactor: 1.1,
               ),
             ),
-            child: ScreenshotWrapper(child: child!),
+                      child: child!,
           ),
 
           home: const SplashScreen(),

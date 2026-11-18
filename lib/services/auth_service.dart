@@ -105,7 +105,6 @@ class AuthService {
       final docId = query.docs.first.id;
       
       // Mise à jour du PIN dans Firestore
-      // ⚠️ Assure-toi que le champ s'appelle bien 'codePin' dans ta base de données
       await _firestore.collection('utilisateurs').doc(docId).update({
         'codePin': newPin, 
         'derniereSynchronisation': FieldValue.serverTimestamp(),
@@ -157,7 +156,11 @@ class AuthService {
         googleLie: false,
       );
 
-      await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).set(utilisateur.toFirestore());
+      // ✅ CORRECTION : On force l'écriture du Timestamp serveur pour dateCreation
+      await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).set({
+        ...utilisateur.toFirestore(),
+        'dateCreation': FieldValue.serverTimestamp(),
+      });
 
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
@@ -377,7 +380,11 @@ class AuthService {
           googleLie: true,
         );
 
-        await docRef.set(utilisateur.toFirestore());
+        // ✅ CORRECTION : On force l'écriture du Timestamp serveur pour dateCreation
+        await docRef.set({
+          ...utilisateur.toFirestore(),
+          'dateCreation': FieldValue.serverTimestamp(),
+        });
         await docRef.update({
           'googleEmail': googleUser.email,
           'googleDisplayName': googleUser.displayName,
@@ -496,7 +503,12 @@ class AuthService {
         googleLie: false,
       );
 
-      await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).set(utilisateur.toFirestore());
+      // ✅ CORRECTION : On force l'écriture du Timestamp serveur pour dateCreation
+      await _firestore.collection('utilisateurs').doc(userCredential.user!.uid).set({
+        ...utilisateur.toFirestore(),
+        'dateCreation': FieldValue.serverTimestamp(),
+      });
+      
       _cachedUser = utilisateur;
       _cachedUserId = utilisateur.id;
 

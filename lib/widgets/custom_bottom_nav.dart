@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../screens/commercant/notifications_screen.dart';
-import '../core/utils/global_nav.dart'; // ✅ Chemin corrigé
+import '../core/utils/global_nav.dart';
+import '../services/auth_service.dart';
+import '../services/notification_service.dart';
 
-class CustomBottomNav extends StatelessWidget {
+class CustomBottomNav extends StatefulWidget {
   final int currentIndex;
   final Function(int) onTap;
 
@@ -14,11 +15,37 @@ class CustomBottomNav extends StatelessWidget {
   });
 
   @override
+  State<CustomBottomNav> createState() => _CustomBottomNavState();
+}
+
+class _CustomBottomNavState extends State<CustomBottomNav> {
+  // Nombre de notifications non lues POUR CET UTILISATEUR (créé une seule fois)
+  Stream<int>? _unreadStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _initUnreadStream();
+  }
+
+  Future<void> _initUnreadStream() async {
+    final user = await AuthService().getCurrentUserData();
+    if (user == null || !mounted) return;
+
+    final since = NotificationService.sinceFor(user.dateCreation);
+    setState(() {
+      _unreadStream = NotificationService.streamBroadcast().map(
+        (snap) => NotificationService.unreadCount(snap, user.id, since),
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // ✅ Détecte dynamiquement si on est en mode sombre
+    // Détecte dynamiquement si on est en mode sombre
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
-    // ✅ Couleurs adaptatives selon le thème
+
+    // Couleurs adaptatives selon le thème
     final bgColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
     final shadowColor = isDark ? Colors.black.withOpacity(0.5) : Colors.black.withOpacity(0.05);
     final selectedColor = const Color(0xFF0B4F36); // Vert Émeraude (identique dans les deux modes)
@@ -28,30 +55,23 @@ class CustomBottomNav extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: bgColor, // ✅ Couleur dynamique
+        color: bgColor,
         boxShadow: [
           BoxShadow(
-            color: shadowColor, // ✅ Ombre adaptative
+            color: shadowColor,
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),
         ],
       ),
       padding: EdgeInsets.only(bottom: bottomPadding),
-      child: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .where('audience', whereIn: ['Tous', 'Commerçants'])
-            .where('lu', isEqualTo: false)
-            .snapshots(),
+      child: StreamBuilder<int>(
+        stream: _unreadStream ?? const Stream<int>.empty(),
         builder: (context, snapshot) {
-          int unreadCount = 0;
-          if (snapshot.hasData && snapshot.data != null) {
-            unreadCount = snapshot.data!.docs.length;
-          }
+          final unreadCount = snapshot.data ?? 0;
 
           return BottomNavigationBar(
-            currentIndex: currentIndex,
+            currentIndex: widget.currentIndex,
             onTap: (index) {
               if (index == 3) {
                 // L'onglet Notifications reste une page poussée (avec sa propre flèche retour)
@@ -62,14 +82,14 @@ class CustomBottomNav extends StatelessWidget {
                   ),
                 );
               } else {
-                // ✅ CORRECTION : On met à jour l'index global ET on revient au Dashboard existant
+                // On met à jour l'index global ET on revient au Dashboard existant
                 globalNavIndex.value = index;
                 Navigator.popUntil(context, ModalRoute.withName('/dashboard'));
               }
             },
             type: BottomNavigationBarType.fixed,
             selectedItemColor: selectedColor,
-            unselectedItemColor: unselectedColor, // ✅ Couleur dynamique
+            unselectedItemColor: unselectedColor,
             selectedFontSize: 12,
             unselectedFontSize: 12,
             elevation: 0,

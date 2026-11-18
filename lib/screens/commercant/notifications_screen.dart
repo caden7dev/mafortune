@@ -2,13 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/auth_service.dart';
+import '../../services/notification_service.dart';
 import 'messages_screen.dart';
 
-// 🎨 CHARTE GRAPHIQUE MA FORTUNE (Mobile)
+// CHARTE GRAPHIQUE MA FORTUNE (Mobile)
 const Color emeraldDark = Color(0xFF0B4F36);   // Vert Émeraude Sombre
 const Color terracotta = Color(0xFFD96B43);    // Terre Cuite (Actions, Alertes douces)
 const Color brickRed = Color(0xFFB91C1C);      // Rouge Brique (Suppression, Erreurs)
 const Color textDark = Color(0xFF222222);      // Gris anthracite très foncé
+
+typedef _NotifDoc = QueryDocumentSnapshot<Map<String, dynamic>>;
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
@@ -17,102 +20,132 @@ class NotificationsScreen extends StatefulWidget {
   State<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends State<NotificationsScreen>
-    with SingleTickerProviderStateMixin {
+class _NotificationsScreenState extends State<NotificationsScreen> {
   final AuthService _authService = AuthService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  String? _currentUserId;
+  // Stream créé UNE SEULE fois (plus de réabonnement à chaque setState)
+  late final Stream<QuerySnapshot<Map<String, dynamic>>> _stream;
+
+  String? _uid;
+  late DateTime _since;// date de création du compte (avec marge)
+
   bool _isMarkingAll = false;
-  String? _errorMessage;
-  
-  // ✅ NOUVEAU : Pour éviter d'afficher la vue "Vide" pendant le tout premier chargement
   bool _isFirstLoad = true;
 
-  // Cache local pour éviter les rebuilds inutiles
-  List<QueryDocumentSnapshot> _cachedNotifications = [];
+  List<_NotifDoc> _cachedNotifications = [];
   final Set<String> _optimisticReadIds = {};
+  final Set<String> _hiddenIds = {};
 
   @override
   void initState() {
     super.initState();
-    _loadCurrentUserId();
+    _stream = NotificationService.streamBroadcast();
+    _loadUser();
   }
 
-  Future<void> _loadCurrentUserId() async {
-    final user = _authService.currentUser;
-    if (mounted) {
-      setState(() => _currentUserId = user?.uid);
-    }
+    Future<void> _loadUser() async {
+    final user = await _authService.getCurrentUserData();
+    if (!mounted) return;
+    setState(() {
+      _uid = user?.id ?? _authService.currentUser?.uid;
+      // Comme sinceFor retourne maintenant un DateTime (non null), ça matche parfaitement avec 'late DateTime _since'
+      _since = NotificationService.sinceFor(user?.dateCreation); 
+    });
   }
 
-  // ─── MARQUER UNE NOTIFICATION COMME LUE ────────────────────────────────
-  Future<void> _markAsRead(String notificationId, {bool showFeedback = true}) async {
-    if (_optimisticReadIds.contains(notificationId)) return;
+  // ─── NOTIFICATIONS VISIBLES POUR CET UTILISATEUR ───────────────────────
+  List<_NotifDoc> _visible(QuerySnapshot<Map<String, dynamic>> snap) {
+    final uid = _uid!;
+    final list = snap.docs
+        .where((d) =>
+            !_hiddenIds.contains(d.id) &&
+            NotificationService.isVisible(d.data(), uid, _since))
+        .toList();
 
-    setState(() => _optimisticReadIds.add(notificationId));
-    if (showFeedback) HapticFeedback.lightImpact();
+    list.sort((a, b) {
+      final ta = a.data()['dateCreation'];
+      final tb = b.data()['dateCreation'];
+      final da = ta is Timestamp ? ta.toDate() : DateTime.now();
+      final db = tb is Timestamp ? tb.toDate() : DateTime.now();
+      return db.compareTo(da);
+    });
+    return list;
+  }
+
+  bool _isRead(_NotifDoc doc) {
+    if (_optimisticReadIds.contains(doc.id)) return true;
+    return NotificationService.isRead(doc.data(), _uid ?? '');
+  }
+
+  void _showError(Object e) {
+    if (!mounted) return;
+    final denied = e is FirebaseException && e.code == 'permission-denied';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          denied
+              ? 'Action refusée par le serveur. Vérifie les règles Firestore de la collection notifications.'
+              : 'Erreur : $e',
+          style: const TextStyle(fontSize: 15),
+        ),
+        backgroundColor: brickRed,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        margin: const EdgeInsets.all(16),
+      ),
+    );
+  }
+
+  // ─── MARQUER UNE NOTIFICATION COMME LUE (pour cet utilisateur) ─────────
+  Future<void> _markAsRead(String id) async {
+    final uid = _uid;
+    if (uid == null || _optimisticReadIds.contains(id)) return;
+
+    setState(() => _optimisticReadIds.add(id));
+    HapticFeedback.lightImpact();
 
     try {
-      await _firestore
-          .collection('notifications')
-          .doc(notificationId)
-          .update({'lu': true});
-          
-      if (mounted) setState(() {});
+      await NotificationService.markRead(id, uid);
     } catch (e) {
-      setState(() => _optimisticReadIds.remove(notificationId));
       debugPrint('❌ Erreur marquage lu: $e');
+      if (mounted) setState(() => _optimisticReadIds.remove(id));
+      _showError(e);
     }
   }
 
   // ─── MARQUER TOUTES LES NOTIFICATIONS COMME LUES ───────────────────────
   Future<void> _markAllAsRead() async {
-    if (_currentUserId == null) return;
+    final uid = _uid;
+    if (uid == null || _isMarkingAll) return;
+
+    final unread = _cachedNotifications.where((d) => !_isRead(d)).toList();
+
+    if (unread.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('✅ Aucune notification à marquer'),
+          backgroundColor: emeraldDark,
+        ),
+      );
+      return;
+    }
+
+    final ids = unread.map((d) => d.id).toList();
+    setState(() {
+      _isMarkingAll = true;
+      _optimisticReadIds.addAll(ids); // affichage immédiat
+    });
 
     try {
-      final snapshot = await _firestore
-          .collection('notifications')
-          .where('audience', whereIn: ['Tous', 'Commerçants'])
-          .where('lu', isEqualTo: false)
-          .get();
-
-      final unreadDocs = snapshot.docs.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final userIds = (data['userIds'] as List<dynamic>?) ?? [];
-        final audience = data['audience'] as String? ?? '';
-
-        if (audience == 'Tous' || audience == 'Commerçants') return true;
-        return userIds.contains(_currentUserId);
-      }).toList();
-
-      if (unreadDocs.isEmpty) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('✅ Aucune notification à marquer'),
-              backgroundColor: emeraldDark,
-            ),
-          );
-        }
-        return;
-      }
-
-      setState(() => _isMarkingAll = true);
-
-      final batch = _firestore.batch();
-      int count = 0;
-      for (var doc in unreadDocs) {
-        if (count >= 450) break;
-        batch.update(doc.reference, {'lu': true});
-        _optimisticReadIds.add(doc.id);
-        count++;
-      }
-      await batch.commit();
+      // Sans réseau, l'écriture reste en attente : on ne bloque pas l'écran
+      await NotificationService.markManyRead(
+        unread.map((d) => d.reference).toList(),
+        uid,
+      ).timeout(const Duration(seconds: 8), onTimeout: () {});
 
       if (mounted) {
         HapticFeedback.mediumImpact();
-        setState(() {});
+        final count = ids.length;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -128,17 +161,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       }
     } catch (e) {
       debugPrint('❌ Erreur marquage tout lu: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('❌ Erreur : ${e.toString()}', style: const TextStyle(fontSize: 15)),
-            backgroundColor: brickRed,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
+      if (mounted) setState(() => _optimisticReadIds.removeAll(ids));
+      _showError(e);
     } finally {
       if (mounted) setState(() => _isMarkingAll = false);
     }
@@ -217,10 +241,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 ? const SizedBox(
                     width: 20,
                     height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                   )
                 : const Text(
                     'Tout lire',
@@ -233,121 +254,111 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _firestore
-            .collection('notifications')
-            .where('audience', whereIn: ['Tous', 'Commerçants'])
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError && _cachedNotifications.isEmpty) {
-            return _buildErrorView('Impossible de charger les notifications', 'Vérifiez votre connexion internet.');
-          }
+      body: _uid == null
+          ? const Center(child: CircularProgressIndicator(color: emeraldDark))
+          : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _stream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError && _cachedNotifications.isEmpty) {
+                  return _buildErrorView(
+                    'Impossible de charger les notifications',
+                    'Vérifiez votre connexion internet.',
+                  );
+                }
 
-          // ✅ CORRECTION DU CLIGNOTEMENT : 
-          // Si c'est le tout premier chargement et qu'on n'a pas encore de données, 
-          // on affiche un petit loader élégant au lieu de la vue "Pas de notifications".
-          if (_isFirstLoad && !snapshot.hasData && _cachedNotifications.isEmpty) {
-            return const Center(
-              child: CircularProgressIndicator(color: emeraldDark),
-            );
-          }
+                // Évite d'afficher la vue "Vide" pendant le tout premier chargement
+                if (_isFirstLoad && !snapshot.hasData && _cachedNotifications.isEmpty) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: emeraldDark),
+                  );
+                }
 
-          List<QueryDocumentSnapshot> notifications = [];
-          if (snapshot.hasData) {
-            _isFirstLoad = false; // ✅ On a reçu des données, on ne montrera plus le loader initial
-            
-            notifications = List.from(snapshot.data!.docs);
-            notifications.sort((a, b) {
-              final dateA = (a.data() as Map<String, dynamic>)['dateCreation'] as Timestamp?;
-              final dateB = (b.data() as Map<String, dynamic>)['dateCreation'] as Timestamp?;
-              if (dateA == null || dateB == null) return 0;
-              return dateB.compareTo(dateA);
-            });
-            _cachedNotifications = notifications;
-          } else {
-            notifications = _cachedNotifications;
-          }
+                List<_NotifDoc> notifications;
+                if (snapshot.hasData) {
+                  _isFirstLoad = false;
+                  notifications = _visible(snapshot.data!);
+                  _cachedNotifications = notifications;
+                } else {
+                  notifications = _cachedNotifications;
+                }
 
-          if (notifications.isEmpty) {
-            return _buildEmptyView();
-          }
+                if (notifications.isEmpty) {
+                  return _buildEmptyView();
+                }
 
-          final unreadCount = notifications.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final isRead = (data['lu'] == true) || _optimisticReadIds.contains(doc.id);
-            return !isRead;
-          }).length;
+                final unreadCount = notifications.where((d) => !_isRead(d)).length;
 
-          return RefreshIndicator(
-            onRefresh: () async {
-              await Future.delayed(const Duration(milliseconds: 500));
-              setState(() => _cachedNotifications = []);
-            },
-            color: emeraldDark,
-            child: Column(
-              children: [
-                if (unreadCount > 0)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: terracotta.withOpacity(0.1),
-                      border: Border(bottom: BorderSide(color: terracotta.withOpacity(0.2))),
-                    ),
-                    child: Row(
-                      children: [
+                return RefreshIndicator(
+                  // Le flux est en direct : le geste sert seulement de confirmation visuelle
+                  onRefresh: () async {
+                    await Future.delayed(const Duration(milliseconds: 500));
+                  },
+                  color: emeraldDark,
+                  child: Column(
+                    children: [
+                      if (unreadCount > 0)
                         Container(
-                          width: 8, height: 8,
-                          decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '$unreadCount message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}',
-                            style: TextStyle(color: terracotta, fontSize: 15, fontWeight: FontWeight.w600),
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: terracotta.withOpacity(0.1),
+                            border: Border(bottom: BorderSide(color: terracotta.withOpacity(0.2))),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 8,
+                                height: 8,
+                                decoration: const BoxDecoration(color: terracotta, shape: BoxShape.circle),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  '$unreadCount message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}',
+                                  style: const TextStyle(color: terracotta, fontSize: 15, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                              TextButton(
+                                onPressed: _isMarkingAll ? null : _markAllAsRead,
+                                style: TextButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                                  minimumSize: const Size(0, 32),
+                                  foregroundColor: terracotta,
+                                ),
+                                child: const Text(
+                                  'Tout lire',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        TextButton(
-                          onPressed: _markAllAsRead,
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 12), 
-                            minimumSize: const Size(0, 32),
-                            foregroundColor: terracotta,
-                          ),
-                          child: const Text(
-                            'Tout lire',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          ),
+                      Expanded(
+                        child: ListView.builder(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+                          itemCount: notifications.length,
+                          itemBuilder: (context, index) {
+                            return _buildNotificationTile(notifications[index]);
+                          },
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final doc = notifications[index];
-                      return _buildNotificationTile(doc);
-                    },
-                  ),
-                ),
-              ],
+                );
+              },
             ),
-          );
-        },
-      ),
     );
   }
 
   // ─── TILE DE NOTIFICATION ──────────────────────────────────────────────
-  Widget _buildNotificationTile(QueryDocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
-    final date = (data['dateCreation'] as Timestamp?)?.toDate() ?? DateTime.now();
-    final title = data['title'] ?? 'Notification';
-    final message = data['message'] ?? '';
-    final isRead = (data['lu'] == true) || _optimisticReadIds.contains(doc.id);
+  Widget _buildNotificationTile(_NotifDoc doc) {
+    final data = doc.data();
+    final ts = data['dateCreation'];
+    final date = ts is Timestamp ? ts.toDate() : DateTime.now();
+    final title = (data['title'] ?? 'Notification').toString();
+    final message = (data['message'] ?? '').toString();
+    final isRead = _isRead(doc);
     final emoji = _getNotifEmoji(title);
 
     return Dismissible(
@@ -360,19 +371,21 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         padding: const EdgeInsets.only(right: 20),
         child: const Icon(Icons.delete_outline_rounded, color: Colors.white, size: 28),
       ),
-      confirmDismiss: (direction) async => await _confirmDelete(doc.id),
+      confirmDismiss: (direction) async {
+        await _confirmHide(doc.id);
+        return false; // la liste se met à jour toute seule via _hiddenIds
+      },
       child: GestureDetector(
-        onTap: () async {
-          await _markAsRead(doc.id);
-          
+        onTap: () {
+          // Sans await : l'ouverture d'un écran ne dépend pas du réseau
+          _markAsRead(doc.id);
+
           final titleLower = title.toLowerCase();
           if (titleLower.contains('message') || titleLower.contains('support') || titleLower.contains('💬')) {
-            if (mounted) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const MessagesScreen()),
-              );
-            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const MessagesScreen()),
+            );
           }
         },
         child: AnimatedContainer(
@@ -476,17 +489,23 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     );
   }
 
-  // ─── CONFIRMATION SUPPRESSION ──────────────────────────────────────────
-  Future<bool> _confirmDelete(String notificationId) async {
+  // ─── MASQUER (pour cet utilisateur seulement, sans supprimer le document) ──
+  Future<void> _confirmHide(String notificationId) async {
+    final uid = _uid;
+    if (uid == null) return;
+
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Supprimer ?', style: TextStyle(fontWeight: FontWeight.bold, color: textDark)),
-        content: const Text('Voulez-vous supprimer cette notification ?', style: TextStyle(fontSize: 15, color: textDark)),
+        content: const Text(
+          'Cette notification ne s\'affichera plus pour vous.',
+          style: TextStyle(fontSize: 15, color: textDark),
+        ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false), 
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Annuler', style: TextStyle(color: textDark)),
           ),
           ElevatedButton(
@@ -501,22 +520,25 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       ),
     );
 
-    if (result == true) {
-      try {
-        await _firestore.collection('notifications').doc(notificationId).delete();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('🗑️ Notification supprimée'), 
-              backgroundColor: brickRed,
-            ),
-          );
-        }
-      } catch (e) {
-        debugPrint('Erreur suppression: $e');
+    if (result != true || !mounted) return;
+
+    setState(() => _hiddenIds.add(notificationId));
+    try {
+      await NotificationService.hideForUser(notificationId, uid)
+          .timeout(const Duration(seconds: 8), onTimeout: () {});
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🗑️ Notification supprimée'),
+            backgroundColor: brickRed,
+          ),
+        );
       }
+    } catch (e) {
+      debugPrint('Erreur masquage: $e');
+      if (mounted) setState(() => _hiddenIds.remove(notificationId));
+      _showError(e);
     }
-    return false;
   }
 
   // ─── VUE ERREUR ────────────────────────────────────────────────────────
